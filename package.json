@@ -1,0 +1,17 @@
+{
+  "name": "ba-advisory-desk",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "vercel dev",
+    "smoke": "powershell -ExecutionPolicy Bypass -File \"../Private Build Assets/tests/smoke-tests.ps1\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "stripe": "^17.7.0",
+    "resend": "^4.1.2"
+  },
+  "devDependencies": {
+    "vercel": "^41.7.8"
+  }
+}
