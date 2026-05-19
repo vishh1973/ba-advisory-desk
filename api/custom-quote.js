@@ -14,6 +14,36 @@ function normalizeText(value, fallback = "") {
   return String(value || fallback).trim();
 }
 
+function readHeader(req, name) {
+  const headers = req.headers || {};
+  return headers[name] || headers[name.toLowerCase()];
+}
+
+function readBearerToken(req) {
+  const header = readHeader(req, "authorization") || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+async function getVerifiedOrganizationId(req, supabase, requestedOrganizationId) {
+  if (!requestedOrganizationId) return null;
+
+  const token = readBearerToken(req);
+  if (!token) return null;
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(token);
+  if (userError || !userData?.user?.id) return null;
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("organization_id")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+
+  if (profileError || !profile?.organization_id) return null;
+  return profile.organization_id === requestedOrganizationId ? requestedOrganizationId : null;
+}
+
 function buildAdminEmail(payload, quoteId) {
   const rows = [
     ["Quote ID", quoteId || "Pending"],
@@ -55,8 +85,10 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const supabase = getSupabaseAdmin();
+    const organizationId = await getVerifiedOrganizationId(req, supabase, body.organizationId || null);
     const payload = {
-      organizationId: body.organizationId || null,
+      organizationId,
       contactName: normalizeText(body.contactName),
       workEmail: normalizeText(body.workEmail || body.email).toLowerCase(),
       organizationName: normalizeText(body.organizationName || body.companyName),
@@ -72,7 +104,6 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const supabase = getSupabaseAdmin();
     const { data: quote, error } = await supabase
       .from("custom_quote_requests")
       .insert({

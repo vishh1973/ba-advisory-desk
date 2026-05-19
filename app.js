@@ -52,6 +52,9 @@ const state = {
   adminPaymentHistory: [],
   adminAuditEvents: [],
   session: null,
+  adminAccess: false,
+  adminStatusChecked: false,
+  adminStatusUserId: "",
   adminQueue: [],
   adminClients: [],
   selectedAdminClientId: localStorage.getItem("baad-admin-client-id") || "",
@@ -215,31 +218,41 @@ function getCreditAlertState(balance = state.creditsLeft, threshold = state.cred
   };
 }
 
+function getEmptyAdminClient() {
+  return {
+    id: "",
+    selectionId: "",
+    name: "Select a client",
+    email: "",
+    balance: 0,
+    lowCreditThreshold: config.lowCreditThreshold,
+    status: "No client selected",
+  };
+}
+
 function getSelectedAdminClient() {
+  if (!state.selectedAdminClientId) return getEmptyAdminClient();
   return (
     state.adminClients.find((client) => client.selectionId === state.selectedAdminClientId || client.id === state.selectedAdminClientId) ||
-    state.adminClients[0] ||
-    {
-      id: "",
-      name: state.client.company || "Client workspace",
-      email: state.client.email || config.supportEmail,
-      balance: state.creditsLeft,
-      lowCreditThreshold: state.creditThreshold,
-      status: state.creditsLeft <= 0 ? "depleted" : "active",
-    }
+    getEmptyAdminClient()
   );
 }
 
 function syncSelectedAdminClientToState() {
   const client = getSelectedAdminClient();
   state.selectedAdminClientId = client.selectionId || client.id || "";
-  state.creditsLeft = Number(client.balance ?? state.creditsLeft);
-  state.creditThreshold = Number(client.lowCreditThreshold ?? state.creditThreshold);
+  state.creditsLeft = Number(client.balance ?? 0);
+  state.creditThreshold = Number(client.lowCreditThreshold ?? config.lowCreditThreshold);
+}
+
+function hasSelectedAdminClient() {
+  const client = getSelectedAdminClient();
+  return Boolean(client.id);
 }
 
 function updateSelectedAdminClientCreditAccount(balance, lowCreditThreshold) {
   const client = getSelectedAdminClient();
-  if (!state.adminClients.length) return;
+  if (!state.adminClients.length || !client.id) return;
   client.balance = balance;
   client.lowCreditThreshold = lowCreditThreshold;
 }
@@ -274,11 +287,11 @@ function isDueSoon(value) {
 }
 
 function getClientEmail(client) {
-  return client?.email || client?.billingEmail || client?.billing_email || state.client.email || config.supportEmail;
+  return client?.email || client?.billingEmail || client?.billing_email || "";
 }
 
 function getClientMailto(client, subject = "BA Advisory Desk follow up") {
-  const email = getClientEmail(client);
+  const email = getClientEmail(client) || config.supportEmail;
   return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}`;
 }
 
@@ -296,15 +309,16 @@ function getAuditDetailText(detail) {
 }
 
 function isSelectedAdminRecord(record, client = getSelectedAdminClient()) {
+  if (!client?.id && !client?.email && !client?.name) return false;
   if (!client?.id && client?.email) return record.clientEmail === client.email || record.client_email === client.email;
   if (!client?.id && client?.name) return record.client === client.name;
-  if (!client?.id) return true;
+  if (!client?.id) return false;
   return record.organizationId === client.id || record.organization_id === client.id;
 }
 
 function getSelectedAdminQueueItems() {
   const selectedClient = getSelectedAdminClient();
-  if (!selectedClient.id && !selectedClient.email && !selectedClient.name) return state.adminQueue;
+  if (!selectedClient.id && !selectedClient.email && !selectedClient.name) return [];
   return state.adminQueue.filter((item) => isSelectedAdminRecord(item, selectedClient));
 }
 
@@ -647,6 +661,7 @@ function isEmailVerified() {
 
 function resetClientWorkspaceState() {
   state.session = null;
+  resetAdminAccessState();
   state.client = { email: "", company: "" };
   state.requests = [];
   state.deliverables = [];
@@ -721,7 +736,9 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
     setAuthStatus("Please verify your email before opening the client workspace.");
     return;
   }
-  if (isAdminUser()) {
+  const isAdmin = await refreshAdminStatus(true);
+  updateAuthUi();
+  if (isAdmin) {
     localStorage.removeItem("baad-post-auth-route");
     window.location.hash = "admin";
     return;
@@ -753,11 +770,36 @@ function isPasswordRecoveryUrl() {
 }
 
 function isAdminUser() {
-  return Boolean(
-    getUserEmail() &&
-      config.adminEmail &&
-      getNormalizedEmail(getUserEmail()) === getNormalizedEmail(config.adminEmail)
-  );
+  return Boolean(state.session?.user && state.adminAccess);
+}
+
+function resetAdminAccessState() {
+  state.adminAccess = false;
+  state.adminStatusChecked = false;
+  state.adminStatusUserId = "";
+}
+
+async function refreshAdminStatus(force = false) {
+  const userId = getUserId();
+  if (!state.session?.user || !userId) {
+    resetAdminAccessState();
+    return false;
+  }
+
+  if (!force && state.adminStatusChecked && state.adminStatusUserId === userId) {
+    return state.adminAccess;
+  }
+
+  const result = await fetchAdminApi("/api/admin-session");
+  state.adminAccess = Boolean(result.ok && result.data?.isAdmin);
+  state.adminStatusChecked = true;
+  state.adminStatusUserId = userId;
+  return state.adminAccess;
+}
+
+async function ensureAdminAccess() {
+  if (isAdminUser()) return true;
+  return refreshAdminStatus(true);
 }
 
 function setAuthStatus(message) {
@@ -846,6 +888,7 @@ async function initAuth() {
   if (state.session?.user) {
     await loadSignedInProfile();
     await loadClientWorkspaceData();
+    await refreshAdminStatus(true);
     if (state.passwordRecovery) {
       window.history.replaceState(null, "", `${window.location.pathname}#login`);
     } else {
@@ -872,7 +915,13 @@ async function initAuth() {
     if (session?.user) {
       await loadSignedInProfile();
       await loadClientWorkspaceData();
+      await refreshAdminStatus(true);
+      updateAuthUi();
       await routeAfterAuth();
+      render();
+    } else {
+      resetAdminAccessState();
+      updateAuthUi();
       render();
     }
   });
@@ -1511,7 +1560,7 @@ async function getNextDeliverableVersionNumber(deliverableId) {
 }
 
 async function uploadAdminDeliverable() {
-  if (!supabaseClient || !isAdminUser()) {
+  if (!supabaseClient || !(await ensureAdminAccess())) {
     return { ok: false, error: "Please sign in with the administrator email before uploading deliverables." };
   }
 
@@ -1527,6 +1576,24 @@ async function uploadAdminDeliverable() {
 
   if (!organizationId) {
     return { ok: false, error: "Select a client before uploading a deliverable." };
+  }
+
+  if (!state.adminClients.some((client) => client.id === organizationId)) {
+    return { ok: false, error: "The selected client workspace is not available for upload." };
+  }
+
+  if (
+    requestId &&
+    !state.adminQueue.some((item) => item.queueType === "request" && item.organizationId === organizationId && (item.requestId === requestId || item.id === requestId))
+  ) {
+    return { ok: false, error: "The selected request does not belong to this client." };
+  }
+
+  if (
+    existingDeliverableId &&
+    !state.adminDeliverables.some((deliverable) => deliverable.id === existingDeliverableId && deliverable.organizationId === organizationId)
+  ) {
+    return { ok: false, error: "The selected deliverable does not belong to this client." };
   }
 
   if (!files.length) {
@@ -1674,6 +1741,15 @@ function setView() {
   if ((key === "admin" || protectedViews.includes(key)) && state.session?.user && !state.passwordRecovery && !isEmailVerified()) {
     key = "login";
     setAuthStatus("Please verify your email before opening the secure workspace.");
+  }
+
+  if (key === "admin" && state.session?.user && !state.adminStatusChecked) {
+    key = "login";
+    setAuthStatus("Verifying administrator access.");
+    refreshAdminStatus(true).then(() => {
+      updateAuthUi();
+      setView();
+    });
   }
 
   if (key === "admin" && state.session?.user && !isAdminUser()) {
@@ -2036,7 +2112,7 @@ function renderCreditHistory() {
 }
 
 function renderCreditControls() {
-  if (state.adminClients.length) {
+  if (state.adminClients.length && state.selectedAdminClientId) {
     syncSelectedAdminClientToState();
   }
   const used = Math.max(0, config.starterCredits - state.creditsLeft);
@@ -2059,7 +2135,8 @@ function renderCreditControls() {
   const uploadRequestSelect = document.querySelector("#adminUploadRequestSelect");
   const existingDeliverableSelect = document.querySelector("#adminExistingDeliverableSelect");
   const selectedClient = getSelectedAdminClient();
-  const selectedQueueItems = getSelectedAdminQueueItems();
+  const hasAdminClient = hasSelectedAdminClient();
+  const selectedQueueItems = hasAdminClient ? getSelectedAdminQueueItems() : [];
   const selectedDeliverables = state.adminDeliverables.filter((deliverable) => isSelectedAdminRecord(deliverable, selectedClient));
   const pendingCount = selectedQueueItems.filter((item) => isPendingStatus(item.status)).length;
   const pausedCount =
@@ -2088,51 +2165,53 @@ function renderCreditControls() {
   if (clientSelect) {
     const clients = state.adminClients.length
       ? state.adminClients
-      : state.adminQueue.length
-      ? state.adminQueue.reduce((list, item) => {
-          if (!list.some((client) => client.id === item.organizationId && client.name === item.client)) {
-            list.push({ id: item.organizationId || "", name: item.client || "Client workspace" });
-          }
-          return list;
-        }, [])
-      : [{ id: "", name: state.client.company || "Client workspace" }];
-    clientSelect.innerHTML = clients
-      .map((client) => {
-        const value = client.selectionId || client.id || "";
-        const selected = value === state.selectedAdminClientId || client.id === state.selectedAdminClientId ? " selected" : "";
-        const balance = client.balance ?? state.creditsLeft;
-        return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(client.name)} (${escapeHtml(balance)} credits)</option>`;
-      })
-      .join("");
+      : state.adminQueue
+          .filter((item) => item.organizationId)
+          .reduce((list, item) => {
+            if (!list.some((client) => client.id === item.organizationId)) {
+              list.push({ id: item.organizationId, selectionId: item.organizationId, name: item.client || "Client workspace", balance: 0 });
+            }
+            return list;
+          }, []);
+    clientSelect.innerHTML =
+      `<option value="">Select a client</option>` +
+      clients
+        .map((client) => {
+          const value = client.selectionId || client.id || "";
+          const selected = value === state.selectedAdminClientId || client.id === state.selectedAdminClientId ? " selected" : "";
+          const balance = client.balance ?? 0;
+          return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(client.name)} (${escapeHtml(balance)} credits)</option>`;
+        })
+        .join("");
   }
   if (deliverableSelect) {
-    const deliverables = state.adminQueue.filter(
+    const deliverables = hasAdminClient ? state.adminQueue.filter(
       (item) => item.queueType === "request" && isSelectedAdminRecord(item, selectedClient) && (item.requestId || item.id)
-    );
-    const source = deliverables.length ? deliverables : state.requests;
+    ) : [];
+    const source = deliverables.length ? deliverables : [];
     deliverableSelect.innerHTML = source
       .map((request) => {
         const value = request.requestId || request.id;
         const label = `${request.id || request.requestCode || value} - ${request.type || "Client request"}`;
         return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
       })
-      .join("");
+      .join("") || `<option value="">Select a client request</option>`;
   }
   const uploadClientId = uploadClientSelect?.value || state.selectedAdminClientId;
   if (uploadClientSelect) {
-    const clients = state.adminClients.length
-      ? state.adminClients
-      : [{ id: state.selectedAdminClientId || "", name: state.client.company || "Client workspace", balance: state.creditsLeft }];
-    uploadClientSelect.innerHTML = clients
-      .map((client) => {
-        const selected = client.id === (uploadClientId || state.selectedAdminClientId) ? " selected" : "";
-        return `<option value="${escapeHtml(client.id)}"${selected}>${escapeHtml(client.name)}</option>`;
-      })
-      .join("");
+    const clients = state.adminClients.filter((client) => client.id);
+    uploadClientSelect.innerHTML =
+      `<option value="">Select a client</option>` +
+      clients
+        .map((client) => {
+          const selected = client.id === (uploadClientId || state.selectedAdminClientId) ? " selected" : "";
+          return `<option value="${escapeHtml(client.id)}"${selected}>${escapeHtml(client.name)}</option>`;
+        })
+        .join("");
   }
   if (uploadRequestSelect) {
     const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const requests = state.adminQueue.filter((item) => item.queueType === "request" && (!selectedOrg || item.organizationId === selectedOrg));
+    const requests = selectedOrg ? state.adminQueue.filter((item) => item.queueType === "request" && item.organizationId === selectedOrg) : [];
     uploadRequestSelect.innerHTML =
       `<option value="">No linked request</option>` +
       requests
@@ -2141,7 +2220,7 @@ function renderCreditControls() {
   }
   if (existingDeliverableSelect) {
     const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const deliverables = state.adminDeliverables.filter((deliverable) => !selectedOrg || deliverable.organizationId === selectedOrg);
+    const deliverables = selectedOrg ? state.adminDeliverables.filter((deliverable) => deliverable.organizationId === selectedOrg) : [];
     existingDeliverableSelect.innerHTML =
       `<option value="">Create new deliverable</option>` +
       deliverables
@@ -2158,16 +2237,27 @@ function renderCreditControls() {
   const pausedDeliverables = document.querySelector("#adminPausedCount");
   const messageClient = document.querySelector("#adminMessageClient");
   const queueMessageClient = document.querySelector("#adminQueueMessageClient");
-  if (selectedName) selectedName.textContent = selectedClient.name || "Client workspace";
-  if (selectedEmail) selectedEmail.textContent = getClientEmail(selectedClient) || "No billing email recorded.";
-  if (selectedCredits) selectedCredits.textContent = state.creditsLeft;
-  if (selectedStatus) selectedStatus.textContent = creditAlertState.summary;
+  if (selectedName) selectedName.textContent = hasAdminClient ? selectedClient.name || "Client workspace" : "Select a client";
+  if (selectedEmail) selectedEmail.textContent = hasAdminClient ? getClientEmail(selectedClient) || "No billing email recorded." : "Choose a client before taking action.";
+  if (selectedCredits) selectedCredits.textContent = hasAdminClient ? state.creditsLeft : "0";
+  if (selectedStatus) selectedStatus.textContent = hasAdminClient ? creditAlertState.summary : "No client selected";
   if (dueDeliverables) dueDeliverables.textContent = dueCount;
   if (pendingRequests) pendingRequests.textContent = pendingCount;
   if (shippedDeliverables) shippedDeliverables.textContent = shippedCount;
   if (pausedDeliverables) pausedDeliverables.textContent = pausedCount;
-  if (messageClient) messageClient.href = getClientMailto(selectedClient, "BA Advisory Desk follow up");
-  if (queueMessageClient) queueMessageClient.href = getClientMailto(selectedClient, "BA Advisory Desk request follow up");
+  [messageClient, queueMessageClient].forEach((link) => {
+    if (!link) return;
+    const clientEmail = getClientEmail(selectedClient);
+    if (hasAdminClient && clientEmail) {
+      link.href = getClientMailto(selectedClient, link === messageClient ? "BA Advisory Desk follow up" : "BA Advisory Desk request follow up");
+      link.classList.remove("disabled");
+      link.removeAttribute("aria-disabled");
+    } else {
+      link.href = "#";
+      link.classList.add("disabled");
+      link.setAttribute("aria-disabled", "true");
+    }
+  });
   if (adminAlertCount) adminAlertCount.textContent = creditAlertState.count;
   if (adminAlertSummary) adminAlertSummary.textContent = creditAlertState.summary;
   if (adminCreditAlertPanel) {
@@ -2397,14 +2487,23 @@ function applyAdminQueueData(data) {
     });
   });
   state.adminClients = Array.from(adminClientMap.values());
-  if (!state.selectedAdminClientId && state.adminClients[0]) {
-    state.selectedAdminClientId = state.adminClients[0].selectionId || state.adminClients[0].id || "";
+  if (state.selectedAdminClientId) {
+    const stillValid = state.adminClients.some(
+      (client) => client.selectionId === state.selectedAdminClientId || client.id === state.selectedAdminClientId
+    );
+    if (!stillValid) {
+      state.selectedAdminClientId = "";
+    }
   }
 
-  if (creditAccounts.length) {
-    const creditAccount = creditAccounts[0];
-    state.creditsLeft = Number(creditAccount.balance ?? state.creditsLeft);
-    state.creditThreshold = Number(creditAccount.low_credit_threshold ?? creditAccount.lowCreditThreshold ?? state.creditThreshold);
+  if (creditAccounts.length && state.selectedAdminClientId) {
+    const creditAccount =
+      creditAccounts.find((account) => account.organization_id === state.selectedAdminClientId) ||
+      creditAccounts.find((account) => account.id === state.selectedAdminClientId);
+    if (creditAccount) {
+      state.creditsLeft = Number(creditAccount.balance ?? state.creditsLeft);
+      state.creditThreshold = Number(creditAccount.low_credit_threshold ?? creditAccount.lowCreditThreshold ?? state.creditThreshold);
+    }
   }
 
   const paymentHistory = data.paymentHistory || data.payments || paymentOrders || [];
@@ -2458,7 +2557,7 @@ function applyAdminQueueData(data) {
 }
 
 async function loadAdminQueue() {
-  if (!supabaseClient || !isAdminUser()) return;
+  if (!supabaseClient || !(await ensureAdminAccess())) return;
 
   setAdminStatus("Loading admin queue.");
   const result = await fetchAdminApi("/api/admin-queue");
@@ -2525,7 +2624,7 @@ async function signInWithOAuthProvider(provider) {
   }
 
   if (state.session?.user) {
-    window.location.hash = isAdminUser() ? "admin" : "dashboard";
+    window.location.hash = (await ensureAdminAccess()) ? "admin" : "dashboard";
     return;
   }
 
@@ -2536,7 +2635,7 @@ async function signInWithOAuthProvider(provider) {
     return;
   }
 
-  setPendingPostAuthRoute(getNormalizedEmail(state.client.email) === getNormalizedEmail(config.adminEmail) ? "admin" : "dashboard");
+  setPendingPostAuthRoute(getPendingPostAuthRoute() || "dashboard");
 
   const options = {
     redirectTo: getAuthRedirectUrl(),
@@ -2633,7 +2732,7 @@ async function signInWithPassword() {
   }
 
   state.client.email = email;
-  setPendingPostAuthRoute(getNormalizedEmail(email) === getNormalizedEmail(config.adminEmail) ? "admin" : "dashboard");
+  setPendingPostAuthRoute("dashboard");
   saveState();
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -2644,14 +2743,15 @@ async function signInWithPassword() {
   state.session = data.session;
   await loadSignedInProfile();
   await loadClientWorkspaceData();
+  const isAdmin = await refreshAdminStatus(true);
   updateAuthUi();
   if (!isEmailVerified()) {
     window.location.hash = "login";
     return { ok: false, error: "Please verify your email before opening the client workspace." };
   }
   const organizationId = await getProfileOrganizationId();
-  window.location.hash = isAdminUser() ? "admin" : organizationId ? "dashboard" : "profile";
-  return { ok: true, message: isAdminUser() ? "Signed in. Admin access is available." : "Signed in. Your workspace is ready." };
+  window.location.hash = isAdmin ? "admin" : organizationId ? "dashboard" : "profile";
+  return { ok: true, message: isAdmin ? "Signed in. Admin access is available." : "Signed in. Your workspace is ready." };
 }
 
 async function sendPasswordResetInstructions() {
@@ -2949,8 +3049,16 @@ document.addEventListener("click", async (event) => {
   try {
 
   if (target.dataset.adminAction === "focus-upload" || target.dataset.adminAction === "prepare-upload") {
+    if (!(await ensureAdminAccess())) {
+      showToast("Please sign in with the administrator email before uploading deliverables.");
+      return;
+    }
     const organizationId = target.dataset.organizationId || getSelectedAdminClient().id || "";
     const requestId = target.dataset.requestId || "";
+    if (!organizationId) {
+      showToast("Select a client before uploading a deliverable.");
+      return;
+    }
     if (organizationId) {
       state.selectedAdminClientId = organizationId;
       syncSelectedAdminClientToState();
@@ -2967,8 +3075,14 @@ document.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.adminAction === "save-credit-settings") {
-    if (!isAdminUser()) {
+    if (!(await ensureAdminAccess())) {
       showToast("Please sign in with the administrator email before saving.");
+      return;
+    }
+
+    const selectedClient = getSelectedAdminClient();
+    if (!selectedClient.id) {
+      showToast("Select a client before changing credits.");
       return;
     }
 
@@ -2976,7 +3090,6 @@ document.addEventListener("click", async (event) => {
     const lowCreditThreshold = Math.max(0, Number(document.querySelector("#adminLowCreditThreshold").value || 0));
     const adjustment = Number(document.querySelector("#adminCreditAdjustment").value || 0);
     const reason = document.querySelector("#adminCreditAdjustmentReason").value.trim();
-    const selectedClient = getSelectedAdminClient();
     const currentBalance = Number(selectedClient.balance ?? state.creditsLeft);
     const currentThreshold = Number(selectedClient.lowCreditThreshold ?? state.creditThreshold);
     const targetBalance = Math.max(0, balance + adjustment);
@@ -3036,12 +3149,17 @@ document.addEventListener("click", async (event) => {
         (item.requestId === requestId || item.id === requestId)
     );
     const request = state.requests.find((item) => item.id === requestId);
+    if (!selectedClient.id) {
+      showToast("Select a client before updating a deliverable.");
+      return;
+    }
+
     if (!request && !adminItem) {
       showToast("Select a deliverable before saving.");
       return;
     }
 
-    if (!isAdminUser()) {
+    if (!(await ensureAdminAccess())) {
       showToast("Please sign in with the administrator email before saving.");
       return;
     }

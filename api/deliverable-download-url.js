@@ -1,4 +1,5 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
+const { requireAdmin } = require("./_lib/adminAuth");
 
 const DEFAULT_EXPIRY_SECONDS = 60 * 30;
 const MAX_EXPIRY_SECONDS = 60 * 60 * 4;
@@ -25,14 +26,6 @@ function readExpirySeconds(value) {
   const seconds = Number(value || DEFAULT_EXPIRY_SECONDS);
   if (!Number.isFinite(seconds) || seconds < 60) return DEFAULT_EXPIRY_SECONDS;
   return Math.min(Math.floor(seconds), MAX_EXPIRY_SECONDS);
-}
-
-function isAdminEmail(email) {
-  return Boolean(
-    email &&
-      process.env.ADMIN_EMAIL &&
-      String(email).trim().toLowerCase() === String(process.env.ADMIN_EMAIL).trim().toLowerCase()
-  );
 }
 
 module.exports = async function handler(req, res) {
@@ -90,7 +83,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const admin = isAdminEmail(userData.user.email);
+    const admin = await requireAdmin(req);
     if (!admin) {
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")

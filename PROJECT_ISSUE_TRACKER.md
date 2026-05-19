@@ -34,6 +34,13 @@ Last updated: 2026-05-19
 - [x] Mobile dropdown overflow and login tap target issues tightened.
 - [x] Final Supabase hardening script added to restrict profile organization, role, trusted email, and verification changes.
 - [x] SQL tables and RLS added for client revision uploads and client deliverable messages.
+- [x] Admin access now uses a protected server check instead of trusting a browser email match.
+- [x] Admin client selection no longer silently falls back to the first client.
+- [x] Admin message links are disabled when the selected client has no known email.
+- [x] Admin deliverable upload now checks that the selected request and deliverable belong to the selected client.
+- [x] Deliverable download admin access now uses the same protected admin authorization helper as other admin APIs.
+- [x] Public custom quote submissions can no longer attach themselves to a client workspace without a signed in matching account.
+- [x] Public footer now includes Privacy, Terms, and Refund Policy links.
 
 ## Addressed In Hosted Configuration
 
@@ -68,6 +75,7 @@ Last updated: 2026-05-19
 - [ ] Add server-backed client message notification to admin.
 - [ ] Add client confirmation email for custom quote requests.
 - [ ] Move admin deliverable release to a server route.
+- [ ] Add atomic deliverable release route for upload, version assignment, credit deduction, status update, and client notification.
 - [ ] Make deliverable version assignment database controlled.
 - [ ] Make credit deduction part of the deliverable release flow.
 - [ ] Fix reserve versus consume credit semantics so credits are not double deducted.
