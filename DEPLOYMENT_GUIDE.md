@@ -132,7 +132,7 @@ Confirmation and password reset templates have been updated with BA Advisory Des
 
 ## Google sign-in setup
 
-Google sign-in is hidden in the app until Supabase Google auth is configured.
+Google sign-in is enabled after the Google Cloud OAuth client is configured in Supabase.
 
 1. Go to Google Cloud Credentials:
    https://console.cloud.google.com/apis/credentials
@@ -149,7 +149,7 @@ https://ydkehgqitnxmvqoicxwu.supabase.co/auth/v1/callback
 7. Go to Supabase Auth Providers:
    https://supabase.com/dashboard/project/ydkehgqitnxmvqoicxwu/auth/providers
 8. Enable Google and paste the Client ID and Client Secret.
-9. Change `authProviders.google` to `true` in `config.js` after a successful sign-in test.
+9. Keep `authProviders.google` set to `true` in `config.js` after a successful sign-in test.
 
 ## Apple sign-in setup
 

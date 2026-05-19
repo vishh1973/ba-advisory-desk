@@ -45,6 +45,7 @@ Last updated: 2026-05-19
 - [x] Supabase custom SMTP configured through Resend using `support@baadvisorydesk.com`.
 - [x] Supabase account confirmation email template branded as BA Advisory Desk.
 - [x] Supabase password reset email template branded as BA Advisory Desk.
+- [x] Google OAuth client created in Google Cloud and Google sign-in enabled in Supabase.
 
 ## In Progress
 
@@ -53,12 +54,11 @@ Last updated: 2026-05-19
 - [x] Credit settings: allow low-credit threshold updates without forcing a manual credit adjustment.
 - [x] Admin actions: add duplicate-click protection and idempotency keys.
 - [x] Public copy cleanup: remove any provider wording that is not client friendly.
-- [ ] Supabase configuration: enable Google sign-in after Google Cloud OAuth client is created.
+- [x] Supabase configuration: enable Google sign-in after Google Cloud OAuth client is created.
 - [ ] Supabase configuration: enable Apple sign-in after Apple Developer service credentials are created.
 
 ## Pending External Configuration
 
-- [ ] Configure Google sign-in in Google Cloud and Supabase.
 - [ ] Configure Apple sign-in after Apple Developer credentials are available.
 
 ## Pending Architecture Work
