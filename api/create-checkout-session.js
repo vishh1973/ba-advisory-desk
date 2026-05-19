@@ -138,6 +138,10 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
 }
 
 async function reconcileCheckoutSession({ supabase, stripe, bearerToken, sessionId }) {
+  if (!bearerToken) {
+    return { status: 401, body: { error: "Please sign in before confirming checkout." } };
+  }
+
   if (!sessionId) {
     return { status: 400, body: { error: "Checkout session was not provided." } };
   }
