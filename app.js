@@ -544,8 +544,31 @@ const checkoutProductMap = {
   creditTopUp: "credit_top_up",
 };
 
-async function openConfiguredCheckout(linkKey, fallbackMessage) {
+async function requireClientWorkspaceForCheckout() {
+  if (!state.session?.user) {
+    window.location.hash = "login";
+    showToast("Please sign in before purchasing a recurring credit package so credits can be assigned to your workspace.");
+    return null;
+  }
+
+  const organizationId = await getProfileOrganizationId();
+  if (!organizationId) {
+    window.location.hash = "profile";
+    showToast("Please complete the client profile before purchasing a recurring credit package.");
+    return null;
+  }
+
+  return organizationId;
+}
+
+async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
   const productType = checkoutProductMap[linkKey];
+  const organizationId = options.requireWorkspace ? await requireClientWorkspaceForCheckout() : null;
+
+  if (options.requireWorkspace && !organizationId) {
+    return false;
+  }
+
   if (productType) {
     try {
       const response = await fetch("/api/create-checkout-session", {
@@ -554,6 +577,7 @@ async function openConfiguredCheckout(linkKey, fallbackMessage) {
         body: JSON.stringify({
           productType,
           email: state.client.email,
+          organizationId,
         }),
       });
       const data = await response.json();
@@ -588,13 +612,17 @@ async function beginCheckout(type) {
   if (type === "buy-starter") {
     addAuditEvent("Checkout started", "Starter subscription checkout opened.");
     saveState();
-    await openConfiguredCheckout("starterMonthly", "Secure checkout is being prepared for Starter at $2,500 per month.");
+    await openConfiguredCheckout("starterMonthly", "Secure checkout is being prepared for Starter at $2,500 per month.", {
+      requireWorkspace: true,
+    });
   }
 
   if (type === "buy-topup") {
     addAuditEvent("Checkout started", "3 Advisory Credit top up checkout opened.");
     saveState();
-    const openedCheckout = await openConfiguredCheckout("creditTopUp", "Secure checkout is being prepared for the 3 credit top up.");
+    const openedCheckout = await openConfiguredCheckout("creditTopUp", "Secure checkout is being prepared for the 3 credit top up.", {
+      requireWorkspace: true,
+    });
     if (openedCheckout) return;
   }
 }
