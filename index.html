@@ -853,12 +853,12 @@
       <section class="view" id="view-dashboard">
         <div class="dashboard-shell">
           <aside class="sidebar">
-            <strong>Client Portal</strong>
+            <strong>Client Workspace</strong>
             <a href="#dashboard">Overview</a>
             <a href="#profile">Client Profile</a>
-            <a href="#request">New Request</a>
+            <a href="#request">Start a Request</a>
             <a href="#billing">Billing</a>
-            <a href="#dashboard">Deliverables</a>
+            <a href="#dashboard">Released Work</a>
           </aside>
           <div class="dashboard-main">
             <div class="dashboard-header">
@@ -866,13 +866,31 @@
                 <p class="eyebrow">Client workspace</p>
                 <h2 id="clientName">Your organization</h2>
               </div>
-              <a class="primary" href="#request">Submit Business Analysis Request</a>
+              <a class="primary" href="#request">Start a New Request</a>
             </div>
             <div class="tile-row">
               <article><span>Advisory Credits left</span><strong id="creditsLeft">0</strong></article>
               <article><span>Active requests</span><strong id="activeCount">1</strong></article>
               <article><span>New deliverables</span><strong id="newDeliverableCount">0</strong></article>
-              <article><span>Next renewal</span><strong>Jun 18</strong></article>
+              <article><span>Latest activity</span><strong id="clientLatestActivity">None yet</strong></article>
+            </div>
+            <div class="workspace-command-grid">
+              <article class="workspace-command-card featured">
+                <span>Next step</span>
+                <strong id="clientNextStepTitle">Set up your workspace</strong>
+                <p id="clientNextStepBody">Complete your profile, then submit the first Business Analysis request with source material.</p>
+                <a id="clientNextStepCta" class="primary small" href="#profile">Continue</a>
+              </article>
+              <article class="workspace-command-card">
+                <span>Files received</span>
+                <strong id="clientSourceFileCount">0</strong>
+                <p>Source files, revision files, and supporting uploads connected to your work.</p>
+              </article>
+              <article class="workspace-command-card">
+                <span>Released files</span>
+                <strong id="clientReleasedFileCount">0</strong>
+                <p>Client-ready deliverables available for download and review.</p>
+              </article>
             </div>
             <div class="account-panel">
               <div>
@@ -911,7 +929,16 @@
             <div class="panel">
               <div class="panel-heading">
                 <div>
-                  <h3>Ready deliverables</h3>
+                  <h3>Source files and revision uploads</h3>
+                  <p>Files you upload for requests, revisions, approvals, and supporting context stay attached to this workspace.</p>
+                </div>
+              </div>
+              <div id="clientFilesList" class="workspace-file-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Released deliverables</h3>
                   <p>Download the latest files, review version history, and confirm whether the current version is ready.</p>
                 </div>
               </div>
@@ -932,7 +959,7 @@
             <div class="panel">
               <div class="panel-heading">
                 <div>
-                  <h3>Messages and uploads</h3>
+                  <h3>Messages and files</h3>
                   <p>Send a quick note or add client files to a deliverable or request.</p>
                 </div>
               </div>
@@ -1333,22 +1360,37 @@
       <section class="view" id="view-admin">
         <div class="section-heading">
           <p class="eyebrow">Operations desk</p>
-          <h2>Review, scope, deliver, and track client work.</h2>
-          <p>Use this workspace to review new requests, prepare delivery actions, and track advisory follow up.</p>
+          <h2>Prioritize client work and release deliverables.</h2>
+          <p>Use this workspace to see the business at a glance, select a client, review their full file, manage credits, and release deliverables.</p>
         </div>
         <div class="admin-grid">
           <article>
-            <h3>New requests</h3>
-            <strong id="adminNewCount">1</strong>
-            <span>Need scoping review</span>
+            <h3>Active clients</h3>
+            <strong id="adminActiveClientCount">0</strong>
+            <span>Workspaces with activity</span>
           </article>
           <article>
-            <h3>Custom quote requests</h3>
+            <h3>Open work</h3>
+            <strong id="adminNewCount">1</strong>
+            <span>Requests, messages, and uploads</span>
+          </article>
+          <article>
+            <h3>Custom inquiries</h3>
             <strong id="adminQuoteCount">0</strong>
             <span>Discovery follow up needed</span>
           </article>
           <article>
-            <h3>Operations alerts</h3>
+            <h3>File inbox</h3>
+            <strong id="adminFileInboxCount">0</strong>
+            <span>Client files needing review</span>
+          </article>
+          <article>
+            <h3>Released work</h3>
+            <strong id="adminReadyCount">0</strong>
+            <span>Deliverables in client workspaces</span>
+          </article>
+          <article>
+            <h3>Credit alerts</h3>
             <strong id="adminAlertCount">0</strong>
             <span id="adminAlertSummary">No credit alerts</span>
           </article>
@@ -1356,6 +1398,48 @@
         <div id="adminCreditAlertPanel" class="admin-alert-panel">
           <strong>Credit account status</strong>
           <span id="adminCreditAlertText">Credit balance is healthy.</span>
+        </div>
+        <div class="admin-command-layout">
+          <article class="panel admin-portfolio-panel">
+            <div class="admin-panel-head">
+              <div>
+                <h3>Client portfolio</h3>
+                <p>Scan every client workspace before drilling into one file.</p>
+              </div>
+            </div>
+            <table id="adminClientPortfolioTable">
+              <thead>
+                <tr><th>Client</th><th>Health</th><th>Credits</th><th>Open items</th><th>Last activity</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </article>
+          <article class="panel admin-dossier-panel">
+            <div class="admin-panel-head">
+              <div>
+                <h3>Client dossier</h3>
+                <p>Profile, files, communications, deliverables, credits, and payment context for the selected client.</p>
+              </div>
+            </div>
+            <div class="dossier-grid">
+              <div class="dossier-block">
+                <span>Client profile</span>
+                <div id="adminDossierProfile"></div>
+              </div>
+              <div class="dossier-block">
+                <span>Source files and uploads</span>
+                <div id="adminDossierFiles"></div>
+              </div>
+              <div class="dossier-block">
+                <span>Released deliverables</span>
+                <div id="adminDossierDeliverables"></div>
+              </div>
+              <div class="dossier-block">
+                <span>Messages and notes</span>
+                <div id="adminDossierMessages"></div>
+              </div>
+            </div>
+          </article>
         </div>
         <div class="admin-client-summary panel">
           <div>
@@ -1392,7 +1476,7 @@
           </div>
           <div class="admin-action-row">
             <a id="adminMessageClient" class="secondary small" href="mailto:support@baadvisorydesk.com" data-mailto="admin-client">Message Client</a>
-            <button class="small" type="button" data-admin-action="focus-upload">Upload Deliverable</button>
+            <button class="small" type="button" data-admin-action="focus-upload">Release Deliverable</button>
           </div>
         </div>
         <div class="admin-workbench">
@@ -1426,7 +1510,7 @@
             </div>
           </article>
           <article class="panel">
-            <h3>Deliverable status update</h3>
+            <h3>Delivery status and credits</h3>
             <div class="admin-controls">
               <label>
                 Deliverable
@@ -1449,11 +1533,11 @@
                 <input id="adminCreditsUsed" type="number" min="0" step="1" value="1" />
               </label>
               <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a deliverable and confirm credits before shipping.</p>
-              <button type="button" data-admin-action="ship-deliverable">Save Deliverable Update</button>
+              <button type="button" data-admin-action="ship-deliverable">Save Status</button>
             </div>
           </article>
           <article class="panel">
-            <h3>Upload client deliverable</h3>
+            <h3>Release deliverable files</h3>
             <div class="admin-controls">
               <label>
                 Client
@@ -1506,14 +1590,14 @@
                 Email the client when the deliverable is ready
               </label>
               <p id="adminDeliverableUploadStatus" class="admin-inline-status">Select a client and upload files when the deliverable is ready.</p>
-              <button type="button" data-admin-action="upload-deliverable">Upload Deliverable</button>
+              <button type="button" data-admin-action="upload-deliverable">Release Files</button>
             </div>
           </article>
         </div>
         <div class="panel">
           <div class="admin-panel-head">
             <div>
-              <h3>Admin queue</h3>
+              <h3>Client work queue</h3>
               <p>Requests, quote follow up, payment checks, notifications, and paused work for the selected client.</p>
             </div>
             <a id="adminQueueMessageClient" class="secondary small" href="mailto:support@baadvisorydesk.com" data-mailto="admin-client-queue">Message Client</a>
