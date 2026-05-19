@@ -27,9 +27,9 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk</title>
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./config.js?v=4"></script>
+    <script src="./config.js?v=5"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -181,7 +181,7 @@
             </p>
             <div class="actions">
               <a class="primary" href="#pricing">View Plans</a>
-              <a class="secondary" href="#pricing">Start With $1,500 USD Sprint</a>
+              <a class="secondary" href="#pricing">Compare Sprint And Monthly Options</a>
             </div>
             <div class="hero-proof-grid" data-render="hero-proof" aria-label="Business Analysis advisory proof points">
               <article>
@@ -372,16 +372,15 @@
             <p class="eyebrow">About Us</p>
             <h2>A Business Analysis consortium built for high quality client delivery and clear outcomes.</h2>
             <p>
-              BA Advisory Desk brings together highly experienced business analysts, business transformation architects,
-              former CIOs, former CTOs, delivery leaders, and advisory specialists who understand how complex work gets approved,
-              funded, scoped, governed, and delivered.
+              BA Advisory Desk is built around a consortium model of highly experienced business analysts, transformation architects,
+              delivery leaders, and advisory specialists who understand how complex work gets approved, funded, scoped, governed, and delivered.
             </p>
             <p>
               We support software teams, consulting firms, transformation offices, product leaders, and operational teams that need
               polished Business Analysis deliverables without adding permanent headcount or entering a large consulting engagement.
             </p>
             <p>
-              Our advisory network is geographically distributed so client deliverables can be handled across time zones with practical
+              The service is designed for geographically distributed support so client deliverables can be handled across time zones with practical
               response discipline and global coverage.
             </p>
             <a
@@ -660,7 +659,7 @@
             <p class="scope-note">Up to 60 pages or 10 source files for our analysis, such as notes, drafts, transcripts, spreadsheets, slides, or process material.</p>
             <p class="scope-note">Target turnaround: 3 to 5 business days after the triage call and complete inputs.</p>
             <button data-action="buy-sprint">Start Rescue Sprint</button>
-            <p class="scope-note">After checkout, use the client workspace to complete your profile, upload files, submit the Rescue Sprint request, and track delivery.</p>
+            <p class="scope-note">Create or access your client workspace before checkout so your payment, intake, files, and delivery history stay connected.</p>
           </article>
           <article class="price-card recommended">
             <div class="badge">Best for recurring support</div>
@@ -703,6 +702,7 @@
           <p>
             Advisory Credits keep recurring work simple without turning the offer into fragmented task work. Before work starts, each request is confirmed as one defined delivery unit, a multi-credit outcome, or a custom scope.
           </p>
+          <p class="table-cue">Swipe sideways on smaller screens to view all columns.</p>
           <table>
             <thead>
               <tr>
@@ -720,6 +720,7 @@
         </div>
         <div class="comparison">
           <h3>Plan comparison</h3>
+          <p class="table-cue">Swipe sideways on smaller screens to compare all plans.</p>
           <table>
             <thead>
               <tr>
@@ -996,6 +997,7 @@
                   <label>
                     Files
                     <input id="clientUploadFiles" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" />
+                    <small>Allowed: PDF, Word, Excel, PowerPoint, PNG, JPG. Maximum: 50 MB per file. Select multiple files in one step when needed.</small>
                   </label>
                   <label>
                     Notes
@@ -1245,7 +1247,7 @@
             <label>
               Upload source files
               <input id="fileUpload" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" />
-              <small>Allowed: PDF, Word, Excel, PowerPoint, PNG, JPG. Suggested max: 50 MB per file. Hold Ctrl on Windows, or Shift for a range, to select multiple files at once.</small>
+              <small>Allowed: PDF, Word, Excel, PowerPoint, PNG, JPG. Maximum: 50 MB per file. Hold Ctrl on Windows, or Shift for a range, to select multiple files at once.</small>
             </label>
             <div class="file-list" id="fileList">No files selected yet.</div>
             <label>
@@ -1262,6 +1264,17 @@
           <p class="eyebrow">Billing</p>
           <h2>Manage Advisory Credits and checkout.</h2>
           <p>Manage your subscription, add Advisory Credits, and request a scoped invoice for larger advisory work.</p>
+        </div>
+        <div class="account-panel billing-command-panel">
+          <div>
+            <strong>Workspace billing</strong>
+            <span>Your current Advisory Credit balance is <strong id="billingCreditBalance">0</strong>. Use checkout for new purchases or the billing portal to manage an active subscription.</span>
+          </div>
+          <div class="action-row">
+            <a class="secondary" href="#dashboard">Return To Dashboard</a>
+            <button class="secondary" type="button" data-action="manage-billing">Manage Or Cancel Subscription</button>
+          </div>
+          <p id="billingManageStatus" class="form-note">Subscription management opens securely when an active Stripe customer record is available.</p>
         </div>
         <div class="billing-grid">
           <article>
@@ -1533,10 +1546,10 @@
             </div>
           </details>
           <details class="panel admin-advanced-card">
-            <summary>Delivery status and credit use</summary>
+            <summary>Request status and credit use</summary>
             <div class="admin-controls">
               <label>
-                Deliverable
+                Client request
                 <select id="adminDeliverableSelect"></select>
               </label>
               <label>
@@ -1555,7 +1568,7 @@
                 Credits used
                 <input id="adminCreditsUsed" type="number" min="0" step="1" value="1" />
               </label>
-              <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a deliverable and confirm credits before shipping.</p>
+              <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a client request and confirm credits before updating status.</p>
               <button type="button" data-admin-action="ship-deliverable">Save Status</button>
             </div>
           </details>
@@ -1611,7 +1624,7 @@
               <label>
                 Upload deliverable files
                 <input id="adminDeliverableFiles" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" />
-                <small>Upload one or more files. Each upload creates a controlled version for the selected deliverable.</small>
+                <small>Allowed: PDF, Word, Excel, PowerPoint, PNG, JPG. Maximum: 50 MB per file. Each upload creates a controlled version for the selected deliverable.</small>
               </label>
               <div class="file-list" id="adminDeliverableFileList">No deliverable files selected yet.</div>
               <label class="check-row">
@@ -1680,6 +1693,7 @@
             <label>
               Company type
               <select id="quoteCompanyType">
+                <option value="">Select company type</option>
                 <option>Software agency</option>
                 <option>SaaS company</option>
                 <option>Consulting firm</option>
@@ -1710,6 +1724,7 @@
             <label>
               Estimated budget
               <select id="quoteBudget">
+                <option value="">Select budget range</option>
                 <option>$7,500 to $15,000</option>
                 <option>$15,000 to $30,000</option>
                 <option>$30,000 plus</option>
@@ -1717,7 +1732,7 @@
             </label>
             <label>
               What needs help?
-              <textarea id="quoteSummary" rows="5">We need a senior Business Analysis review of our current delivery documentation and a roadmap for what to fix first.</textarea>
+              <textarea id="quoteSummary" rows="5" placeholder="Describe the business problem, timeline, audience, source material, and the decision or deliverable you need help with."></textarea>
             </label>
             <p id="quoteStatus" class="admin-inline-status">Send the request and we will follow up with discovery next steps.</p>
             <button type="submit">Send Custom Request</button>
@@ -1760,8 +1775,8 @@
       <span id="toastText"></span>
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
-    <script src="./content.js?v=4"></script>
-    <script src="./app.js?v=4"></script>
+    <script src="./content.js?v=5"></script>
+    <script src="./app.js?v=5"></script>
   </body>
 </html>
 

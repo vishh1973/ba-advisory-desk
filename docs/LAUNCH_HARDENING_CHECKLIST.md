@@ -4,7 +4,7 @@ Last updated: May 19, 2026
 
 ## Current Status
 
-The app has a working public site, client account flow, Google sign in, email and password account flow, Stripe checkout links, Supabase storage, client request intake, admin queue, credit ledger, admin deliverable upload, client deliverable downloads, and client messages.
+The app has a working public site, client account flow, email and password account flow, Stripe checkout links, Supabase storage, client request intake, admin queue, credit ledger, admin deliverable upload, client deliverable downloads, and client messages. Google and Apple sign in remain hidden until provider setup is fully verified.
 
 This checklist tracks what must be tightened before a confident public launch.
 
@@ -13,7 +13,7 @@ This checklist tracks what must be tightened before a confident public launch.
 - Public site uses production-facing language.
 - Public site avoids internal build language.
 - Client login menu option exists.
-- Google sign in is enabled.
+- Google and Apple sign in are hidden until provider setup is fully verified.
 - Email and password account creation exists.
 - Password reset flow exists.
 - Client profile captures company, role, country, timezone, industry, phone, and primary need.

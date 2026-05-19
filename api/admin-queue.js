@@ -2,9 +2,9 @@ const { requireAdmin } = require("./_lib/adminAuth");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 
 function readLimit(req) {
-  const value = Number(req.query?.limit || 25);
-  if (!Number.isFinite(value) || value < 1) return 25;
-  return Math.min(Math.floor(value), 100);
+  const value = Number(req.query?.limit || 100);
+  if (!Number.isFinite(value) || value < 1) return 100;
+  return Math.min(Math.floor(value), 250);
 }
 
 module.exports = async function handler(req, res) {
@@ -91,6 +91,18 @@ module.exports = async function handler(req, res) {
 
     if (deliverablesError) throw deliverablesError;
 
+    const deliverableIds = (deliverables || []).map((deliverable) => deliverable.id).filter(Boolean);
+    const { data: deliverableFiles, error: deliverableFilesError } = deliverableIds.length
+      ? await supabase
+          .from("deliverable_version_files")
+          .select("id,deliverable_version_id,deliverable_id,organization_id,file_name,file_size_bytes,created_at,deliverable_versions(version_number,status,released_at,release_note)")
+          .in("deliverable_id", deliverableIds)
+          .order("created_at", { ascending: false })
+          .limit(limit * 5)
+      : { data: [], error: null };
+
+    if (deliverableFilesError) throw deliverableFilesError;
+
     res.status(200).json({
       requests: requests.data || [],
       customQuoteRequests: quoteRequests.data || [],
@@ -104,6 +116,7 @@ module.exports = async function handler(req, res) {
       requestFiles: requestFiles.data || [],
       clientProfiles: clientProfiles.data || [],
       deliverables: deliverables || [],
+      deliverableFiles: deliverableFiles || [],
     });
   } catch (error) {
     res.status(500).json({ error: error.message || "Admin queue could not be loaded." });

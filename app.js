@@ -49,6 +49,7 @@ const state = {
   clientUploads: JSON.parse(localStorage.getItem("baad-client-uploads") || "null") || [],
   requestFiles: JSON.parse(localStorage.getItem("baad-request-files") || "null") || [],
   adminDeliverables: [],
+  adminDeliverableFiles: [],
   adminRequestFiles: [],
   adminCreditLedger: [],
   adminPaymentHistory: [],
@@ -82,6 +83,12 @@ const views = {
   "checkout-success": document.querySelector("#view-checkout-success"),
   admin: document.querySelector("#view-admin"),
   quote: document.querySelector("#view-quote"),
+};
+
+const routeAliases = {
+  messages: "dashboard",
+  files: "dashboard",
+  deliverables: "dashboard",
 };
 
 function saveState() {
@@ -202,26 +209,30 @@ function addPaymentHistory(item, amount, status) {
   state.paymentHistory = state.paymentHistory.slice(0, 20);
 }
 
+function isPaidPaymentStatus(status) {
+  const normalized = String(status || "").toLowerCase();
+  const paidStatus =
+    normalized.includes("paid") ||
+    normalized.includes("succeeded") ||
+    normalized.includes("complete") ||
+    normalized.includes("active") ||
+    normalized.includes("trialing");
+  const pendingStatus =
+    normalized.includes("started") ||
+    normalized.includes("created") ||
+    normalized.includes("open") ||
+    normalized.includes("pending") ||
+    normalized.includes("failed") ||
+    normalized.includes("cancel") ||
+    normalized.includes("expired");
+  return paidStatus && !pendingStatus;
+}
+
 function hasRecordedPayment(labelFragment) {
   const target = String(labelFragment || "").toLowerCase();
   return state.paymentHistory.some((payment) => {
     const item = String(payment.item || "").toLowerCase();
-    const status = String(payment.status || "").toLowerCase();
-    const paidStatus =
-      status.includes("paid") ||
-      status.includes("succeeded") ||
-      status.includes("complete") ||
-      status.includes("active") ||
-      status.includes("trialing");
-    const pendingStatus =
-      status.includes("started") ||
-      status.includes("created") ||
-      status.includes("open") ||
-      status.includes("pending") ||
-      status.includes("failed") ||
-      status.includes("cancel") ||
-      status.includes("expired");
-    return item.includes(target) && paidStatus && !pendingStatus;
+    return item.includes(target) && isPaidPaymentStatus(payment.status);
   });
 }
 
@@ -689,7 +700,7 @@ function applyPendingPostAuthRoute() {
   if (!state.session?.user) return;
   const pendingRoute = getPendingPostAuthRoute();
   if (!pendingRoute) return;
-  const route = isAdminUser() ? "admin" : pendingRoute;
+  const route = isAdminUser() ? "admin" : routeAliases[pendingRoute] || pendingRoute;
   localStorage.removeItem("baad-post-auth-route");
   if (route && window.location.hash.replace("#", "") !== route) {
     window.location.hash = route;
@@ -932,17 +943,28 @@ function updateAuthUi() {
   } else {
     clearPublicAuthFields();
     document.querySelector("#accountSecurityForm")?.classList.add("hidden");
-    setAuthStatus("Sign in or create an account with your work email.");
+    const requestedRoute = getPendingPostAuthRoute() || window.location.hash.replace("#", "");
+    setAuthStatus(
+      state.passwordRecovery
+        ? "Enter a new password to finish securing your account."
+        : requestedRoute === "admin"
+        ? "Please sign in with the administrator email to open the admin workspace."
+        : "Sign in or create an account with your work email."
+    );
   }
 }
 
 async function initAuth() {
+  state.passwordRecovery = isPasswordRecoveryUrl();
+  if (state.passwordRecovery && window.location.hash.replace("#", "") !== "login") {
+    window.history.replaceState(null, "", `${window.location.pathname}#login`);
+  }
+
   if (!supabaseClient) {
     setAuthStatus("Secure account access is temporarily unavailable. Please contact support for assistance.");
     return;
   }
 
-  state.passwordRecovery = isPasswordRecoveryUrl();
   const { data } = await supabaseClient.auth.getSession();
   state.session = data.session;
   if (state.session?.user) {
@@ -1322,12 +1344,14 @@ async function loadClientWorkspaceData() {
     }
 
     if (!paymentResult.error && Array.isArray(paymentResult.data)) {
-      state.paymentHistory = paymentResult.data.map((item) => ({
-        date: formatDisplayDate(item.paid_at || item.created_at),
-        item: productLabel(item.product_type),
-        amount: formatUsdFromCents(item.amount_cents, item.currency),
-        status: item.status || "Recorded",
-      }));
+      state.paymentHistory = paymentResult.data
+        .filter((item) => isPaidPaymentStatus(item.status))
+        .map((item) => ({
+          date: formatDisplayDate(item.paid_at || item.created_at),
+          item: productLabel(item.product_type),
+          amount: formatUsdFromCents(item.amount_cents, item.currency),
+          status: item.status || "Recorded",
+        }));
     }
 
     if (!requestResult.error && Array.isArray(requestResult.data)) {
@@ -1466,14 +1490,14 @@ async function uploadRequestFiles(requestId, organizationId) {
 
   let uploaded = 0;
   for (const file of files) {
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const safeName = getSafeFileName(file.name);
     const storagePath = `${userId}/${requestId}/${Date.now()}-${safeName}`;
     const { error: uploadError } = await supabaseClient.storage.from("client-files").upload(storagePath, file, {
       upsert: false,
     });
 
     if (uploadError) {
-      return { ok: false, reason: uploadError.message, uploaded };
+      return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
     }
 
     const { error: fileRecordError } = await supabaseClient.from("request_files").insert({
@@ -1487,7 +1511,7 @@ async function uploadRequestFiles(requestId, organizationId) {
     });
 
     if (fileRecordError) {
-      return { ok: false, reason: fileRecordError.message, uploaded };
+      return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
     }
 
     uploaded += 1;
@@ -1501,7 +1525,15 @@ function getAdminUploadFiles() {
 }
 
 function getSafeFileName(name) {
-  return String(name || "deliverable-file").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const cleaned = String(name || "deliverable-file")
+    .replace(/^\.+/, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/_+/g, "_")
+    .slice(0, 120);
+  const fallback = cleaned || "file";
+  const reserved = new Set(["con", "prn", "aux", "nul", "com1", "com2", "com3", "lpt1", "lpt2", "lpt3"]);
+  const stem = fallback.split(".")[0].toLowerCase();
+  return reserved.has(stem) ? `file_${fallback}` : fallback;
 }
 
 const allowedUploadExtensions = new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "png", "jpg", "jpeg"]);
@@ -1521,6 +1553,11 @@ function validateWorkspaceFiles(files) {
     return `${invalid.name} is larger than ${config.maxFileSizeMb} MB. Please reduce the file size or split the material.`;
   }
   return `${invalid.name} is not an accepted file type. Accepted files are PDF, Word, Excel, PowerPoint, PNG, and JPG.`;
+}
+
+function getPartialUploadError(fileName, uploaded, total, reason) {
+  const countText = `${uploaded} of ${total} file${total === 1 ? "" : "s"}`;
+  return `Upload stopped at ${fileName}. ${countText} were uploaded before the issue. ${reason || "Please review the file and try again."}`;
 }
 
 function getWorkspaceItems() {
@@ -1658,7 +1695,7 @@ async function saveClientUpload() {
       });
 
       if (uploadError) {
-        return { ok: false, error: uploadError.message || "File could not be uploaded." };
+        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message || "File could not be uploaded.") };
       }
 
       const { data: uploadRecord, error: recordError } = await supabaseClient
@@ -1679,7 +1716,7 @@ async function saveClientUpload() {
         .select("id")
         .single();
       if (recordError) {
-        return { ok: false, error: recordError.message || "File record could not be saved to the workspace." };
+        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, recordError.message || "File record could not be saved to the workspace.") };
       }
       entry.fileId = uploadRecord?.id || "";
       storedOnline = true;
@@ -1833,7 +1870,7 @@ async function uploadAdminDeliverable() {
       contentType: file.type || undefined,
     });
 
-    if (uploadError) return { ok: false, error: uploadError.message, uploaded };
+    if (uploadError) return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
 
     const { error: fileError } = await supabaseClient.from("deliverable_version_files").insert({
       deliverable_version_id: version.id,
@@ -1847,7 +1884,7 @@ async function uploadAdminDeliverable() {
       uploaded_by: getUserId(),
     });
 
-    if (fileError) return { ok: false, error: fileError.message, uploaded };
+    if (fileError) return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, fileError.message), uploaded };
     uploaded += 1;
   }
 
@@ -1961,7 +1998,16 @@ async function uploadAdminDeliverable() {
 function setView() {
   const rawKey = window.location.hash.replace("#", "") || "home";
   const protectedViews = ["dashboard", "profile", "request", "billing"];
-  let key = views[rawKey] ? rawKey : rawKey.startsWith("error=") ? "login" : "home";
+  const canonicalKey = routeAliases[rawKey] || rawKey;
+  if (state.passwordRecovery && canonicalKey !== "login" && !isPasswordRecoveryUrl()) {
+    state.passwordRecovery = false;
+    updateAuthUi();
+  }
+  let key = state.passwordRecovery ? "login" : views[canonicalKey] ? canonicalKey : rawKey.startsWith("error=") ? "login" : "home";
+
+  if (routeAliases[rawKey]) {
+    window.history.replaceState(null, "", `${window.location.pathname}#${key}`);
+  }
 
   if (key === "admin" && !state.session?.user) {
     setPendingPostAuthRoute("admin");
@@ -1971,6 +2017,7 @@ function setView() {
 
   if ((key === "admin" || protectedViews.includes(key)) && state.session?.user && !state.passwordRecovery && !isEmailVerified()) {
     key = "login";
+    window.history.replaceState(null, "", `${window.location.pathname}#login`);
     setAuthStatus("Please verify your email before opening the secure workspace.");
   }
 
@@ -1988,9 +2035,15 @@ function setView() {
     showToast("Admin access is restricted to the administrator email.");
   }
 
+  if (key === "login" && state.session?.user && !state.passwordRecovery && isEmailVerified()) {
+    key = isAdminUser() ? "admin" : "dashboard";
+    window.history.replaceState(null, "", `${window.location.pathname}#${key}`);
+  }
+
   if (protectedViews.includes(key) && !state.session?.user) {
     setPendingPostAuthRoute(key);
     key = "login";
+    window.history.replaceState(null, "", `${window.location.pathname}#login`);
     setAuthStatus("Please sign in before opening the client workspace.");
   }
 
@@ -2551,6 +2604,8 @@ function updateAdminReleaseReadiness() {
 function render() {
   document.querySelector("#clientName").textContent = state.client.company || "Your organization";
   document.querySelector("#creditsLeft").textContent = state.creditsLeft;
+  const billingCreditBalance = document.querySelector("#billingCreditBalance");
+  if (billingCreditBalance) billingCreditBalance.textContent = state.creditsLeft;
   document.querySelector("#activeCount").textContent = state.requests.filter((request) => !isShippedStatus(request.status)).length;
   document.querySelector("#adminNewCount").textContent = state.adminNewCount || state.requests.filter((request) => request.status === "New").length;
   document.querySelector("#adminQuoteCount").textContent = state.quoteCount;
@@ -2618,6 +2673,14 @@ function getClientNextStep() {
     };
   }
   if (state.creditsLeft <= 0 && !state.requests.length) {
+    if (hasRescueSprintAccess()) {
+      return {
+        title: "Submit your Rescue Sprint intake",
+        body: "Your Rescue Sprint purchase is recorded. Send the business goal, desired output, deadline, and source files so the advisory team can begin scoping.",
+        href: "#request",
+        cta: "Start Intake",
+      };
+    }
     return {
       title: "Choose a service package",
       body: "Start with a Rescue Sprint or monthly advisory credits, then submit source material through this workspace.",
@@ -2734,7 +2797,7 @@ function getAdminFilesForClient(client) {
 }
 
 function getAdminMessagesForClient(client) {
-  return state.adminQueue.filter((item) => item.queueType === "client-message" && isSelectedAdminRecord(item, client));
+  return state.adminQueue.filter((item) => ["client-message", "notification"].includes(item.queueType) && isSelectedAdminRecord(item, client));
 }
 
 function getAdminLastActivityForClient(client) {
@@ -2858,7 +2921,18 @@ function renderAdminClientDossier() {
     deliverables.innerHTML = rows.length
       ? rows
           .slice(0, 8)
-          .map((deliverable) => `<p><strong>${escapeHtml(deliverable.title)}</strong><br /><span>${escapeHtml(deliverable.type)} | Version ${escapeHtml(deliverable.currentVersion || 1)} | ${escapeHtml(deliverable.status)}</span></p>`)
+          .map((deliverable) => {
+            const files = state.adminDeliverableFiles.filter((file) => file.deliverableId === deliverable.id);
+            const fileHtml = files.length
+              ? files
+                  .slice(0, 5)
+                  .map(
+                    (file) => `<br /><button class="secondary small" type="button" data-download-file="${escapeHtml(file.fileId)}">${escapeHtml(file.fileName)} | Version ${escapeHtml(file.versionNumber || deliverable.currentVersion || 1)}</button>`
+                  )
+                  .join("")
+              : `<br /><span class="muted">No file rows found for this deliverable.</span>`;
+            return `<p><strong>${escapeHtml(deliverable.title)}</strong><br /><span>${escapeHtml(deliverable.type)} | Version ${escapeHtml(deliverable.currentVersion || 1)} | ${escapeHtml(deliverable.status)}</span>${fileHtml}</p>`;
+          })
           .join("")
       : `<p class="muted">${client.id ? "No deliverables have been released yet." : "No deliverables can be released until a client workspace exists."}</p>`;
   }
@@ -3043,6 +3117,7 @@ function applyAdminQueueData(data) {
   const clientMessages = data.clientMessages || [];
   const clientUploads = data.clientUploads || [];
   const requestFiles = data.requestFiles || [];
+  const deliverableFiles = data.deliverableFiles || [];
   const clientProfiles = data.clientProfiles || [];
   const profileByOrganization = new Map(
     clientProfiles
@@ -3058,7 +3133,7 @@ function applyAdminQueueData(data) {
     ...paymentOrders.map(normalizePaymentOrder),
     ...notifications.map(normalizeNotification),
     ...fallbackItems.map(normalizeAdminQueueItem),
-  ].slice(0, 25);
+  ].slice(0, 100);
   state.adminQueue = normalizedItems;
   state.adminRequestFiles = requestFiles.map(normalizeAdminRequestFile);
   state.adminNewCount = Number(data.requestCount ?? data.request_count ?? requests.length ?? 0);
@@ -3119,6 +3194,19 @@ function applyAdminQueueData(data) {
       name: file.client || "Client workspace",
       email: file.clientEmail || "",
       balance: Number(file.organizationId ? state.creditsLeft : 0),
+      lowCreditThreshold: state.creditThreshold,
+      status: "active",
+    });
+  });
+  (data.deliverables || []).forEach((deliverable) => {
+    const key = deliverable.organization_id || `deliverable-${adminClientMap.size}`;
+    if (!deliverable.organization_id || adminClientMap.has(key)) return;
+    adminClientMap.set(key, {
+      id: deliverable.organization_id,
+      selectionId: deliverable.organization_id,
+      name: `Workspace ${String(deliverable.organization_id).slice(0, 8)}`,
+      email: "",
+      balance: Number(state.creditsLeft || 0),
       lowCreditThreshold: state.creditThreshold,
       status: "active",
     });
@@ -3219,13 +3307,25 @@ function applyAdminQueueData(data) {
     createdAt: deliverable.created_at || null,
     updatedAt: deliverable.updated_at || null,
   }));
+  state.adminDeliverableFiles = deliverableFiles.map((file) => ({
+    fileId: file.id || "",
+    deliverableId: file.deliverable_id || "",
+    organizationId: file.organization_id || "",
+    versionId: file.deliverable_version_id || "",
+    versionNumber: file.deliverable_versions?.version_number || "",
+    status: file.deliverable_versions?.status || "",
+    releaseNote: file.deliverable_versions?.release_note || "",
+    fileName: file.file_name || "Deliverable file",
+    fileSize: file.file_size_bytes || 0,
+    createdAt: file.created_at || file.deliverable_versions?.released_at || null,
+  }));
 }
 
 async function loadAdminQueue() {
   if (!supabaseClient || !(await ensureAdminAccess())) return;
 
   setAdminStatus("Loading admin queue.");
-  const result = await fetchAdminApi("/api/admin-queue");
+  const result = await fetchAdminApi("/api/admin-queue?limit=100");
 
   if (!result.ok) {
     setAdminStatus(result.error || "Admin queue could not be loaded.");
@@ -3643,6 +3743,41 @@ async function beginCheckout(type, options = {}) {
     setPendingCheckoutType(type);
   }
 
+  if (type === "manage-billing") {
+    clearPendingCheckoutType();
+    const organizationId = await requireClientWorkspaceForCheckout();
+    if (!organizationId) return;
+    const status = document.querySelector("#billingManageStatus");
+    if (status) status.textContent = "Opening secure subscription management.";
+    try {
+      const accessToken = await getSessionAccessToken();
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          action: "customer_portal",
+          organizationId,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      const message = data.error || "Subscription management is not available yet for this workspace. Contact support if you need to cancel or change billing.";
+      if (status) status.textContent = message;
+      showPersistentNotice(message);
+    } catch (_error) {
+      const message = `Subscription management could not be opened. Please contact ${config.supportEmail} for billing changes.`;
+      if (status) status.textContent = message;
+      showPersistentNotice(message);
+    }
+    return;
+  }
+
   if (type === "buy-sprint") {
     addAuditEvent("Checkout started", "BA Rescue Sprint checkout opened.");
     saveState();
@@ -3865,12 +4000,12 @@ document.addEventListener("click", async (event) => {
     );
     const request = state.requests.find((item) => item.id === requestId);
     if (!selectedClient.id) {
-      showToast("Select a client before updating a deliverable.");
+      showToast("Select a client before updating a request.");
       return;
     }
 
     if (!request && !adminItem) {
-      showToast("Select a deliverable before saving.");
+      showToast("Select a client request before saving.");
       return;
     }
 
@@ -4323,6 +4458,12 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     showPersistentNotice("Please complete the business goal, target audience, desired output, deadline, and attachment description before submitting.");
     return;
   }
+  const requestFiles = Array.from(document.querySelector("#fileUpload")?.files || []);
+  const requestFileValidationError = validateWorkspaceFiles(requestFiles);
+  if (requestFileValidationError) {
+    showPersistentNotice(requestFileValidationError);
+    return;
+  }
 
   const request = {
     id: generateRequestCode(),
@@ -4355,8 +4496,8 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     result = await writeToSupabase("requests", requestPayload);
   }
 
-  const uploadResult = await uploadRequestFiles(savedRequestId, organizationId);
   if (result.ok) {
+    const uploadResult = await uploadRequestFiles(savedRequestId, organizationId);
     request.requestId = savedRequestId;
     state.requests.unshift(request);
     addAuditEvent(
@@ -4366,27 +4507,38 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
         : `${request.id} submitted with an estimated ${requestedCredits} Advisory Credit scope.`
     );
     saveState();
+    if (!uploadResult.ok && savedRequestId && supabaseClient) {
+      await supabaseClient
+        .from("requests")
+        .update({
+          status: "file_upload_attention",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", savedRequestId)
+        .then(() => null, () => null);
+      request.status = "File upload needs attention";
+    }
     await loadClientWorkspaceData();
     window.location.hash = "dashboard";
+    await notifyAdvisorEvent({
+      eventType: "client_request_submitted",
+      title: "New client request submitted",
+      summary: `${request.id}: ${request.type}. Desired output: ${desiredOutput}. Deadline: ${decisionDeadline}. Files uploaded: ${uploadResult.uploaded}.`,
+      relatedEntityType: "request",
+      relatedEntityId: savedRequestId,
+      relatedLabel: request.id,
+    });
+    if (!uploadResult.ok) {
+      showPersistentNotice(`Request received, but file upload needs attention. ${uploadResult.reason || "Please upload the files from Messages and Files, or contact support."}`);
+      return;
+    }
+    showToast(
+      `Request received. Files uploaded: ${uploadResult.uploaded}. We will review and respond from ${config.supportEmail}.`
+    );
   } else {
     showPersistentNotice(result.reason || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
     return;
   }
-  await notifyAdvisorEvent({
-    eventType: "client_request_submitted",
-    title: "New client request submitted",
-    summary: `${request.id}: ${request.type}. Desired output: ${desiredOutput}. Deadline: ${decisionDeadline}. Files uploaded: ${uploadResult.uploaded}.`,
-    relatedEntityType: "request",
-    relatedEntityId: savedRequestId,
-    relatedLabel: request.id,
-  });
-  if (!uploadResult.ok) {
-    showPersistentNotice(`Request received, but one or more files could not be uploaded. ${uploadResult.reason || "Please upload the files from Messages and Files, or contact support."}`);
-    return;
-  }
-  showToast(
-    `Request received. Files uploaded: ${uploadResult.uploaded}. We will review and respond from ${config.supportEmail}.`
-  );
 });
 
 document.querySelector("#quoteForm").addEventListener("submit", async (event) => {
@@ -4399,11 +4551,12 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
   const organizationId = await getProfileOrganizationId();
   const workEmail = (document.querySelector("#quoteEmail").value || state.client.email || getUserEmail()).trim();
   const companyType = document.querySelector("#quoteCompanyType").value;
+  const otherCompanyType = document.querySelector("#quoteOtherCompanyType").value.trim();
   const country = document.querySelector("#quoteCountry").value;
   const budget = document.querySelector("#quoteBudget").value;
   const summary = document.querySelector("#quoteSummary").value.trim();
-  if (!workEmail || !summary) {
-    const message = "Please add a work email and request summary before sending.";
+  if (!companyType || (companyType === "Other" && !otherCompanyType) || !country || !workEmail || !budget || summary.length < 25) {
+    const message = "Please complete company type, country, work email, budget range, and a clear request summary before sending.";
     if (quoteStatus) {
       quoteStatus.textContent = message;
       quoteStatus.classList.add("warning");
@@ -4418,7 +4571,7 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
       workEmail,
       organizationName: state.client.company,
       companyType,
-      otherCompanyType: document.querySelector("#quoteOtherCompanyType").value,
+      otherCompanyType,
       headOfficeCountry: country,
       estimatedBudget: budget,
       requestSummary: summary,

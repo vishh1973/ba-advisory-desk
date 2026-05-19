@@ -525,7 +525,7 @@ button:hover {
   color: var(--white);
   display: grid;
   gap: 24px;
-  grid-template-columns: minmax(260px, 1.4fr) repeat(3, minmax(160px, 0.8fr));
+  grid-template-columns: minmax(260px, 1.4fr) repeat(4, minmax(140px, 0.8fr));
   padding: 34px 5vw;
 }
 
@@ -1314,6 +1314,13 @@ blockquote cite {
 .comparison.compact p {
   color: var(--slate);
   max-width: 880px;
+}
+
+.table-cue {
+  display: none;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 10px;
 }
 
 table {
@@ -2730,6 +2737,10 @@ input[type="file"]::file-selector-button:hover {
 
   .admin-alert-panel span {
     text-align: left;
+  }
+
+  .table-cue {
+    display: block;
   }
 
   .dashboard-header {

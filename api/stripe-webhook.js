@@ -31,6 +31,10 @@ function subscriptionIdFrom(value) {
   return typeof value === "string" ? value : value?.id || null;
 }
 
+function stripeCustomerIdFrom(value) {
+  return typeof value === "string" ? value : value?.id || null;
+}
+
 function periodFromSubscription(subscription) {
   return {
     start: isoFromUnixSeconds(subscription?.current_period_start),
@@ -97,11 +101,12 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
   const metadata = subscription.metadata || fallbackMetadata || {};
   const organizationId = metadata.organization_id || metadata.workspace_id || null;
   if (!organizationId) return null;
+  const stripeCustomerId = stripeCustomerIdFrom(subscription.customer);
 
   const period = periodFromSubscription(subscription);
   const payload = {
     organization_id: organizationId,
-    stripe_customer_id: subscription.customer || null,
+    stripe_customer_id: stripeCustomerId,
     stripe_subscription_id: subscription.id,
     plan_name: "Starter",
     status: subscription.status || "active",
@@ -116,6 +121,18 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
     .upsert(payload, { onConflict: "stripe_subscription_id" });
 
   if (error) throw error;
+
+  if (stripeCustomerId) {
+    await supabase
+      .from("client_organizations")
+      .update({
+        stripe_customer_id: stripeCustomerId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", organizationId)
+      .then(() => null, () => null);
+  }
+
   return payload;
 }
 
@@ -128,11 +145,45 @@ async function markOrderPaid(supabase, order, fields = {}) {
       stripe_payment_intent_id: fields.stripePaymentIntentId || null,
       stripe_invoice_id: fields.stripeInvoiceId || null,
       stripe_checkout_session_id: fields.stripeCheckoutSessionId || order.stripe_checkout_session_id || null,
+      stripe_customer_id: fields.stripeCustomerId || order.stripe_customer_id || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", order.id);
 
   if (error) throw error;
+
+  if (fields.stripeCustomerId && order.organization_id) {
+    await supabase
+      .from("client_organizations")
+      .update({
+        stripe_customer_id: fields.stripeCustomerId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.organization_id)
+      .then(() => null, () => null);
+  }
+}
+
+async function persistStripeCustomer(supabase, order, stripeCustomerId) {
+  if (!stripeCustomerId || !order?.organization_id) return;
+
+  await supabase
+    .from("payment_orders")
+    .update({
+      stripe_customer_id: stripeCustomerId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.id)
+    .then(() => null, () => null);
+
+  await supabase
+    .from("client_organizations")
+    .update({
+      stripe_customer_id: stripeCustomerId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.organization_id)
+    .then(() => null, () => null);
 }
 
 async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
@@ -149,6 +200,7 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
   if (!order) return;
 
   const customerEmail = customerEmailFromSession(session);
+  const stripeCustomerId = stripeCustomerIdFrom(session.customer);
   let subscription = null;
   const subscriptionId = subscriptionIdFrom(session.subscription);
   if (subscriptionId) {
@@ -162,6 +214,7 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
       stripePaymentIntentId: session.payment_intent || null,
       stripeInvoiceId: session.invoice || null,
       stripeCheckoutSessionId: session.id,
+      stripeCustomerId,
     });
   }
 
@@ -170,7 +223,10 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
     stripe_payment_intent_id: session.payment_intent || null,
     stripe_invoice_id: session.invoice || null,
     stripe_checkout_session_id: session.id,
+    stripe_customer_id: stripeCustomerId,
   };
+
+  await persistStripeCustomer(supabase, paidOrder, stripeCustomerId);
 
   await recordPaymentHistory(supabase, { order: paidOrder, session, eventType });
 
@@ -202,6 +258,7 @@ async function createPaidOrderFromInvoice(supabase, invoice, subscription) {
   const priceConfig = getPriceConfig(productType);
   const organizationId = metadata.organization_id || metadata.workspace_id || null;
   if (!organizationId) return null;
+  const stripeCustomerId = stripeCustomerIdFrom(subscription?.customer) || stripeCustomerIdFrom(invoice.customer);
 
   const { data: existingOrder, error: existingError } = await supabase
     .from("payment_orders")
@@ -223,6 +280,7 @@ async function createPaidOrderFromInvoice(supabase, invoice, subscription) {
       status: "invoice_received",
       stripe_invoice_id: invoice.id,
       stripe_payment_intent_id: invoice.payment_intent || null,
+      stripe_customer_id: stripeCustomerId,
     })
     .select("*")
     .single();
@@ -243,6 +301,8 @@ async function handleInvoicePaid(supabase, stripe, invoice, eventType) {
 
   const order = await createPaidOrderFromInvoice(supabase, invoice, subscription);
   if (!order) return;
+  const stripeCustomerId = stripeCustomerIdFrom(subscription?.customer) || stripeCustomerIdFrom(invoice.customer);
+  await persistStripeCustomer(supabase, order, stripeCustomerId);
 
   await recordPaymentHistory(supabase, { order, invoice, eventType });
 
@@ -295,7 +355,7 @@ async function handleSubscriptionDeleted(supabase, subscription) {
         .upsert({
           ...update,
           organization_id: organizationId,
-          stripe_customer_id: subscription.customer || null,
+          stripe_customer_id: stripeCustomerIdFrom(subscription.customer),
           stripe_subscription_id: subscriptionId,
           plan_name: "Starter",
           monthly_credit_allowance: getPriceConfig("starter_monthly").credits,
