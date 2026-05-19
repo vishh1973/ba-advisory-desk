@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>BA Advisory Desk Sample AI Assessment and Governance Framework</title>
+    <style>
+      @page {
+        size: Letter;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #e8eef4;
+        color: #101827;
+        font-family: Inter, Arial, sans-serif;
+        margin: 0;
+      }
+
+      .page {
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+        height: 11in;
+        overflow: hidden;
+        padding: 0.52in;
+        page-break-after: always;
+        position: relative;
+        width: 8.5in;
+      }
+
+      .cover {
+        background:
+          radial-gradient(circle at 78% 20%, rgba(20, 184, 166, 0.28), transparent 28%),
+          linear-gradient(135deg, #071527 0%, #0b2b38 56%, #123f48 100%);
+        color: #ffffff;
+      }
+
+      .brand {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+      }
+
+      .mark {
+        align-items: center;
+        background: #ffffff;
+        border-radius: 10px;
+        color: #071527;
+        display: flex;
+        font-size: 18px;
+        font-weight: 900;
+        height: 48px;
+        justify-content: center;
+        width: 48px;
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 20px;
+      }
+
+      .brand span {
+        color: #d9f7f3;
+        display: block;
+        font-size: 12px;
+        margin-top: 3px;
+      }
+
+      .cover-title {
+        margin-top: 1.05in;
+        max-width: 6.6in;
+      }
+
+      .label {
+        color: #16d7c2;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        font-size: 54px;
+        line-height: 0.98;
+        margin: 18px 0;
+      }
+
+      h2 {
+        font-size: 31px;
+        line-height: 1.05;
+        margin: 0 0 12px;
+      }
+
+      h3 {
+        font-size: 17px;
+        margin: 0 0 8px;
+      }
+
+      p {
+        line-height: 1.48;
+        margin: 0 0 12px;
+      }
+
+      .cover-copy {
+        color: #e7f4f7;
+        font-size: 19px;
+        line-height: 1.45;
+        max-width: 6.4in;
+      }
+
+      .cover-meta {
+        bottom: 0.52in;
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr 1fr 1fr;
+        left: 0.52in;
+        position: absolute;
+        right: 0.52in;
+      }
+
+      .meta-card {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 12px;
+        min-height: 90px;
+        padding: 15px;
+      }
+
+      .meta-card span {
+        color: #9ee7dd;
+        display: block;
+        font-size: 11px;
+        font-weight: 900;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+
+      .meta-card strong {
+        color: #ffffff;
+        display: block;
+        font-size: 17px;
+        line-height: 1.25;
+      }
+
+      .topbar {
+        align-items: center;
+        border-bottom: 2px solid #e1e8ef;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 22px;
+        padding-bottom: 12px;
+      }
+
+      .topbar .brand .mark {
+        background: #071527;
+        color: #ffffff;
+        height: 36px;
+        width: 36px;
+      }
+
+      .topbar .brand strong {
+        color: #071527;
+        font-size: 15px;
+      }
+
+      .topbar .brand span {
+        color: #64748b;
+        font-size: 10px;
+      }
+
+      .page-num {
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .two {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .three {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .four {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .card {
+        background: #f8fbfc;
+        border: 1px solid #d9e5ec;
+        border-radius: 12px;
+        padding: 15px;
+      }
+
+      .dark-card {
+        background: #071527;
+        color: #ffffff;
+      }
+
+      .teal-card {
+        background: #e6f7f4;
+        border-color: #9bded5;
+      }
+
+      .gold-card {
+        background: #fff7e6;
+        border-color: #f2d38a;
+      }
+
+      .blue-card {
+        background: #eef5ff;
+        border-color: #b9d4f5;
+      }
+
+      .muted {
+        color: #526173;
+      }
+
+      .kpi {
+        color: #071527;
+        display: block;
+        font-size: 34px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .tiny {
+        color: #526173;
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }
+
+      table {
+        border-collapse: collapse;
+        font-size: 11px;
+        width: 100%;
+      }
+
+      th {
+        background: #071527;
+        color: #ffffff;
+        font-size: 10px;
+        padding: 8px;
+        text-align: left;
+        text-transform: uppercase;
+      }
+
+      td {
+        border-bottom: 1px solid #d9e5ec;
+        line-height: 1.35;
+        padding: 8px;
+        vertical-align: top;
+      }
+
+      .pill {
+        border-radius: 999px;
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 900;
+        padding: 5px 8px;
+      }
+
+      .pill.green {
+        background: #dff8ee;
+        color: #08735f;
+      }
+
+      .pill.amber {
+        background: #fff0c2;
+        color: #8a5700;
+      }
+
+      .pill.red {
+        background: #ffe3e3;
+        color: #9d1b1b;
+      }
+
+      .score-ring {
+        align-items: center;
+        background:
+          conic-gradient(#118577 0 68%, #dfe8ef 68% 100%);
+        border-radius: 999px;
+        display: flex;
+        height: 148px;
+        justify-content: center;
+        margin: 0 auto;
+        width: 148px;
+      }
+
+      .score-ring span {
+        align-items: center;
+        background: #ffffff;
+        border-radius: 999px;
+        color: #071527;
+        display: flex;
+        flex-direction: column;
+        font-size: 14px;
+        font-weight: 900;
+        height: 106px;
+        justify-content: center;
+        text-align: center;
+        width: 106px;
+      }
+
+      .score-ring b {
+        display: block;
+        font-size: 34px;
+      }
+
+      .heatmap {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+
+      .heatmap div {
+        border-radius: 10px;
+        color: #071527;
+        font-size: 11px;
+        font-weight: 900;
+        min-height: 58px;
+        padding: 10px;
+      }
+
+      .matrix {
+        background:
+          linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%),
+          linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%),
+          #f8fbfc;
+        border: 1px solid #d9e5ec;
+        border-radius: 12px;
+        height: 310px;
+        position: relative;
+      }
+
+      .axis {
+        color: #526173;
+        font-size: 10px;
+        font-weight: 900;
+        position: absolute;
+        text-transform: uppercase;
+      }
+
+      .axis.y {
+        left: 10px;
+        top: 10px;
+      }
+
+      .axis.x {
+        bottom: 10px;
+        right: 12px;
+      }
+
+      .bubble {
+        align-items: center;
+        border-radius: 999px;
+        color: #ffffff;
+        display: flex;
+        font-size: 10px;
+        font-weight: 900;
+        height: 62px;
+        justify-content: center;
+        line-height: 1.1;
+        padding: 8px;
+        position: absolute;
+        text-align: center;
+        width: 62px;
+      }
+
+      .roadmap {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .roadmap .phase {
+        background: #f8fbfc;
+        border: 1px solid #d9e5ec;
+        border-radius: 12px;
+        min-height: 230px;
+        padding: 13px;
+      }
+
+      .phase strong {
+        color: #071527;
+        display: block;
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+
+      .phase ul,
+      .card ul {
+        margin: 8px 0 0 16px;
+        padding: 0;
+      }
+
+      li {
+        line-height: 1.38;
+        margin-bottom: 7px;
+      }
+
+      .rings {
+        align-items: center;
+        display: flex;
+        justify-content: center;
+        min-height: 320px;
+        position: relative;
+      }
+
+      .ring {
+        align-items: center;
+        border: 3px solid #118577;
+        border-radius: 999px;
+        display: flex;
+        justify-content: center;
+        position: absolute;
+        text-align: center;
+      }
+
+      .ring.one {
+        height: 270px;
+        width: 270px;
+      }
+
+      .ring.two {
+        border-color: #f2a61d;
+        height: 200px;
+        width: 200px;
+      }
+
+      .ring.three {
+        background: #071527;
+        border-color: #071527;
+        color: #ffffff;
+        font-size: 17px;
+        font-weight: 900;
+        height: 118px;
+        width: 118px;
+      }
+
+      .callout {
+        background: #071527;
+        border-radius: 14px;
+        color: #ffffff;
+        margin-top: auto;
+        padding: 16px;
+      }
+
+      .bar {
+        background: #e7eef4;
+        border-radius: 999px;
+        height: 10px;
+        margin: 7px 0 12px;
+        overflow: hidden;
+      }
+
+      .bar span {
+        background: #118577;
+        display: block;
+        height: 100%;
+      }
+
+      .footer-note {
+        bottom: 0.28in;
+        color: #64748b;
+        font-size: 9px;
+        left: 0.52in;
+        position: absolute;
+        right: 0.52in;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page cover">
+      <div class="brand">
+        <div class="mark">BA</div>
+        <div>
+          <strong>BA Advisory Desk</strong>
+          <span>Business Analysis Services</span>
+        </div>
+      </div>
+      <div class="cover-title">
+        <div class="label">Sample Deliverable</div>
+        <h1>AI Assessment and Governance Framework</h1>
+        <p class="cover-copy">
+          A practical executive package for evaluating AI opportunities, readiness gaps, governance needs,
+          implementation controls, and responsible adoption priorities.
+        </p>
+      </div>
+      <div class="cover-meta">
+        <div class="meta-card">
+          <span>Client privacy</span>
+          <strong>Client names and identifying details are anonymized.</strong>
+        </div>
+        <div class="meta-card">
+          <span>Deliverable type</span>
+          <strong>Assessment, governance model, roadmap, and control framework.</strong>
+        </div>
+        <div class="meta-card">
+          <span>Typical buyer</span>
+          <strong>Transformation, operations, technology, risk, or executive teams.</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">01 Executive Snapshot</div>
+      </div>
+      <div class="grid two">
+        <div>
+          <div class="label">Situation</div>
+          <h2>AI interest was rising, but ownership, risk, and business value were unclear.</h2>
+          <p class="muted">
+            The organization wanted to move beyond disconnected AI pilots. Leaders needed a structured way to assess
+            candidate use cases, identify readiness gaps, agree on governance, and define a practical first wave roadmap.
+          </p>
+          <div class="grid two">
+            <div class="card teal-card"><span class="tiny">Immediate need</span><strong>Prioritize use cases that solve real business problems.</strong></div>
+            <div class="card gold-card"><span class="tiny">Leadership concern</span><strong>Control data, privacy, accuracy, vendor, and adoption risks.</strong></div>
+          </div>
+        </div>
+        <div class="card">
+          <span class="tiny">Readiness index</span>
+          <div class="score-ring"><span><b>68</b>Moderate readiness</span></div>
+          <p class="muted" style="text-align:center;margin-top:14px;">Good business sponsorship. Governance, data access, and repeatable intake need strengthening before scale.</p>
+        </div>
+      </div>
+      <div class="grid four" style="margin-top:18px;">
+        <div class="card"><span class="tiny">High value candidates</span><span class="kpi">14</span><p class="muted">Use cases captured and grouped.</p></div>
+        <div class="card"><span class="tiny">First wave ready</span><span class="kpi">5</span><p class="muted">Practical pilots with clear owners.</p></div>
+        <div class="card"><span class="tiny">Governance gaps</span><span class="kpi">9</span><p class="muted">Policy, risk, and decision gaps.</p></div>
+        <div class="card"><span class="tiny">Roadmap horizon</span><span class="kpi">120</span><p class="muted">Day implementation view.</p></div>
+      </div>
+      <div class="callout">
+        Recommended direction: approve a controlled first wave of AI use cases, establish a lightweight governance board,
+        define risk tiers, and require documented business owners, data controls, and human review rules before deployment.
+      </div>
+      <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">02 Readiness Scorecard</div>
+      </div>
+      <h2>Readiness assessment across business value, data, governance, people, and implementation risk.</h2>
+      <div class="heatmap" style="margin-top:12px;">
+        <div class="teal-card">Business value<br /><span class="kpi" style="font-size:25px;">82</span></div>
+        <div class="teal-card">Executive sponsorship<br /><span class="kpi" style="font-size:25px;">76</span></div>
+        <div class="gold-card">Data readiness<br /><span class="kpi" style="font-size:25px;">61</span></div>
+        <div class="gold-card">Process clarity<br /><span class="kpi" style="font-size:25px;">64</span></div>
+        <div class="gold-card">Change readiness<br /><span class="kpi" style="font-size:25px;">59</span></div>
+        <div class="gold-card">Vendor control<br /><span class="kpi" style="font-size:25px;">57</span></div>
+        <div class="blue-card">Technology fit<br /><span class="kpi" style="font-size:25px;">70</span></div>
+        <div class="gold-card">Governance maturity<br /><span class="kpi" style="font-size:25px;">54</span></div>
+        <div class="gold-card">Auditability<br /><span class="kpi" style="font-size:25px;">52</span></div>
+      </div>
+      <div class="grid two" style="margin-top:20px;">
+        <div class="card">
+          <h3>Strengths to build on</h3>
+          <ul>
+            <li>Clear executive interest in practical, measurable AI outcomes.</li>
+            <li>Several repeatable workflows have enough volume to justify assessment.</li>
+            <li>Delivery leaders understand where manual review and rework slow decisions.</li>
+            <li>Technology team can support controlled pilots if intake and governance are clear.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Gaps to close before scale</h3>
+          <ul>
+            <li>No standard AI use case intake, scoring, or approval method.</li>
+            <li>Data ownership and retention rules vary across business areas.</li>
+            <li>Human review expectations are not defined by risk tier.</li>
+            <li>Benefits, adoption metrics, and control evidence are not tracked consistently.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-note">Readiness scores are sample scoring outputs used to demonstrate structure and decision logic.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">03 Use Case Prioritization</div>
+      </div>
+      <h2>Prioritize AI opportunities by business value, feasibility, control effort, and adoption readiness.</h2>
+      <div class="grid two" style="align-items:start;margin-top:10px;">
+        <div class="matrix">
+          <div class="axis y">Higher value</div>
+          <div class="axis x">Higher feasibility</div>
+          <div class="bubble" style="left:68%;top:18%;background:#118577;">Policy Q and A</div>
+          <div class="bubble" style="left:57%;top:35%;background:#118577;">Case triage</div>
+          <div class="bubble" style="left:75%;top:47%;background:#118577;">Meeting summary</div>
+          <div class="bubble" style="left:34%;top:22%;background:#f2a61d;">Vendor review</div>
+          <div class="bubble" style="left:25%;top:58%;background:#64748b;">Forecast model</div>
+          <div class="bubble" style="left:58%;top:68%;background:#64748b;">Knowledge search</div>
+        </div>
+        <div class="card">
+          <h3>First wave candidates</h3>
+          <table>
+            <thead><tr><th>Use case</th><th>Value</th><th>Control note</th></tr></thead>
+            <tbody>
+              <tr><td>Policy and procedure assistant</td><td><span class="pill green">High</span></td><td>Approved content only, citations required, no final decision authority.</td></tr>
+              <tr><td>Case intake triage support</td><td><span class="pill green">High</span></td><td>Human review before routing. Bias and exception checks required.</td></tr>
+              <tr><td>Meeting summary and action extraction</td><td><span class="pill green">High</span></td><td>Consent, retention, and privacy rules required before rollout.</td></tr>
+              <tr><td>Vendor response review support</td><td><span class="pill amber">Medium</span></td><td>Support scoring evidence, but do not replace evaluation committee decisions.</td></tr>
+              <tr><td>Knowledge search across internal material</td><td><span class="pill amber">Medium</span></td><td>Access control and source ranking must be proven before scaling.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="callout">
+        Prioritization principle: start where the work is repeatable, business value is visible, source material is controlled,
+        and human review can be built into the operating process.
+      </div>
+      <div class="footer-note">Sample deliverable. Matrix labels and use case examples are anonymized.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">04 Governance Model</div>
+      </div>
+      <h2>Governance model designed to move quickly while protecting clients, staff, data, and decisions.</h2>
+      <div class="grid two" style="align-items:center;margin-top:12px;">
+        <div class="rings">
+          <div class="ring one">Business value, adoption, and accountability</div>
+          <div class="ring two">Risk, data, privacy, vendor, and control review</div>
+          <div class="ring three">AI Governance Board</div>
+        </div>
+        <div class="card">
+          <h3>Governance bodies and roles</h3>
+          <table>
+            <thead><tr><th>Role</th><th>Purpose</th><th>Core decision</th></tr></thead>
+            <tbody>
+              <tr><td>Executive sponsor</td><td>Owns business value and funding priority.</td><td>Approve pilot wave and success measures.</td></tr>
+              <tr><td>Business owner</td><td>Owns workflow design and adoption.</td><td>Confirm process fit and human review points.</td></tr>
+              <tr><td>Data owner</td><td>Confirms source quality and access boundaries.</td><td>Approve data use and retention rules.</td></tr>
+              <tr><td>Risk and compliance lead</td><td>Reviews privacy, control, and audit needs.</td><td>Assign risk tier and control evidence.</td></tr>
+              <tr><td>Technology lead</td><td>Confirms integration, security, and support model.</td><td>Approve environment and technical guardrails.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="grid three" style="margin-top:18px;">
+        <div class="card teal-card"><h3>Intake gate</h3><p>Every AI use case starts with business problem, owner, data source, risk tier, users, and expected outcome.</p></div>
+        <div class="card gold-card"><h3>Approval gate</h3><p>Higher risk use cases require documented controls, human review, acceptance tests, and operating owner signoff.</p></div>
+        <div class="card blue-card"><h3>Scale gate</h3><p>Production use requires benefit evidence, control evidence, adoption readiness, and support model confirmation.</p></div>
+      </div>
+      <div class="footer-note">Governance model shown as a sample operating structure. Final model is tailored to each client environment.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">05 Risk Tiers and Controls</div>
+      </div>
+      <h2>Risk based control model for practical adoption.</h2>
+      <table style="margin-top:12px;">
+        <thead>
+          <tr><th>Risk tier</th><th>Example use</th><th>Required controls</th><th>Approval route</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="pill green">Tier 1</span><br />Low risk productivity</td><td>Meeting notes, draft summaries, internal brainstorming, document cleanup.</td><td>User review, no confidential data unless approved, standard retention, source check.</td><td>Business owner approval.</td></tr>
+          <tr><td><span class="pill amber">Tier 2</span><br />Operational support</td><td>Case triage support, policy lookup, knowledge search, vendor response synthesis.</td><td>Approved data sources, access control, human review, exception process, logging.</td><td>Business owner plus data owner.</td></tr>
+          <tr><td><span class="pill red">Tier 3</span><br />Decision influencing</td><td>Eligibility support, scoring assistance, risk flagging, compliance interpretation.</td><td>Formal testing, bias checks, documented human decision authority, audit evidence, legal or compliance review.</td><td>Governance board approval.</td></tr>
+          <tr><td><span class="pill red">Tier 4</span><br />Restricted or not approved</td><td>Automated final decisions, sensitive personal decisions, unsupported public advice.</td><td>Not approved unless a formal exception and control design are approved.</td><td>Executive risk acceptance.</td></tr>
+        </tbody>
+      </table>
+      <div class="grid three" style="margin-top:18px;">
+        <div class="card"><h3>Data controls</h3><ul><li>Source approval</li><li>Access rules</li><li>Retention rules</li><li>Restricted data handling</li></ul></div>
+        <div class="card"><h3>Output controls</h3><ul><li>Human review</li><li>Source traceability</li><li>Confidence checks</li><li>Exception handling</li></ul></div>
+        <div class="card"><h3>Operating controls</h3><ul><li>Owner assigned</li><li>Monitoring rhythm</li><li>Training material</li><li>Incident path</li></ul></div>
+      </div>
+      <div class="footer-note">Risk tiers are sample categories and should be validated against the client's legal, privacy, and policy requirements.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">06 Requirements Model</div>
+      </div>
+      <h2>AI implementation still needs strong Business Analysis discipline.</h2>
+      <div class="grid two">
+        <div class="card">
+          <h3>Business requirements</h3>
+          <table>
+            <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance signal</th></tr></thead>
+            <tbody>
+              <tr><td>BR 01</td><td>Each AI use case must have a named business owner and measurable business outcome.</td><td>Owner and KPI recorded before approval.</td></tr>
+              <tr><td>BR 02</td><td>AI outputs that influence decisions must be reviewed by an authorized human role.</td><td>Workflow includes review step and signoff evidence.</td></tr>
+              <tr><td>BR 03</td><td>Users must understand permitted use, restricted data, and escalation rules.</td><td>Training and usage guide available before launch.</td></tr>
+              <tr><td>BR 04</td><td>Benefits must be tracked against baseline effort, quality, speed, or risk reduction.</td><td>Baseline and reporting cadence approved.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Control and non functional requirements</h3>
+          <table>
+            <thead><tr><th>ID</th><th>Requirement</th><th>Acceptance signal</th></tr></thead>
+            <tbody>
+              <tr><td>NFR 01</td><td>Access must respect current role based permissions and data classification rules.</td><td>Permission test completed.</td></tr>
+              <tr><td>NFR 02</td><td>Outputs must show source references where source based answers are required.</td><td>Citation checks pass sample set.</td></tr>
+              <tr><td>NFR 03</td><td>Usage logs must support review of adoption, exceptions, and control performance.</td><td>Log fields and review owner confirmed.</td></tr>
+              <tr><td>NFR 04</td><td>Critical workflows must include rollback or manual fallback procedures.</td><td>Fallback steps documented and tested.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="callout">
+        Practical BA takeaway: AI programs fail when the business problem, user workflow, data boundaries, decision rights,
+        and acceptance measures are unclear. The assessment turns these into manageable delivery requirements.
+      </div>
+      <div class="footer-note">Sample requirements demonstrate the type of clarity clients can expect from an AI governance engagement.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">07 Roadmap</div>
+      </div>
+      <h2>Phased roadmap for controlled AI adoption.</h2>
+      <div class="roadmap" style="margin-top:16px;">
+        <div class="phase">
+          <span class="tiny">Days 0 to 30</span>
+          <strong>Set foundation</strong>
+          <ul>
+            <li>Confirm sponsor and governance board.</li>
+            <li>Create use case intake template.</li>
+            <li>Define risk tiers and approval routes.</li>
+            <li>Select first wave candidates.</li>
+          </ul>
+        </div>
+        <div class="phase">
+          <span class="tiny">Days 31 to 60</span>
+          <strong>Design pilots</strong>
+          <ul>
+            <li>Document requirements and controls.</li>
+            <li>Confirm data sources and owners.</li>
+            <li>Define user journey and review steps.</li>
+            <li>Prepare test and adoption plan.</li>
+          </ul>
+        </div>
+        <div class="phase">
+          <span class="tiny">Days 61 to 90</span>
+          <strong>Run controlled pilots</strong>
+          <ul>
+            <li>Launch limited user group.</li>
+            <li>Track quality, speed, and exceptions.</li>
+            <li>Review output issues weekly.</li>
+            <li>Refine controls and training.</li>
+          </ul>
+        </div>
+        <div class="phase">
+          <span class="tiny">Days 91 to 120</span>
+          <strong>Scale or stop</strong>
+          <ul>
+            <li>Compare results to baseline.</li>
+            <li>Approve scale candidates.</li>
+            <li>Close low value pilots.</li>
+            <li>Publish governance pack and roadmap.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid two" style="margin-top:18px;">
+        <div class="card teal-card"><h3>Recommended first executive decision</h3><p>Approve first wave pilot design for 3 to 5 use cases with documented controls and success measures.</p></div>
+        <div class="card gold-card"><h3>Recommended delivery guardrail</h3><p>No AI use case should move to production without business owner signoff, data owner approval, risk tiering, and adoption support.</p></div>
+      </div>
+      <div class="footer-note">Roadmap is a sample delivery structure and is tailored after client intake and discovery.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">08 Metrics and Reporting</div>
+      </div>
+      <h2>Executive dashboard structure for tracking AI value and control health.</h2>
+      <div class="grid four" style="margin-top:12px;">
+        <div class="card"><span class="tiny">Time saved</span><span class="kpi">22%</span><div class="bar"><span style="width:68%;"></span></div><p class="muted">Measured against baseline handling effort.</p></div>
+        <div class="card"><span class="tiny">Quality lift</span><span class="kpi">18%</span><div class="bar"><span style="width:58%;"></span></div><p class="muted">Measured by rework and exception reduction.</p></div>
+        <div class="card"><span class="tiny">Control compliance</span><span class="kpi">91%</span><div class="bar"><span style="width:91%;"></span></div><p class="muted">Required review steps completed.</p></div>
+        <div class="card"><span class="tiny">User adoption</span><span class="kpi">64%</span><div class="bar"><span style="width:64%;"></span></div><p class="muted">Active target users in first pilot cycle.</p></div>
+      </div>
+      <table style="margin-top:18px;">
+        <thead><tr><th>Metric</th><th>Why it matters</th><th>Owner</th><th>Review rhythm</th></tr></thead>
+        <tbody>
+          <tr><td>Cycle time saved</td><td>Shows whether AI reduces manual handling time without damaging quality.</td><td>Business owner</td><td>Weekly during pilot.</td></tr>
+          <tr><td>Output correction rate</td><td>Highlights quality issues, prompt issues, source issues, or user training gaps.</td><td>Delivery owner</td><td>Weekly during pilot.</td></tr>
+          <tr><td>Control exception count</td><td>Shows where human review, data handling, or source rules were missed.</td><td>Risk lead</td><td>Biweekly.</td></tr>
+          <tr><td>Adoption and satisfaction</td><td>Confirms whether target users trust and use the new workflow.</td><td>Change lead</td><td>Monthly.</td></tr>
+          <tr><td>Benefit realization</td><td>Connects pilot work to value, cost avoidance, quality, or risk reduction.</td><td>Executive sponsor</td><td>Monthly.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        Dashboard rule: report value and control health together. AI adoption should not be called successful if speed improves
+        while review quality, policy compliance, or user trust declines.
+      </div>
+      <div class="footer-note">Metrics shown are sample dashboard measures for an AI governance engagement.</div>
+    </section>
+
+    <section class="page">
+      <div class="topbar">
+        <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+        <div class="page-num">09 Decision Pack</div>
+      </div>
+      <h2>Recommended decisions and next steps.</h2>
+      <div class="grid two" style="margin-top:12px;">
+        <div class="card">
+          <h3>Decision log</h3>
+          <table>
+            <thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Governance board</td><td>Create a lightweight board with business, data, risk, and technology representation.</td><td><span class="pill green">Approve</span></td></tr>
+              <tr><td>Risk tiers</td><td>Use four risk tiers to control approval and evidence requirements.</td><td><span class="pill green">Approve</span></td></tr>
+              <tr><td>First wave pilots</td><td>Start with policy assistant, case triage support, meeting summaries, vendor review, and knowledge search.</td><td><span class="pill amber">Refine</span></td></tr>
+              <tr><td>Production scale</td><td>Delay scale until control evidence and benefit reporting are operating.</td><td><span class="pill amber">Hold</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Open questions</h3>
+          <ul>
+            <li>Which business area owns final benefit realization for each pilot?</li>
+            <li>Which data sources are approved for first wave use cases?</li>
+            <li>What privacy, retention, and audit requirements apply by jurisdiction?</li>
+            <li>Which user groups need training before any pilot goes live?</li>
+            <li>What threshold triggers stop, redesign, or scale decisions?</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid three" style="margin-top:18px;">
+        <div class="card teal-card"><h3>Week 1</h3><p>Confirm sponsor, owners, governance board, first wave use cases, and success measures.</p></div>
+        <div class="card gold-card"><h3>Week 2</h3><p>Complete use case briefs, risk tiering, data review, user journey, and control requirements.</p></div>
+        <div class="card blue-card"><h3>Week 3</h3><p>Approve pilot design, training material, dashboard measures, and launch readiness checklist.</p></div>
+      </div>
+      <div class="callout">
+        This package gives leadership a structured basis for deciding where AI can create value, what needs to be controlled,
+        and how to proceed without losing delivery discipline.
+      </div>
+      <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+    </section>
+  </body>
+</html>

@@ -33,51 +33,15 @@ const supabaseClient =
 
 const state = {
   client: JSON.parse(localStorage.getItem("baad-client") || "null") || {
-    email: "client@example.com",
-    company: "Northstar Apps Inc.",
+    email: "",
+    company: "Your organization",
   },
-  requests: JSON.parse(localStorage.getItem("baad-requests") || "null") || [
-    {
-      id: "REQ 1042",
-      type: "Business case review",
-      status: "In review",
-      due: "May 21",
-      client: "Northstar Apps Inc.",
-    },
-    {
-      id: "REQ 1041",
-      type: "SOP cleanup",
-      status: "Ready",
-      due: "May 20",
-      client: "Northstar Apps Inc.",
-    },
-  ],
+  requests: JSON.parse(localStorage.getItem("baad-requests") || "null") || [],
   creditsLeft: Number(localStorage.getItem("baad-credits") || config.starterCredits),
   creditThreshold: Number(localStorage.getItem("baad-credit-threshold") || config.lowCreditThreshold),
-  creditHistory: JSON.parse(localStorage.getItem("baad-credit-history") || "null") || [
-    {
-      date: "May 18",
-      deliverable: "Starter package credits issued",
-      credits: `+${config.starterCredits}`,
-      balance: config.starterCredits,
-    },
-  ],
-  paymentHistory: JSON.parse(localStorage.getItem("baad-payment-history") || "null") || [
-    {
-      date: "May 18",
-      item: "BA Advisory Desk Starter",
-      amount: "$2,500",
-      status: "Payment confirmed",
-    },
-  ],
-  auditEvents: JSON.parse(localStorage.getItem("baad-audit-events") || "null") || [
-    {
-      date: "May 18",
-      event: "Credits issued",
-      client: "Northstar Apps Inc.",
-      details: `${config.starterCredits} Advisory Credits issued for Starter package.`,
-    },
-  ],
+  creditHistory: JSON.parse(localStorage.getItem("baad-credit-history") || "null") || [],
+  paymentHistory: JSON.parse(localStorage.getItem("baad-payment-history") || "null") || [],
+  auditEvents: JSON.parse(localStorage.getItem("baad-audit-events") || "null") || [],
   session: null,
   adminQueue: [],
   adminClients: [],
@@ -87,6 +51,7 @@ const state = {
 
 const views = {
   home: document.querySelector("#view-home"),
+  about: document.querySelector("#view-about"),
   services: document.querySelector("#view-services"),
   samples: document.querySelector("#view-samples"),
   pricing: document.querySelector("#view-pricing"),
@@ -194,7 +159,7 @@ function updateAuthUi() {
   const signOutButton = document.querySelector("#signOutButton");
 
   if (loginButton) {
-    loginButton.textContent = isSignedIn ? "Go To Dashboard" : "Send Secure Sign In Link";
+    loginButton.textContent = isSignedIn ? "Go To Dashboard" : "Send Secure Access Link";
   }
 
   if (signOutButton) {
@@ -206,13 +171,13 @@ function updateAuthUi() {
     saveState();
     setAuthStatus(`Signed in as ${state.client.email}.`);
   } else {
-    setAuthStatus("Enter your work email. We will send a sign in link.");
+    setAuthStatus("Enter your work email. We will send a secure access link.");
   }
 }
 
 async function initAuth() {
   if (!supabaseClient) {
-    setAuthStatus("Enter your work email. We will send a sign in link.");
+    setAuthStatus("Enter your work email. We will send a secure access link.");
     return;
   }
 
@@ -293,7 +258,7 @@ async function getProfileOrganizationId() {
 
 async function writeToSupabase(table, payload) {
   if (!supabaseClient) {
-    return { ok: false, reason: "Supabase client is not loaded yet." };
+    return { ok: false, reason: "The secure workspace is not available yet." };
   }
 
   try {
@@ -542,7 +507,7 @@ function renderCreditControls() {
           }
           return list;
         }, [])
-      : [{ id: "", name: state.client.company }];
+      : [{ id: "", name: state.client.company || "Client workspace" }];
     clientSelect.innerHTML = clients
       .map((client) => `<option value="${escapeHtml(client.id)}">${escapeHtml(client.name)}</option>`)
       .join("");
@@ -561,7 +526,7 @@ function renderCreditControls() {
 }
 
 function render() {
-  document.querySelector("#clientName").textContent = state.client.company;
+  document.querySelector("#clientName").textContent = state.client.company || "Your organization";
   document.querySelector("#creditsLeft").textContent = state.creditsLeft;
   document.querySelector("#activeCount").textContent = state.requests.filter((request) => request.status !== "Complete").length;
   document.querySelector("#adminNewCount").textContent = state.adminNewCount || state.requests.filter((request) => request.status === "New").length;
@@ -744,14 +709,14 @@ const checkoutProductMap = {
 async function requireClientWorkspaceForCheckout() {
   if (!state.session?.user) {
     window.location.hash = "login";
-    showToast("Please sign in before purchasing a recurring credit package so credits can be assigned to your workspace.");
+    showToast("Please use client login before purchasing so credits can be assigned to your workspace.");
     return null;
   }
 
   const organizationId = await getProfileOrganizationId();
   if (!organizationId) {
     window.location.hash = "profile";
-    showToast("Please complete the client profile before purchasing a recurring credit package.");
+    showToast("Please complete your workspace profile before starting a monthly plan or buying a credit top up.");
     return null;
   }
 

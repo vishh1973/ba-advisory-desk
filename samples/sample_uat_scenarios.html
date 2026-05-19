@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>BA Advisory Desk Sample UAT Scenario Pack</title><style>
+@page { size: Letter; margin: 0; }
+* { box-sizing: border-box; }
+body { background:#e8eef4; color:#101827; font-family: Inter, Arial, sans-serif; margin:0; }
+.page { background:#fff; display:flex; flex-direction:column; height:11in; overflow:hidden; padding:.48in; page-break-after:always; position:relative; width:8.5in; }
+.cover { background:radial-gradient(circle at 78% 18%, rgba(20,184,166,.26), transparent 28%), linear-gradient(135deg,#071527 0%,#0b2b38 56%,#123f48 100%); color:#fff; }
+.brand { align-items:center; display:flex; gap:12px; }
+.mark { align-items:center; background:#fff; border-radius:10px; color:#071527; display:flex; font-size:18px; font-weight:900; height:48px; justify-content:center; width:48px; }
+.brand strong { display:block; font-size:20px; }
+.brand span { color:#d9f7f3; display:block; font-size:12px; margin-top:3px; }
+.cover-title { margin-top:.86in; max-width:6.8in; }
+.label { color:#16d7c2; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+h1 { font-size:50px; line-height:1.0; margin:18px 0; }
+h2 { font-size:29px; line-height:1.07; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+p { line-height:1.46; margin:0 0 12px; }
+.cover-copy { color:#e7f4f7; font-size:18px; line-height:1.45; max-width:6.5in; }
+.cover-meta { bottom:.52in; display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; left:.52in; position:absolute; right:.52in; }
+.meta-card { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; min-height:92px; padding:15px; }
+.meta-card span { color:#9ee7dd; display:block; font-size:11px; font-weight:900; margin-bottom:8px; text-transform:uppercase; }
+.meta-card strong { color:#fff; display:block; font-size:16px; line-height:1.25; }
+.topbar { align-items:center; border-bottom:2px solid #e1e8ef; display:flex; justify-content:space-between; margin-bottom:20px; padding-bottom:12px; }
+.topbar .brand .mark { background:#071527; color:#fff; height:36px; width:36px; }
+.topbar .brand strong { color:#071527; font-size:15px; }
+.topbar .brand span { color:#64748b; font-size:10px; }
+.page-num { color:#64748b; font-size:11px; font-weight:800; }
+.grid { display:grid; gap:14px; }
+.two { grid-template-columns:1fr 1fr; }
+.three { grid-template-columns:repeat(3,1fr); }
+.four { grid-template-columns:repeat(4,1fr); }
+.card { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; padding:14px; }
+.dark-card { background:#071527; color:#fff; }
+.teal-card { background:#e6f7f4; border-color:#9bded5; }
+.gold-card { background:#fff7e6; border-color:#f2d38a; }
+.blue-card { background:#eef5ff; border-color:#b9d4f5; }
+.muted { color:#526173; }
+.kpi { color:#071527; display:block; font-size:32px; font-weight:900; line-height:1; }
+.tiny { color:#526173; display:block; font-size:10px; font-weight:900; margin-bottom:6px; text-transform:uppercase; }
+table { border-collapse:collapse; font-size:10px; width:100%; }
+th { background:#071527; color:#fff; font-size:9px; padding:7px; text-align:left; text-transform:uppercase; }
+td { border-bottom:1px solid #d9e5ec; line-height:1.3; padding:7px; vertical-align:top; }
+.pill { border-radius:999px; display:inline-block; font-size:9px; font-weight:900; padding:4px 7px; }
+.green { background:#dff8ee; color:#08735f; }
+.amber { background:#fff0c2; color:#8a5700; }
+.red { background:#ffe3e3; color:#9d1b1b; }
+.score-ring { align-items:center; background:conic-gradient(#118577 0 68%, #dfe8ef 68% 100%); border-radius:999px; display:flex; height:140px; justify-content:center; margin:0 auto; width:140px; }
+.score-ring span { align-items:center; background:#fff; border-radius:999px; color:#071527; display:flex; flex-direction:column; font-size:13px; font-weight:900; height:100px; justify-content:center; text-align:center; width:100px; }
+.score-ring b { display:block; font-size:32px; }
+.matrix { background:linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), #f8fbfc; border:1px solid #d9e5ec; border-radius:12px; height:300px; position:relative; }
+.axis { color:#526173; font-size:9px; font-weight:900; position:absolute; text-transform:uppercase; }
+.axis.y { left:10px; top:10px; }
+.axis.x { bottom:10px; right:12px; }
+.bubble { align-items:center; border-radius:999px; color:#fff; display:flex; font-size:9px; font-weight:900; height:58px; justify-content:center; line-height:1.1; padding:7px; position:absolute; text-align:center; width:58px; }
+.flow { display:grid; gap:10px; grid-template-columns:repeat(5,1fr); margin-top:12px; }
+.flow div { background:#eef8f6; border:1px solid #9bded5; border-radius:12px; min-height:96px; padding:12px; position:relative; }
+.flow div strong { display:block; font-size:14px; margin-bottom:7px; }
+.phase-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.phase { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; min-height:210px; padding:12px; }
+.phase strong { color:#071527; display:block; font-size:15px; margin-bottom:8px; }
+.slide-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+.slide { background:linear-gradient(135deg,#071527,#0e3f48); border-radius:14px; color:#fff; min-height:230px; padding:16px; position:relative; }
+.slide h3 { color:#fff; font-size:19px; margin-bottom:8px; }
+.slide p { color:#dceff2; font-size:11px; line-height:1.32; margin-bottom:10px; }
+.slide .stripe { background:#16d7c2; border-radius:999px; bottom:14px; height:6px; left:16px; position:absolute; width:42%; }
+.mini-heat { display:grid; gap:4px; grid-template-columns:repeat(4,1fr); margin-top:10px; }
+.mini-heat span { border-radius:6px; color:#071527; font-size:8px; font-weight:900; min-height:31px; padding:5px; }
+.mini-heat .low { background:#b7efe7; }
+.mini-heat .med { background:#ffe2a6; }
+.mini-heat .high { background:#ffb4b4; }
+.mini-option { margin-top:8px; }
+.mini-option div { align-items:center; display:grid; gap:6px; grid-template-columns:54px 1fr 26px; margin:6px 0; }
+.mini-option span { background:rgba(255,255,255,.17); border-radius:999px; height:8px; overflow:hidden; }
+.mini-option b { background:#16d7c2; display:block; height:100%; }
+.mini-option small { color:#dceff2; font-size:8px; font-weight:900; }
+.mini-road { border-left:2px solid #16d7c2; margin:10px 0 0 8px; padding-left:11px; }
+.mini-road div { margin-bottom:8px; position:relative; }
+.mini-road div:before { background:#16d7c2; border-radius:999px; content:""; height:8px; left:-16px; position:absolute; top:3px; width:8px; }
+.mini-road strong { color:#fff; display:block; font-size:10px; }
+.mini-road small { color:#dceff2; font-size:9px; }
+.decision-chips { display:grid; gap:6px; grid-template-columns:1fr 1fr; margin-top:10px; }
+.decision-chips span { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px; color:#fff; font-size:9px; font-weight:900; min-height:32px; padding:7px; }
+.bars div { align-items:center; display:grid; gap:8px; grid-template-columns:92px 1fr; margin:8px 0; }
+.bars span { background:#e7eef4; border-radius:999px; height:9px; overflow:hidden; }
+.bars b { background:#118577; display:block; height:100%; }
+.callout { background:#071527; border-radius:14px; color:#fff; margin-top:auto; padding:15px; }
+.footer-note { bottom:.27in; color:#64748b; font-size:9px; left:.48in; position:absolute; right:.48in; }
+ul { margin:8px 0 0 16px; padding:0; }
+li { line-height:1.34; margin-bottom:6px; }
+</style></head><body><section class="page cover">
+    <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+    <div class="cover-title"><div class="label">Sample Deliverable</div><h1>UAT Scenario Pack</h1><p class="cover-copy">A business focused UAT package that turns requirements into realistic scenarios, expected outcomes, data needs, signoff rules, and readiness checks.</p></div>
+    <div class="cover-meta">
+      <div class="meta-card"><span>Client privacy</span><strong>Client names and identifying details are anonymized.</strong></div>
+      <div class="meta-card"><span>Deliverable type</span><strong>UAT strategy, scenarios, acceptance checks, test data notes, defect triage, and signoff pack.</strong></div>
+      <div class="meta-card"><span>Typical buyer</span><strong>Product owners, business users, QA leads, project managers, and delivery teams.</strong></div>
+    </div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">01 Executive Snapshot</div></div>
+    <div class="grid two">
+      <div>
+        <div class="label">Situation</div>
+        <h2>Business users needed confidence before signoff.</h2>
+        <p class="muted">The team had requirements, but not enough business oriented validation scenarios. UAT needed to confirm real workflow outcomes, not just screen behavior.</p>
+        <div class="grid two"><div class="card teal-card"><span class="tiny">Validation issue</span><strong>Test cases were too technical and did not reflect real business situations.</strong></div><div class="card gold-card"><span class="tiny">Signoff risk</span><strong>Business acceptance could be delayed by missing data, roles, or edge cases.</strong></div></div>
+      </div>
+      <div class="card"><span class="tiny">UAT readiness</span><div class="score-ring"><span><b>79</b>Ready with gaps</span></div><p class="muted" style="text-align:center;margin-top:14px;">Core scenarios are ready, with a small number of data and role dependencies still open.</p></div>
+    </div>
+    <div class="grid four" style="margin-top:18px;"><div class="card"><span class="tiny">Scenarios</span><span class="kpi">18</span><p class="muted">Grouped by workflow and outcome.</p></div><div class="card"><span class="tiny">Data sets</span><span class="kpi">9</span><p class="muted">Normal, exception, and boundary conditions.</p></div><div class="card"><span class="tiny">Roles</span><span class="kpi">6</span><p class="muted">Mapped to test execution and signoff.</p></div><div class="card"><span class="tiny">Open blockers</span><span class="kpi">5</span><p class="muted">Need resolution before start.</p></div></div>
+    <div class="callout">Use scenario based UAT with business owner signoff and daily defect triage during the validation window.</div>
+    <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">02 Detailed Analysis</div></div>
+    <h2>UAT scenario table.</h2>
+    <p class="muted">Each scenario is written in business language so users can validate outcomes with confidence.</p>
+    <table><thead><tr><th>ID</th><th>Scenario</th><th>Role</th><th>Expected result</th><th>Data need</th></tr></thead><tbody><tr><td>UAT 01</td><td>Submit a complete request with all mandatory fields.</td><td>Requester</td><td>Request is accepted and status is new.</td><td>Standard request data.</td></tr><tr><td>UAT 02</td><td>Submit a request with missing business goal.</td><td>Requester</td><td>User receives clear validation message.</td><td>Incomplete request.</td></tr><tr><td>UAT 03</td><td>Upload multiple supporting files.</td><td>Requester</td><td>Files attach to the same request.</td><td>PDF, Word, Excel.</td></tr><tr><td>UAT 04</td><td>Classify request as custom scope.</td><td>Client lead</td><td>User is directed to custom scope path.</td><td>Complex request example.</td></tr><tr><td>UAT 05</td><td>View request status in workspace.</td><td>Client user</td><td>Status and due target are visible.</td><td>Existing request.</td></tr><tr><td>UAT 06</td><td>Purchase credit top up.</td><td>Billing contact</td><td>Payment confirmation appears and credits update.</td><td>Payment account.</td></tr><tr><td>UAT 07</td><td>Submit request with no credits.</td><td>Client user</td><td>Request is paused and top up message appears.</td><td>Zero balance account.</td></tr><tr><td>UAT 08</td><td>Admin marks deliverable delivered.</td><td>Operations admin</td><td>Status and credit history update.</td><td>Approved deliverable.</td></tr><tr><td>UAT 09</td><td>Receive low credit reminder.</td><td>Client user</td><td>Email shows balance and top up link.</td><td>Balance at threshold.</td></tr><tr><td>UAT 10</td><td>Cancel checkout before payment.</td><td>Client user</td><td>User returns to appropriate billing or pricing path.</td><td>Checkout session.</td></tr><tr><td>UAT 11</td><td>Access workspace after magic link.</td><td>Client user</td><td>Dashboard opens for signed in user.</td><td>Valid email link.</td></tr><tr><td>UAT 12</td><td>Attempt access after expired link.</td><td>Client user</td><td>User receives fresh link instruction.</td><td>Expired link.</td></tr></tbody></table>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card teal-card"><h3>How this creates value</h3><ul><li>Tests real business outcomes.</li><li>Shows signoff evidence clearly.</li><li>Reduces late acceptance surprises.</li><li>Improves alignment between business and delivery teams.</li></ul></div>
+      <div class="card gold-card"><h3>What this prevents</h3><ul><li>Technical tests replacing business validation.</li><li>Missing data blocking UAT.</li><li>Unclear defect severity.</li><li>Signoff without evidence.</li></ul></div>
+    </div>
+    <div class="footer-note">Sample deliverable. Tables show representative structure and depth.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">03 Visual Framework</div></div>
+    <h2>UAT execution flow.</h2>
+    <p class="muted">A simple flow helps business users understand what happens before, during, and after UAT.</p>
+    <div class="grid two" style="align-items:start;margin-top:12px;">
+      <div><div class="flow"><div><strong>Prepare</strong><p class="muted">Confirm scope, scenarios, data, and roles.</p></div><div><strong>Execute</strong><p class="muted">Run business scenarios with evidence capture.</p></div><div><strong>Triage</strong><p class="muted">Review defects and prioritize fixes.</p></div><div><strong>Retest</strong><p class="muted">Confirm fixes and update evidence.</p></div><div><strong>Sign off</strong><p class="muted">Approve with open item log.</p></div></div></div>
+      <div class="card"><table><thead><tr><th>Stage</th><th>Output</th><th>Owner</th></tr></thead><tbody><tr><td>Prepare</td><td>Scenario pack and readiness checklist.</td><td>UAT lead</td></tr><tr><td>Execute</td><td>Completed scenarios and screenshots.</td><td>Business users</td></tr><tr><td>Triage</td><td>Defect severity and ownership.</td><td>Delivery lead</td></tr><tr><td>Retest</td><td>Fix confirmation.</td><td>Business users</td></tr><tr><td>Signoff</td><td>Approval and open item log.</td><td>Business owner</td></tr></tbody></table></div>
+    </div>
+    <div class="callout">Good UAT proves that the business process works, not just that the screens load.</div>
+    <div class="footer-note">Sample visual structure. Final layouts are tailored to the client context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">04 Risks, Controls, And Actions</div></div>
+    <h2>Defect triage and readiness controls.</h2>
+    <p class="muted">The pack includes clear rules for severity, ownership, retesting, and signoff.</p>
+    <table><thead><tr><th>Control</th><th>Purpose</th><th>Owner</th><th>Evidence</th></tr></thead><tbody><tr><td>Readiness checklist</td><td>Confirm data, users, and environment.</td><td>UAT lead</td><td>Checklist approved.</td></tr><tr><td>Severity rules</td><td>Avoid debate during triage.</td><td>Delivery lead</td><td>Severity guide.</td></tr><tr><td>Daily triage</td><td>Keep blockers moving.</td><td>Project lead</td><td>Triage log.</td></tr><tr><td>Retest evidence</td><td>Prove fixes work.</td><td>Business user</td><td>Retest result.</td></tr><tr><td>Known issue log</td><td>Protect signoff transparency.</td><td>Business owner</td><td>Open item register.</td></tr><tr><td>Final approval</td><td>Record acceptance.</td><td>Sponsor</td><td>Signoff note.</td></tr></tbody></table>
+    <div class="grid three" style="margin-top:14px;"><div class="card teal-card"><h3>Ready to start</h3><ul><li>Data loaded</li><li>Users assigned</li><li>Scope frozen</li></ul></div><div class="card gold-card"><h3>Ready to sign off</h3><ul><li>Critical defects closed</li><li>Known issues accepted</li><li>Evidence stored</li></ul></div><div class="card blue-card"><h3>Ready to release</h3><ul><li>Training complete</li><li>Support path ready</li><li>Rollback known</li></ul></div></div>
+    <div class="footer-note">Sample control structure. Final risks and controls depend on client policy, data, system, and operating context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">05 Roadmap And Decisions</div></div>
+    <h2>UAT delivery roadmap.</h2>
+    <div class="phase-grid" style="margin-top:12px;"><div class="phase"><span class="tiny">Day 1</span><strong>Prepare</strong><ul><li>Confirm scope</li><li>Load data</li><li>Brief users</li></ul></div><div class="phase"><span class="tiny">Days 2 to 4</span><strong>Execute</strong><ul><li>Run scenarios</li><li>Log defects</li><li>Track evidence</li></ul></div><div class="phase"><span class="tiny">Days 5 to 6</span><strong>Retest</strong><ul><li>Confirm fixes</li><li>Update signoff view</li><li>Close blockers</li></ul></div><div class="phase"><span class="tiny">Day 7</span><strong>Sign off</strong><ul><li>Review open items</li><li>Approve release</li><li>Archive evidence</li></ul></div></div>
+    <div class="grid two" style="margin-top:16px;">
+      <div class="card"><h3>Decision log</h3><table><thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead><tbody><tr><td>Start UAT</td><td>Start after readiness checklist is complete.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Severity rules</td><td>Use business impact to set severity.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Signoff</td><td>Allow signoff with accepted minor open items.</td><td><span class="pill amber">Controlled</span></td></tr><tr><td>Release</td><td>Block release if critical workflow fails.</td><td><span class="pill green">Required</span></td></tr></tbody></table></div>
+      <div class="card"><h3>Open questions</h3><ul><li>Who can approve signoff?</li><li>Which scenarios are release blockers?</li><li>What data is needed for edge cases?</li><li>Where will evidence be stored?</li></ul></div>
+    </div>
+    <div class="callout">The UAT pack gives business users a structured way to validate outcomes and sign off with confidence.</div>
+    <div class="footer-note">Sample deliverable. Decisions, timelines, and priorities are tailored during intake.</div>
+  </section></body></html>

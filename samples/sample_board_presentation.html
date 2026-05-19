@@ -1,0 +1,154 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>BA Advisory Desk Sample Board Presentation Pack</title><style>
+@page { size: Letter; margin: 0; }
+* { box-sizing: border-box; }
+body { background:#e8eef4; color:#101827; font-family: Inter, Arial, sans-serif; margin:0; }
+.page { background:#fff; display:flex; flex-direction:column; height:11in; overflow:hidden; padding:.48in; page-break-after:always; position:relative; width:8.5in; }
+.cover { background:radial-gradient(circle at 78% 18%, rgba(20,184,166,.26), transparent 28%), linear-gradient(135deg,#071527 0%,#0b2b38 56%,#123f48 100%); color:#fff; }
+.brand { align-items:center; display:flex; gap:12px; }
+.mark { align-items:center; background:#fff; border-radius:10px; color:#071527; display:flex; font-size:18px; font-weight:900; height:48px; justify-content:center; width:48px; }
+.brand strong { display:block; font-size:20px; }
+.brand span { color:#d9f7f3; display:block; font-size:12px; margin-top:3px; }
+.cover-title { margin-top:.86in; max-width:6.8in; }
+.label { color:#16d7c2; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+h1 { font-size:50px; line-height:1.0; margin:18px 0; }
+h2 { font-size:29px; line-height:1.07; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+p { line-height:1.46; margin:0 0 12px; }
+.cover-copy { color:#e7f4f7; font-size:18px; line-height:1.45; max-width:6.5in; }
+.cover-meta { bottom:.52in; display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; left:.52in; position:absolute; right:.52in; }
+.meta-card { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; min-height:92px; padding:15px; }
+.meta-card span { color:#9ee7dd; display:block; font-size:11px; font-weight:900; margin-bottom:8px; text-transform:uppercase; }
+.meta-card strong { color:#fff; display:block; font-size:16px; line-height:1.25; }
+.topbar { align-items:center; border-bottom:2px solid #e1e8ef; display:flex; justify-content:space-between; margin-bottom:20px; padding-bottom:12px; }
+.topbar .brand .mark { background:#071527; color:#fff; height:36px; width:36px; }
+.topbar .brand strong { color:#071527; font-size:15px; }
+.topbar .brand span { color:#64748b; font-size:10px; }
+.page-num { color:#64748b; font-size:11px; font-weight:800; }
+.grid { display:grid; gap:14px; }
+.two { grid-template-columns:1fr 1fr; }
+.three { grid-template-columns:repeat(3,1fr); }
+.four { grid-template-columns:repeat(4,1fr); }
+.card { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; padding:14px; }
+.dark-card { background:#071527; color:#fff; }
+.teal-card { background:#e6f7f4; border-color:#9bded5; }
+.gold-card { background:#fff7e6; border-color:#f2d38a; }
+.blue-card { background:#eef5ff; border-color:#b9d4f5; }
+.muted { color:#526173; }
+.kpi { color:#071527; display:block; font-size:32px; font-weight:900; line-height:1; }
+.tiny { color:#526173; display:block; font-size:10px; font-weight:900; margin-bottom:6px; text-transform:uppercase; }
+table { border-collapse:collapse; font-size:10px; width:100%; }
+th { background:#071527; color:#fff; font-size:9px; padding:7px; text-align:left; text-transform:uppercase; }
+td { border-bottom:1px solid #d9e5ec; line-height:1.3; padding:7px; vertical-align:top; }
+.pill { border-radius:999px; display:inline-block; font-size:9px; font-weight:900; padding:4px 7px; }
+.green { background:#dff8ee; color:#08735f; }
+.amber { background:#fff0c2; color:#8a5700; }
+.red { background:#ffe3e3; color:#9d1b1b; }
+.score-ring { align-items:center; background:conic-gradient(#118577 0 68%, #dfe8ef 68% 100%); border-radius:999px; display:flex; height:140px; justify-content:center; margin:0 auto; width:140px; }
+.score-ring span { align-items:center; background:#fff; border-radius:999px; color:#071527; display:flex; flex-direction:column; font-size:13px; font-weight:900; height:100px; justify-content:center; text-align:center; width:100px; }
+.score-ring b { display:block; font-size:32px; }
+.matrix { background:linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), #f8fbfc; border:1px solid #d9e5ec; border-radius:12px; height:300px; position:relative; }
+.axis { color:#526173; font-size:9px; font-weight:900; position:absolute; text-transform:uppercase; }
+.axis.y { left:10px; top:10px; }
+.axis.x { bottom:10px; right:12px; }
+.bubble { align-items:center; border-radius:999px; color:#fff; display:flex; font-size:9px; font-weight:900; height:58px; justify-content:center; line-height:1.1; padding:7px; position:absolute; text-align:center; width:58px; }
+.flow { display:grid; gap:10px; grid-template-columns:repeat(5,1fr); margin-top:12px; }
+.flow div { background:#eef8f6; border:1px solid #9bded5; border-radius:12px; min-height:96px; padding:12px; position:relative; }
+.flow div strong { display:block; font-size:14px; margin-bottom:7px; }
+.phase-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.phase { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; min-height:210px; padding:12px; }
+.phase strong { color:#071527; display:block; font-size:15px; margin-bottom:8px; }
+.slide-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+.slide { background:linear-gradient(135deg,#071527,#0e3f48); border-radius:14px; color:#fff; min-height:230px; padding:16px; position:relative; }
+.slide h3 { color:#fff; font-size:19px; margin-bottom:8px; }
+.slide p { color:#dceff2; font-size:11px; line-height:1.32; margin-bottom:10px; }
+.slide .stripe { background:#16d7c2; border-radius:999px; bottom:14px; height:6px; left:16px; position:absolute; width:42%; }
+.mini-heat { display:grid; gap:4px; grid-template-columns:repeat(4,1fr); margin-top:10px; }
+.mini-heat span { border-radius:6px; color:#071527; font-size:8px; font-weight:900; min-height:31px; padding:5px; }
+.mini-heat .low { background:#b7efe7; }
+.mini-heat .med { background:#ffe2a6; }
+.mini-heat .high { background:#ffb4b4; }
+.mini-option { margin-top:8px; }
+.mini-option div { align-items:center; display:grid; gap:6px; grid-template-columns:54px 1fr 26px; margin:6px 0; }
+.mini-option span { background:rgba(255,255,255,.17); border-radius:999px; height:8px; overflow:hidden; }
+.mini-option b { background:#16d7c2; display:block; height:100%; }
+.mini-option small { color:#dceff2; font-size:8px; font-weight:900; }
+.mini-road { border-left:2px solid #16d7c2; margin:10px 0 0 8px; padding-left:11px; }
+.mini-road div { margin-bottom:8px; position:relative; }
+.mini-road div:before { background:#16d7c2; border-radius:999px; content:""; height:8px; left:-16px; position:absolute; top:3px; width:8px; }
+.mini-road strong { color:#fff; display:block; font-size:10px; }
+.mini-road small { color:#dceff2; font-size:9px; }
+.decision-chips { display:grid; gap:6px; grid-template-columns:1fr 1fr; margin-top:10px; }
+.decision-chips span { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px; color:#fff; font-size:9px; font-weight:900; min-height:32px; padding:7px; }
+.bars div { align-items:center; display:grid; gap:8px; grid-template-columns:92px 1fr; margin:8px 0; }
+.bars span { background:#e7eef4; border-radius:999px; height:9px; overflow:hidden; }
+.bars b { background:#118577; display:block; height:100%; }
+.callout { background:#071527; border-radius:14px; color:#fff; margin-top:auto; padding:15px; }
+.footer-note { bottom:.27in; color:#64748b; font-size:9px; left:.48in; position:absolute; right:.48in; }
+ul { margin:8px 0 0 16px; padding:0; }
+li { line-height:1.34; margin-bottom:6px; }
+</style></head><body><section class="page cover">
+    <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+    <div class="cover-title"><div class="label">Sample Deliverable</div><h1>Board Presentation Pack</h1><p class="cover-copy">A high impact board style package that turns complex program issues into a clear executive storyline, risks, decision requests, roadmap, and governance view.</p></div>
+    <div class="cover-meta">
+      <div class="meta-card"><span>Client privacy</span><strong>Client names and identifying details are anonymized.</strong></div>
+      <div class="meta-card"><span>Deliverable type</span><strong>Board ready slides, executive narrative, decision asks, risk view, and roadmap.</strong></div>
+      <div class="meta-card"><span>Typical buyer</span><strong>Executives, board sponsors, CIOs, CTOs, transformation leaders, and advisory teams.</strong></div>
+    </div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">01 Executive Snapshot</div></div>
+    <div class="grid two">
+      <div>
+        <div class="label">Situation</div>
+        <h2>The board needed a sharp storyline, not a status dump.</h2>
+        <p class="muted">Multiple workstreams had progress, risk, and decision needs. The leadership team needed a concise board ready story with clear asks and visual evidence.</p>
+        <div class="grid two"><div class="card teal-card"><span class="tiny">Presentation issue</span><strong>Inputs were detailed but not shaped into an executive story.</strong></div><div class="card gold-card"><span class="tiny">Decision risk</span><strong>Board time could be spent on background instead of the decisions needed.</strong></div></div>
+      </div>
+      <div class="card"><span class="tiny">Board readiness</span><div class="score-ring"><span><b>86</b>Decision ready</span></div><p class="muted" style="text-align:center;margin-top:14px;">The package provides a clean story, visual risk view, and specific decision requests.</p></div>
+    </div>
+    <div class="grid four" style="margin-top:18px;"><div class="card"><span class="tiny">Core slides</span><span class="kpi">12</span><p class="muted">Board ready storyline with speaker logic.</p></div><div class="card"><span class="tiny">Decision asks</span><span class="kpi">4</span><p class="muted">Clear approvals or direction needed.</p></div><div class="card"><span class="tiny">Risk themes</span><span class="kpi">8</span><p class="muted">Grouped for executive action.</p></div><div class="card"><span class="tiny">Roadmap horizon</span><span class="kpi">90</span><p class="muted">Day action view for follow up.</p></div></div>
+    <div class="callout">Use a decision led structure: context, why now, options, risks, recommendation, and requested board direction.</div>
+    <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">02 Detailed Analysis</div></div>
+    <h2>Board narrative structure.</h2>
+    <p class="muted">Each slide has one message, one purpose, and one intended executive takeaway.</p>
+    <table><thead><tr><th>Slide</th><th>Message</th><th>Visual treatment</th><th>Decision value</th></tr></thead><tbody><tr><td>1</td><td>Why this matters now.</td><td>Executive headline with urgency drivers.</td><td>Frames the conversation.</td></tr><tr><td>2</td><td>Current state is creating decision drag.</td><td>Pain point map with operating impacts.</td><td>Shows business relevance.</td></tr><tr><td>3</td><td>Program progress is uneven by workstream.</td><td>Heatmap across scope, people, process, data, tech.</td><td>Focuses governance attention.</td></tr><tr><td>4</td><td>The largest risk is not technology, it is unclear ownership.</td><td>Risk stack with ownership gaps.</td><td>Shifts discussion to accountable action.</td></tr><tr><td>5</td><td>Three options are available.</td><td>Option comparison with value and feasibility.</td><td>Creates executive choice.</td></tr><tr><td>6</td><td>Recommended path balances speed and control.</td><td>Recommendation card with rationale.</td><td>Supports approval.</td></tr><tr><td>7</td><td>Dependencies determine delivery confidence.</td><td>Dependency network with critical path.</td><td>Shows what must be resolved.</td></tr><tr><td>8</td><td>Financial view is staged by decision gate.</td><td>Investment bands and benefit timing.</td><td>Reduces funding ambiguity.</td></tr><tr><td>9</td><td>Change readiness needs active sponsorship.</td><td>Adoption risk map.</td><td>Clarifies leadership role.</td></tr><tr><td>10</td><td>90 day plan is actionable.</td><td>Roadmap with milestones.</td><td>Shows momentum.</td></tr><tr><td>11</td><td>Governance decisions are required.</td><td>Decision log and owner view.</td><td>Enables direction.</td></tr><tr><td>12</td><td>Board ask is specific.</td><td>Four requested decisions.</td><td>Closes with clarity.</td></tr></tbody></table>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card teal-card"><h3>How this creates value</h3><ul><li>Reduces executive noise.</li><li>Creates a decision led narrative.</li><li>Makes risks visible without overloading the board.</li><li>Gives leaders a usable follow up roadmap.</li></ul></div>
+      <div class="card gold-card"><h3>What this prevents</h3><ul><li>Slide decks that read like status reports.</li><li>Unclear asks at the end of the meeting.</li><li>Hidden dependencies.</li><li>Over detailed material that slows board decisions.</li></ul></div>
+    </div>
+    <div class="footer-note">Sample deliverable. Tables show representative structure and depth.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">03 Visual Framework</div></div>
+    <h2>Sample board slide snapshots.</h2>
+    <p class="muted">The pack uses visual slide patterns that help leaders scan, decide, and remember the message.</p>
+    <div class="grid two" style="align-items:start;margin-top:12px;">
+      <div><div class="slide-grid"><div class="slide"><span class="label">Slide 03</span><h3>Program Readiness Heatmap</h3><p>Scope is strong. Ownership, adoption, and data readiness need active attention.</p><div class="mini-heat">
+      <span class="low">Scope<br>Green</span><span class="med">Data<br>Amber</span><span class="high">Adoption<br>Red</span><span class="med">Owner<br>Amber</span>
+      <span class="low">Process<br>Green</span><span class="med">Training<br>Amber</span><span class="high">Controls<br>Red</span><span class="low">Funding<br>Green</span>
+    </div><div class="stripe"></div></div><div class="slide"><span class="label">Slide 05</span><h3>Option Decision View</h3><p>Targeted improvement is the best balance of value, cost, and risk.</p><div class="mini-option">
+      <div><small>Option A</small><span><b style="width:58%"></b></span><small>58</small></div>
+      <div><small>Option B</small><span><b style="width:82%"></b></span><small>82</small></div>
+      <div><small>Option C</small><span><b style="width:64%"></b></span><small>64</small></div>
+    </div><div class="stripe"></div></div><div class="slide"><span class="label">Slide 08</span><h3>Investment Timing</h3><p>Funding is staged against milestones and decision gates.</p><div class="mini-road">
+      <div><strong>Gate 1</strong><small>Approve scope and owner model.</small></div>
+      <div><strong>Gate 2</strong><small>Release pilot funding.</small></div>
+      <div><strong>Gate 3</strong><small>Scale after benefit evidence.</small></div>
+    </div><div class="stripe"></div></div><div class="slide"><span class="label">Slide 12</span><h3>Board Decision Ask</h3><p>Approve first wave, assign sponsor, confirm guardrails, and set review date.</p><div class="decision-chips"><span>Approve first wave</span><span>Assign executive sponsor</span><span>Confirm risk guardrails</span><span>Set 60 day review</span></div><div class="stripe"></div></div></div></div>
+      <div class="card"><table><thead><tr><th>Visual</th><th>Purpose</th><th>Why it works</th></tr></thead><tbody><tr><td>Heatmap</td><td>Shows uneven readiness quickly.</td><td>Executives can see where attention is needed.</td></tr><tr><td>Option cards</td><td>Compares choices.</td><td>Avoids debate without criteria.</td></tr><tr><td>Roadmap</td><td>Shows time phased action.</td><td>Links approval to next steps.</td></tr><tr><td>Decision log</td><td>Names the ask.</td><td>Prevents vague meeting outcomes.</td></tr></tbody></table></div>
+    </div>
+    <div class="callout">The best board materials do not try to show everything. They show the right things in the right order.</div>
+    <div class="footer-note">Sample visual structure. Final layouts are tailored to the client context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">04 Risks, Controls, And Actions</div></div>
+    <h2>Board pack quality controls.</h2>
+    <p class="muted">The deck is checked for executive clarity, decision logic, and evidence discipline.</p>
+    <table><thead><tr><th>Control</th><th>Question</th><th>Risk reduced</th><th>Action</th></tr></thead><tbody><tr><td>Message test</td><td>Can the slide headline stand alone?</td><td>Weak narrative</td><td>Use action headline.</td></tr><tr><td>Decision test</td><td>Does the deck ask for a clear decision?</td><td>No outcome</td><td>Add decision page.</td></tr><tr><td>Evidence test</td><td>Is every key claim supported?</td><td>Credibility risk</td><td>Add source note.</td></tr><tr><td>Length test</td><td>Can it be reviewed within board time?</td><td>Overload</td><td>Move detail to appendix.</td></tr><tr><td>Risk test</td><td>Are risks grouped by decision relevance?</td><td>Unfocused concern</td><td>Use risk themes.</td></tr><tr><td>Follow up test</td><td>Does the roadmap name owners?</td><td>No execution path</td><td>Add owner view.</td></tr></tbody></table>
+    <div class="grid three" style="margin-top:14px;"><div class="card teal-card"><h3>Storyline</h3><ul><li>Why now</li><li>What changed</li><li>What decision</li></ul></div><div class="card gold-card"><h3>Evidence</h3><ul><li>Facts</li><li>Risks</li><li>Options</li></ul></div><div class="card blue-card"><h3>Action</h3><ul><li>Decision ask</li><li>Owner</li><li>Timeline</li></ul></div></div>
+    <div class="footer-note">Sample control structure. Final risks and controls depend on client policy, data, system, and operating context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">05 Roadmap And Decisions</div></div>
+    <h2>Board preparation roadmap.</h2>
+    <div class="phase-grid" style="margin-top:12px;"><div class="phase"><span class="tiny">Step 1</span><strong>Shape story</strong><ul><li>Clarify audience</li><li>Confirm decision ask</li><li>Build storyline</li></ul></div><div class="phase"><span class="tiny">Step 2</span><strong>Build visuals</strong><ul><li>Create heatmap</li><li>Summarize options</li><li>Design roadmap</li></ul></div><div class="phase"><span class="tiny">Step 3</span><strong>Validate</strong><ul><li>Check evidence</li><li>Review risks</li><li>Test flow</li></ul></div><div class="phase"><span class="tiny">Step 4</span><strong>Finalize</strong><ul><li>Prepare speaker notes</li><li>Package appendix</li><li>Confirm next steps</li></ul></div></div>
+    <div class="grid two" style="margin-top:16px;">
+      <div class="card"><h3>Decision log</h3><table><thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead><tbody><tr><td>Board ask</td><td>Approve first wave and governance model.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Sponsor</td><td>Assign named executive sponsor.</td><td><span class="pill green">Required</span></td></tr><tr><td>Risk review</td><td>Review high risks monthly.</td><td><span class="pill amber">Control</span></td></tr><tr><td>Next meeting</td><td>Set progress checkpoint.</td><td><span class="pill green">Schedule</span></td></tr></tbody></table></div>
+      <div class="card"><h3>Open questions</h3><ul><li>What is the single decision the board must make?</li><li>Which details belong in appendix?</li><li>Which risks require board direction?</li><li>What happens immediately after approval?</li></ul></div>
+    </div>
+    <div class="callout">The package turns complex program material into a board ready story with clear decisions and follow through.</div>
+    <div class="footer-note">Sample deliverable. Decisions, timelines, and priorities are tailored during intake.</div>
+  </section></body></html>

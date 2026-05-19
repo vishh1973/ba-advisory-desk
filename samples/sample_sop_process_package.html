@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>BA Advisory Desk Sample SOP And Process Package</title><style>
+@page { size: Letter; margin: 0; }
+* { box-sizing: border-box; }
+body { background:#e8eef4; color:#101827; font-family: Inter, Arial, sans-serif; margin:0; }
+.page { background:#fff; display:flex; flex-direction:column; height:11in; overflow:hidden; padding:.48in; page-break-after:always; position:relative; width:8.5in; }
+.cover { background:radial-gradient(circle at 78% 18%, rgba(20,184,166,.26), transparent 28%), linear-gradient(135deg,#071527 0%,#0b2b38 56%,#123f48 100%); color:#fff; }
+.brand { align-items:center; display:flex; gap:12px; }
+.mark { align-items:center; background:#fff; border-radius:10px; color:#071527; display:flex; font-size:18px; font-weight:900; height:48px; justify-content:center; width:48px; }
+.brand strong { display:block; font-size:20px; }
+.brand span { color:#d9f7f3; display:block; font-size:12px; margin-top:3px; }
+.cover-title { margin-top:.86in; max-width:6.8in; }
+.label { color:#16d7c2; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+h1 { font-size:50px; line-height:1.0; margin:18px 0; }
+h2 { font-size:29px; line-height:1.07; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+p { line-height:1.46; margin:0 0 12px; }
+.cover-copy { color:#e7f4f7; font-size:18px; line-height:1.45; max-width:6.5in; }
+.cover-meta { bottom:.52in; display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; left:.52in; position:absolute; right:.52in; }
+.meta-card { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; min-height:92px; padding:15px; }
+.meta-card span { color:#9ee7dd; display:block; font-size:11px; font-weight:900; margin-bottom:8px; text-transform:uppercase; }
+.meta-card strong { color:#fff; display:block; font-size:16px; line-height:1.25; }
+.topbar { align-items:center; border-bottom:2px solid #e1e8ef; display:flex; justify-content:space-between; margin-bottom:20px; padding-bottom:12px; }
+.topbar .brand .mark { background:#071527; color:#fff; height:36px; width:36px; }
+.topbar .brand strong { color:#071527; font-size:15px; }
+.topbar .brand span { color:#64748b; font-size:10px; }
+.page-num { color:#64748b; font-size:11px; font-weight:800; }
+.grid { display:grid; gap:14px; }
+.two { grid-template-columns:1fr 1fr; }
+.three { grid-template-columns:repeat(3,1fr); }
+.four { grid-template-columns:repeat(4,1fr); }
+.card { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; padding:14px; }
+.dark-card { background:#071527; color:#fff; }
+.teal-card { background:#e6f7f4; border-color:#9bded5; }
+.gold-card { background:#fff7e6; border-color:#f2d38a; }
+.blue-card { background:#eef5ff; border-color:#b9d4f5; }
+.muted { color:#526173; }
+.kpi { color:#071527; display:block; font-size:32px; font-weight:900; line-height:1; }
+.tiny { color:#526173; display:block; font-size:10px; font-weight:900; margin-bottom:6px; text-transform:uppercase; }
+table { border-collapse:collapse; font-size:10px; width:100%; }
+th { background:#071527; color:#fff; font-size:9px; padding:7px; text-align:left; text-transform:uppercase; }
+td { border-bottom:1px solid #d9e5ec; line-height:1.3; padding:7px; vertical-align:top; }
+.pill { border-radius:999px; display:inline-block; font-size:9px; font-weight:900; padding:4px 7px; }
+.green { background:#dff8ee; color:#08735f; }
+.amber { background:#fff0c2; color:#8a5700; }
+.red { background:#ffe3e3; color:#9d1b1b; }
+.score-ring { align-items:center; background:conic-gradient(#118577 0 68%, #dfe8ef 68% 100%); border-radius:999px; display:flex; height:140px; justify-content:center; margin:0 auto; width:140px; }
+.score-ring span { align-items:center; background:#fff; border-radius:999px; color:#071527; display:flex; flex-direction:column; font-size:13px; font-weight:900; height:100px; justify-content:center; text-align:center; width:100px; }
+.score-ring b { display:block; font-size:32px; }
+.matrix { background:linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), #f8fbfc; border:1px solid #d9e5ec; border-radius:12px; height:300px; position:relative; }
+.axis { color:#526173; font-size:9px; font-weight:900; position:absolute; text-transform:uppercase; }
+.axis.y { left:10px; top:10px; }
+.axis.x { bottom:10px; right:12px; }
+.bubble { align-items:center; border-radius:999px; color:#fff; display:flex; font-size:9px; font-weight:900; height:58px; justify-content:center; line-height:1.1; padding:7px; position:absolute; text-align:center; width:58px; }
+.flow { display:grid; gap:10px; grid-template-columns:repeat(5,1fr); margin-top:12px; }
+.flow div { background:#eef8f6; border:1px solid #9bded5; border-radius:12px; min-height:96px; padding:12px; position:relative; }
+.flow div strong { display:block; font-size:14px; margin-bottom:7px; }
+.phase-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.phase { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; min-height:210px; padding:12px; }
+.phase strong { color:#071527; display:block; font-size:15px; margin-bottom:8px; }
+.slide-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+.slide { background:linear-gradient(135deg,#071527,#0e3f48); border-radius:14px; color:#fff; min-height:230px; padding:16px; position:relative; }
+.slide h3 { color:#fff; font-size:19px; margin-bottom:8px; }
+.slide p { color:#dceff2; font-size:11px; line-height:1.32; margin-bottom:10px; }
+.slide .stripe { background:#16d7c2; border-radius:999px; bottom:14px; height:6px; left:16px; position:absolute; width:42%; }
+.mini-heat { display:grid; gap:4px; grid-template-columns:repeat(4,1fr); margin-top:10px; }
+.mini-heat span { border-radius:6px; color:#071527; font-size:8px; font-weight:900; min-height:31px; padding:5px; }
+.mini-heat .low { background:#b7efe7; }
+.mini-heat .med { background:#ffe2a6; }
+.mini-heat .high { background:#ffb4b4; }
+.mini-option { margin-top:8px; }
+.mini-option div { align-items:center; display:grid; gap:6px; grid-template-columns:54px 1fr 26px; margin:6px 0; }
+.mini-option span { background:rgba(255,255,255,.17); border-radius:999px; height:8px; overflow:hidden; }
+.mini-option b { background:#16d7c2; display:block; height:100%; }
+.mini-option small { color:#dceff2; font-size:8px; font-weight:900; }
+.mini-road { border-left:2px solid #16d7c2; margin:10px 0 0 8px; padding-left:11px; }
+.mini-road div { margin-bottom:8px; position:relative; }
+.mini-road div:before { background:#16d7c2; border-radius:999px; content:""; height:8px; left:-16px; position:absolute; top:3px; width:8px; }
+.mini-road strong { color:#fff; display:block; font-size:10px; }
+.mini-road small { color:#dceff2; font-size:9px; }
+.decision-chips { display:grid; gap:6px; grid-template-columns:1fr 1fr; margin-top:10px; }
+.decision-chips span { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px; color:#fff; font-size:9px; font-weight:900; min-height:32px; padding:7px; }
+.bars div { align-items:center; display:grid; gap:8px; grid-template-columns:92px 1fr; margin:8px 0; }
+.bars span { background:#e7eef4; border-radius:999px; height:9px; overflow:hidden; }
+.bars b { background:#118577; display:block; height:100%; }
+.callout { background:#071527; border-radius:14px; color:#fff; margin-top:auto; padding:15px; }
+.footer-note { bottom:.27in; color:#64748b; font-size:9px; left:.48in; position:absolute; right:.48in; }
+ul { margin:8px 0 0 16px; padding:0; }
+li { line-height:1.34; margin-bottom:6px; }
+</style></head><body><section class="page cover">
+    <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+    <div class="cover-title"><div class="label">Sample Deliverable</div><h1>SOP And Process Package</h1><p class="cover-copy">A practical operating package that documents the process, roles, steps, rules, exceptions, controls, and handoffs needed for repeatable work.</p></div>
+    <div class="cover-meta">
+      <div class="meta-card"><span>Client privacy</span><strong>Client names and identifying details are anonymized.</strong></div>
+      <div class="meta-card"><span>Deliverable type</span><strong>SOP, process map, RACI, control checklist, exceptions, and rollout guide.</strong></div>
+      <div class="meta-card"><span>Typical buyer</span><strong>Operations leaders, service teams, delivery managers, and process owners.</strong></div>
+    </div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">01 Executive Snapshot</div></div>
+    <div class="grid two">
+      <div>
+        <div class="label">Situation</div>
+        <h2>The work was getting done, but not consistently.</h2>
+        <p class="muted">Teams followed different handoffs, used different templates, and interpreted exceptions differently. Leaders needed one clear operating standard.</p>
+        <div class="grid two"><div class="card teal-card"><span class="tiny">Operating issue</span><strong>Repeatable work depended too much on individual knowledge.</strong></div><div class="card gold-card"><span class="tiny">Control risk</span><strong>Inconsistent handoffs created delays, rework, and avoidable escalation.</strong></div></div>
+      </div>
+      <div class="card"><span class="tiny">Process discipline</span><div class="score-ring"><span><b>72</b>Standardized</span></div><p class="muted" style="text-align:center;margin-top:14px;">The package creates one agreed process view, with steps, owners, controls, and exception handling.</p></div>
+    </div>
+    <div class="grid four" style="margin-top:18px;"><div class="card"><span class="tiny">Process steps</span><span class="kpi">16</span><p class="muted">Sequenced from intake to closure.</p></div><div class="card"><span class="tiny">Roles clarified</span><span class="kpi">8</span><p class="muted">Mapped in RACI and handoff rules.</p></div><div class="card"><span class="tiny">Control points</span><span class="kpi">12</span><p class="muted">Added at high risk handoffs.</p></div><div class="card"><span class="tiny">Exceptions</span><span class="kpi">10</span><p class="muted">Documented with routing rules.</p></div></div>
+    <div class="callout">Adopt the SOP as the controlled operating baseline and review exceptions after the first 30 days of use.</div>
+    <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">02 Detailed Analysis</div></div>
+    <h2>SOP step table.</h2>
+    <p class="muted">The SOP table gives teams the operating detail needed to execute consistently.</p>
+    <table><thead><tr><th>Step</th><th>Action</th><th>Owner</th><th>Input</th><th>Output</th></tr></thead><tbody><tr><td>1</td><td>Receive request and confirm channel.</td><td>Intake coordinator</td><td>Email, form, or portal request.</td><td>Request record.</td></tr><tr><td>2</td><td>Check minimum information.</td><td>Intake coordinator</td><td>Business goal, audience, due date.</td><td>Complete or returned intake.</td></tr><tr><td>3</td><td>Classify request type.</td><td>Process lead</td><td>Request summary.</td><td>Category and priority.</td></tr><tr><td>4</td><td>Assign owner.</td><td>Team lead</td><td>Category and workload.</td><td>Named owner.</td></tr><tr><td>5</td><td>Review supporting files.</td><td>Assigned analyst</td><td>Documents and notes.</td><td>Input quality assessment.</td></tr><tr><td>6</td><td>Identify missing context.</td><td>Assigned analyst</td><td>Input assessment.</td><td>Clarification questions.</td></tr><tr><td>7</td><td>Draft output.</td><td>Assigned analyst</td><td>Source materials.</td><td>Draft deliverable.</td></tr><tr><td>8</td><td>Perform quality check.</td><td>Senior reviewer</td><td>Draft deliverable.</td><td>Reviewed output.</td></tr><tr><td>9</td><td>Resolve open issues.</td><td>Assigned analyst</td><td>Review notes.</td><td>Updated deliverable.</td></tr><tr><td>10</td><td>Send client ready output.</td><td>Delivery owner</td><td>Final deliverable.</td><td>Delivered package.</td></tr><tr><td>11</td><td>Record status and credits.</td><td>Operations admin</td><td>Delivery record.</td><td>Updated account history.</td></tr><tr><td>12</td><td>Capture feedback.</td><td>Client lead</td><td>Client response.</td><td>Improvement note.</td></tr><tr><td>13</td><td>Close request.</td><td>Operations admin</td><td>Approved deliverable.</td><td>Closed record.</td></tr></tbody></table>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card teal-card"><h3>How this creates value</h3><ul><li>Reduces variation across staff.</li><li>Protects quality at handoff points.</li><li>Makes training faster.</li><li>Creates audit friendly evidence.</li></ul></div>
+      <div class="card gold-card"><h3>What this prevents</h3><ul><li>Unclear ownership.</li><li>Hidden tribal knowledge.</li><li>Repeated escalation.</li><li>Inconsistent client experience.</li></ul></div>
+    </div>
+    <div class="footer-note">Sample deliverable. Tables show representative structure and depth.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">03 Visual Framework</div></div>
+    <h2>End to end operating flow.</h2>
+    <p class="muted">The process view keeps the SOP easy to understand before readers go into step detail.</p>
+    <div class="grid two" style="align-items:start;margin-top:12px;">
+      <div><div class="flow"><div><strong>Intake</strong><p class="muted">Capture goal, audience, files, and urgency.</p></div><div><strong>Triage</strong><p class="muted">Classify request and confirm completeness.</p></div><div><strong>Prepare</strong><p class="muted">Draft output and resolve questions.</p></div><div><strong>Review</strong><p class="muted">Check quality, risks, and handoff fit.</p></div><div><strong>Deliver</strong><p class="muted">Send output and update records.</p></div></div></div>
+      <div class="card"><table><thead><tr><th>Handoff</th><th>Failure mode</th><th>Control</th></tr></thead><tbody><tr><td>Intake to triage</td><td>Incomplete request.</td><td>Minimum input checklist.</td></tr><tr><td>Triage to analyst</td><td>Wrong classification.</td><td>Request type definitions.</td></tr><tr><td>Analyst to reviewer</td><td>Inconsistent quality.</td><td>QA checklist.</td></tr><tr><td>Reviewer to delivery</td><td>Unresolved assumptions.</td><td>Open question log.</td></tr><tr><td>Delivery to closure</td><td>Credit record missed.</td><td>Ledger update step.</td></tr></tbody></table></div>
+    </div>
+    <div class="callout">A useful SOP is not just a procedure. It is a practical operating model for consistent client delivery.</div>
+    <div class="footer-note">Sample visual structure. Final layouts are tailored to the client context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">04 Risks, Controls, And Actions</div></div>
+    <h2>Controls and exception rules.</h2>
+    <p class="muted">Exception rules tell staff what to do when the process cannot follow the happy path.</p>
+    <table><thead><tr><th>Exception</th><th>Trigger</th><th>Owner</th><th>Required action</th></tr></thead><tbody><tr><td>Incomplete intake</td><td>No business goal or target audience.</td><td>Intake coordinator</td><td>Return for clarification.</td></tr><tr><td>Sensitive files</td><td>Files appear confidential or regulated.</td><td>Delivery owner</td><td>Confirm NDA and handling path.</td></tr><tr><td>No credits</td><td>Client balance is zero.</td><td>Operations admin</td><td>Pause request and send top up path.</td></tr><tr><td>Urgent work</td><td>Client requests faster turnaround.</td><td>Team lead</td><td>Confirm feasibility and scope tradeoff.</td></tr><tr><td>Custom scope</td><td>Request spans multiple teams or unclear outcomes.</td><td>Senior reviewer</td><td>Route to custom advisory.</td></tr><tr><td>Quality concern</td><td>Client challenges output.</td><td>Delivery owner</td><td>Open revision review.</td></tr></tbody></table>
+    <div class="grid three" style="margin-top:14px;"><div class="card teal-card"><h3>Training</h3><ul><li>Role guide</li><li>Example requests</li><li>Quality checklist</li></ul></div><div class="card gold-card"><h3>Governance</h3><ul><li>Owner</li><li>Review cycle</li><li>Exception log</li></ul></div><div class="card blue-card"><h3>Measurement</h3><ul><li>Cycle time</li><li>Rework</li><li>Client feedback</li></ul></div></div>
+    <div class="footer-note">Sample control structure. Final risks and controls depend on client policy, data, system, and operating context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">05 Roadmap And Decisions</div></div>
+    <h2>SOP rollout roadmap.</h2>
+    <div class="phase-grid" style="margin-top:12px;"><div class="phase"><span class="tiny">Week 1</span><strong>Validate</strong><ul><li>Confirm process</li><li>Review roles</li><li>Check exceptions</li></ul></div><div class="phase"><span class="tiny">Week 2</span><strong>Train</strong><ul><li>Walkthrough</li><li>Publish job aid</li><li>Answer questions</li></ul></div><div class="phase"><span class="tiny">Week 3</span><strong>Use</strong><ul><li>Run first cycle</li><li>Log exceptions</li><li>Track gaps</li></ul></div><div class="phase"><span class="tiny">Week 4</span><strong>Improve</strong><ul><li>Review metrics</li><li>Update SOP</li><li>Confirm baseline</li></ul></div></div>
+    <div class="grid two" style="margin-top:16px;">
+      <div class="card"><h3>Decision log</h3><table><thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead><tbody><tr><td>SOP owner</td><td>Assign one accountable process owner.</td><td><span class="pill green">Required</span></td></tr><tr><td>Exception log</td><td>Track exceptions for 30 days.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Training</td><td>Run walkthrough before rollout.</td><td><span class="pill green">Schedule</span></td></tr><tr><td>Review cycle</td><td>Review monthly during first quarter.</td><td><span class="pill amber">Control</span></td></tr></tbody></table></div>
+      <div class="card"><h3>Open questions</h3><ul><li>Who owns future SOP changes?</li><li>Which exceptions require approval?</li><li>What metrics show the process is working?</li><li>Where is the approved SOP stored?</li></ul></div>
+    </div>
+    <div class="callout">The SOP package gives teams a clear operating baseline that can be trained, measured, and improved.</div>
+    <div class="footer-note">Sample deliverable. Decisions, timelines, and priorities are tailored during intake.</div>
+  </section></body></html>

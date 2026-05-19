@@ -63,6 +63,37 @@ async function grantCredits({ supabase, order, session }) {
   });
 }
 
+function getPaymentEmail(order) {
+  const workspaceLink = `${process.env.PUBLIC_BASE_URL}/index.html#login`;
+  const productType = order?.product_type;
+
+  if (productType === "rescue_sprint") {
+    return {
+      subject: "BA Rescue Sprint payment confirmed",
+      html: `<p>Your BA Rescue Sprint payment has been confirmed.</p><p>Please use the email address from checkout to access BA Advisory Desk and share the material needed for your sprint.</p><p><a href="${workspaceLink}">Open BA Advisory Desk</a></p>`,
+    };
+  }
+
+  if (productType === "starter_monthly") {
+    return {
+      subject: "BA Advisory Desk Starter payment confirmed",
+      html: `<p>Your BA Advisory Desk Starter payment has been confirmed.</p><p>Your monthly plan includes ${order.credits || 5} Advisory Credits. Use your client workspace for files, requests, delivery updates, and credit history.</p><p><a href="${workspaceLink}">Open BA Advisory Desk</a></p>`,
+    };
+  }
+
+  if (productType === "credit_top_up") {
+    return {
+      subject: "BA Advisory Desk credit top up confirmed",
+      html: `<p>Your credit top up payment has been confirmed.</p><p>${order.credits || 3} Advisory Credits have been added to your client workspace.</p><p><a href="${workspaceLink}">Open BA Advisory Desk</a></p>`,
+    };
+  }
+
+  return {
+    subject: "BA Advisory Desk payment confirmed",
+    html: `<p>Your BA Advisory Desk payment has been confirmed.</p><p>You can access your client workspace to continue.</p><p><a href="${workspaceLink}">Open BA Advisory Desk</a></p>`,
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).send("Method not allowed.");
@@ -121,10 +152,11 @@ module.exports = async function handler(req, res) {
           await grantCredits({ supabase, order, session });
 
           if (session.customer_details?.email) {
+            const email = getPaymentEmail(order);
             await sendEmail({
               to: session.customer_details.email,
-              subject: "BA Advisory Desk payment confirmed",
-              html: `<p>Your payment has been confirmed.</p><p>Credits added: ${order.credits || 0}</p><p>You can access your workspace at <a href="${process.env.PUBLIC_BASE_URL}/index.html#login">BA Advisory Desk</a>.</p>`,
+              subject: email.subject,
+              html: email.html,
             });
           }
         }

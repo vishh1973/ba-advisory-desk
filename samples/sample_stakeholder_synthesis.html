@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>BA Advisory Desk Sample Stakeholder Synthesis Pack</title><style>
+@page { size: Letter; margin: 0; }
+* { box-sizing: border-box; }
+body { background:#e8eef4; color:#101827; font-family: Inter, Arial, sans-serif; margin:0; }
+.page { background:#fff; display:flex; flex-direction:column; height:11in; overflow:hidden; padding:.48in; page-break-after:always; position:relative; width:8.5in; }
+.cover { background:radial-gradient(circle at 78% 18%, rgba(20,184,166,.26), transparent 28%), linear-gradient(135deg,#071527 0%,#0b2b38 56%,#123f48 100%); color:#fff; }
+.brand { align-items:center; display:flex; gap:12px; }
+.mark { align-items:center; background:#fff; border-radius:10px; color:#071527; display:flex; font-size:18px; font-weight:900; height:48px; justify-content:center; width:48px; }
+.brand strong { display:block; font-size:20px; }
+.brand span { color:#d9f7f3; display:block; font-size:12px; margin-top:3px; }
+.cover-title { margin-top:.86in; max-width:6.8in; }
+.label { color:#16d7c2; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+h1 { font-size:50px; line-height:1.0; margin:18px 0; }
+h2 { font-size:29px; line-height:1.07; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+p { line-height:1.46; margin:0 0 12px; }
+.cover-copy { color:#e7f4f7; font-size:18px; line-height:1.45; max-width:6.5in; }
+.cover-meta { bottom:.52in; display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; left:.52in; position:absolute; right:.52in; }
+.meta-card { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; min-height:92px; padding:15px; }
+.meta-card span { color:#9ee7dd; display:block; font-size:11px; font-weight:900; margin-bottom:8px; text-transform:uppercase; }
+.meta-card strong { color:#fff; display:block; font-size:16px; line-height:1.25; }
+.topbar { align-items:center; border-bottom:2px solid #e1e8ef; display:flex; justify-content:space-between; margin-bottom:20px; padding-bottom:12px; }
+.topbar .brand .mark { background:#071527; color:#fff; height:36px; width:36px; }
+.topbar .brand strong { color:#071527; font-size:15px; }
+.topbar .brand span { color:#64748b; font-size:10px; }
+.page-num { color:#64748b; font-size:11px; font-weight:800; }
+.grid { display:grid; gap:14px; }
+.two { grid-template-columns:1fr 1fr; }
+.three { grid-template-columns:repeat(3,1fr); }
+.four { grid-template-columns:repeat(4,1fr); }
+.card { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; padding:14px; }
+.dark-card { background:#071527; color:#fff; }
+.teal-card { background:#e6f7f4; border-color:#9bded5; }
+.gold-card { background:#fff7e6; border-color:#f2d38a; }
+.blue-card { background:#eef5ff; border-color:#b9d4f5; }
+.muted { color:#526173; }
+.kpi { color:#071527; display:block; font-size:32px; font-weight:900; line-height:1; }
+.tiny { color:#526173; display:block; font-size:10px; font-weight:900; margin-bottom:6px; text-transform:uppercase; }
+table { border-collapse:collapse; font-size:10px; width:100%; }
+th { background:#071527; color:#fff; font-size:9px; padding:7px; text-align:left; text-transform:uppercase; }
+td { border-bottom:1px solid #d9e5ec; line-height:1.3; padding:7px; vertical-align:top; }
+.pill { border-radius:999px; display:inline-block; font-size:9px; font-weight:900; padding:4px 7px; }
+.green { background:#dff8ee; color:#08735f; }
+.amber { background:#fff0c2; color:#8a5700; }
+.red { background:#ffe3e3; color:#9d1b1b; }
+.score-ring { align-items:center; background:conic-gradient(#118577 0 68%, #dfe8ef 68% 100%); border-radius:999px; display:flex; height:140px; justify-content:center; margin:0 auto; width:140px; }
+.score-ring span { align-items:center; background:#fff; border-radius:999px; color:#071527; display:flex; flex-direction:column; font-size:13px; font-weight:900; height:100px; justify-content:center; text-align:center; width:100px; }
+.score-ring b { display:block; font-size:32px; }
+.matrix { background:linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), #f8fbfc; border:1px solid #d9e5ec; border-radius:12px; height:300px; position:relative; }
+.axis { color:#526173; font-size:9px; font-weight:900; position:absolute; text-transform:uppercase; }
+.axis.y { left:10px; top:10px; }
+.axis.x { bottom:10px; right:12px; }
+.bubble { align-items:center; border-radius:999px; color:#fff; display:flex; font-size:9px; font-weight:900; height:58px; justify-content:center; line-height:1.1; padding:7px; position:absolute; text-align:center; width:58px; }
+.flow { display:grid; gap:10px; grid-template-columns:repeat(5,1fr); margin-top:12px; }
+.flow div { background:#eef8f6; border:1px solid #9bded5; border-radius:12px; min-height:96px; padding:12px; position:relative; }
+.flow div strong { display:block; font-size:14px; margin-bottom:7px; }
+.phase-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.phase { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; min-height:210px; padding:12px; }
+.phase strong { color:#071527; display:block; font-size:15px; margin-bottom:8px; }
+.slide-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+.slide { background:linear-gradient(135deg,#071527,#0e3f48); border-radius:14px; color:#fff; min-height:230px; padding:16px; position:relative; }
+.slide h3 { color:#fff; font-size:19px; margin-bottom:8px; }
+.slide p { color:#dceff2; font-size:11px; line-height:1.32; margin-bottom:10px; }
+.slide .stripe { background:#16d7c2; border-radius:999px; bottom:14px; height:6px; left:16px; position:absolute; width:42%; }
+.mini-heat { display:grid; gap:4px; grid-template-columns:repeat(4,1fr); margin-top:10px; }
+.mini-heat span { border-radius:6px; color:#071527; font-size:8px; font-weight:900; min-height:31px; padding:5px; }
+.mini-heat .low { background:#b7efe7; }
+.mini-heat .med { background:#ffe2a6; }
+.mini-heat .high { background:#ffb4b4; }
+.mini-option { margin-top:8px; }
+.mini-option div { align-items:center; display:grid; gap:6px; grid-template-columns:54px 1fr 26px; margin:6px 0; }
+.mini-option span { background:rgba(255,255,255,.17); border-radius:999px; height:8px; overflow:hidden; }
+.mini-option b { background:#16d7c2; display:block; height:100%; }
+.mini-option small { color:#dceff2; font-size:8px; font-weight:900; }
+.mini-road { border-left:2px solid #16d7c2; margin:10px 0 0 8px; padding-left:11px; }
+.mini-road div { margin-bottom:8px; position:relative; }
+.mini-road div:before { background:#16d7c2; border-radius:999px; content:""; height:8px; left:-16px; position:absolute; top:3px; width:8px; }
+.mini-road strong { color:#fff; display:block; font-size:10px; }
+.mini-road small { color:#dceff2; font-size:9px; }
+.decision-chips { display:grid; gap:6px; grid-template-columns:1fr 1fr; margin-top:10px; }
+.decision-chips span { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px; color:#fff; font-size:9px; font-weight:900; min-height:32px; padding:7px; }
+.bars div { align-items:center; display:grid; gap:8px; grid-template-columns:92px 1fr; margin:8px 0; }
+.bars span { background:#e7eef4; border-radius:999px; height:9px; overflow:hidden; }
+.bars b { background:#118577; display:block; height:100%; }
+.callout { background:#071527; border-radius:14px; color:#fff; margin-top:auto; padding:15px; }
+.footer-note { bottom:.27in; color:#64748b; font-size:9px; left:.48in; position:absolute; right:.48in; }
+ul { margin:8px 0 0 16px; padding:0; }
+li { line-height:1.34; margin-bottom:6px; }
+</style></head><body><section class="page cover">
+    <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+    <div class="cover-title"><div class="label">Sample Deliverable</div><h1>Stakeholder Synthesis Pack</h1><p class="cover-copy">A structured synthesis that turns stakeholder interviews, workshops, and written feedback into themes, needs, conflicts, decisions, and action priorities.</p></div>
+    <div class="cover-meta">
+      <div class="meta-card"><span>Client privacy</span><strong>Client names and identifying details are anonymized.</strong></div>
+      <div class="meta-card"><span>Deliverable type</span><strong>Stakeholder map, themes, needs analysis, conflict view, decision log, and action register.</strong></div>
+      <div class="meta-card"><span>Typical buyer</span><strong>Program leads, product owners, transformation offices, and consulting teams.</strong></div>
+    </div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">01 Executive Snapshot</div></div>
+    <div class="grid two">
+      <div>
+        <div class="label">Situation</div>
+        <h2>Stakeholders were talking about the same problem in different ways.</h2>
+        <p class="muted">Feedback was rich but fragmented. Leaders needed to know what stakeholders agreed on, where they disagreed, what decisions were needed, and what could move forward.</p>
+        <div class="grid two"><div class="card teal-card"><span class="tiny">Synthesis issue</span><strong>Input volume was high, but themes and decisions were unclear.</strong></div><div class="card gold-card"><span class="tiny">Delivery risk</span><strong>Unresolved stakeholder conflicts could appear later as scope changes.</strong></div></div>
+      </div>
+      <div class="card"><span class="tiny">Alignment index</span><div class="score-ring"><span><b>69</b>Needs decisions</span></div><p class="muted" style="text-align:center;margin-top:14px;">Themes are clear, but several stakeholder conflicts require leadership direction.</p></div>
+    </div>
+    <div class="grid four" style="margin-top:18px;"><div class="card"><span class="tiny">Stakeholder groups</span><span class="kpi">9</span><p class="muted">Grouped by influence and impact.</p></div><div class="card"><span class="tiny">Themes</span><span class="kpi">11</span><p class="muted">Consolidated from interviews and notes.</p></div><div class="card"><span class="tiny">Decision points</span><span class="kpi">14</span><p class="muted">Assigned to owner groups.</p></div><div class="card"><span class="tiny">Conflicts</span><span class="kpi">6</span><p class="muted">Need resolution before final scope.</p></div></div>
+    <div class="callout">Use the synthesis to confirm shared priorities, resolve conflicts, and protect delivery scope before detailed build work.</div>
+    <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">02 Detailed Analysis</div></div>
+    <h2>Stakeholder theme and decision table.</h2>
+    <p class="muted">The table separates themes, stakeholder needs, tensions, and required decisions.</p>
+    <table><thead><tr><th>Theme</th><th>Stakeholder need</th><th>Tension</th><th>Decision needed</th></tr></thead><tbody><tr><td>Speed</td><td>Faster request review and clear status updates.</td><td>Teams disagree on acceptable turnaround.</td><td>Define service targets by request type.</td></tr><tr><td>Clarity</td><td>Plain language requirements and decisions.</td><td>Some teams prefer detailed technical notes.</td><td>Agree deliverable format by audience.</td></tr><tr><td>Ownership</td><td>Named owner for decisions and approvals.</td><td>Current ownership crosses teams.</td><td>Assign approval roles.</td></tr><tr><td>Traceability</td><td>Ability to see why decisions were made.</td><td>Notes are stored in different places.</td><td>Set decision log standard.</td></tr><tr><td>Flexibility</td><td>Support for unusual request types.</td><td>Too much flexibility can create scope creep.</td><td>Define custom scope trigger.</td></tr><tr><td>Security</td><td>Confidence in file handling.</td><td>Users vary in sensitivity expectations.</td><td>Confirm private workspace and NDA path.</td></tr><tr><td>Reporting</td><td>Visibility into demand and delivery progress.</td><td>Metrics are not consistently defined.</td><td>Approve dashboard measures.</td></tr><tr><td>Budget</td><td>Predictable cost for recurring support.</td><td>Large requests may exceed standard plan.</td><td>Define credit and custom scope rules.</td></tr><tr><td>Adoption</td><td>Easy process for busy teams.</td><td>New intake can be seen as friction.</td><td>Create quick start guidance.</td></tr><tr><td>Quality</td><td>Senior review before outputs are sent.</td><td>Turnaround expectations may pressure review.</td><td>Protect quality gate.</td></tr><tr><td>Escalation</td><td>Clear path when a request is blocked.</td><td>Escalation rules are informal.</td><td>Define blocker and escalation criteria.</td></tr></tbody></table>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card teal-card"><h3>How this creates value</h3><ul><li>Turns feedback into decisions.</li><li>Shows alignment and conflict clearly.</li><li>Protects delivery scope.</li><li>Gives leaders a practical action list.</li></ul></div>
+      <div class="card gold-card"><h3>What this prevents</h3><ul><li>Confusing loud feedback with priority.</li><li>Hiding stakeholder conflict.</li><li>Starting build work before decisions.</li><li>Losing interview insights.</li></ul></div>
+    </div>
+    <div class="footer-note">Sample deliverable. Tables show representative structure and depth.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">03 Visual Framework</div></div>
+    <h2>Stakeholder influence and impact map.</h2>
+    <p class="muted">The map helps decide who must approve, who must be engaged, and who needs targeted communication.</p>
+    <div class="grid two" style="align-items:start;margin-top:12px;">
+      <div><div class="matrix"><div class="axis y">Higher influence</div><div class="axis x">Higher impact</div><div class="bubble" style="left:72%;top:18%;background:#118577;">Sponsor</div><div class="bubble" style="left:64%;top:36%;background:#118577;">Operations</div><div class="bubble" style="left:46%;top:26%;background:#f2a61d;">Technology</div><div class="bubble" style="left:54%;top:58%;background:#64748b;">Finance</div><div class="bubble" style="left:28%;top:34%;background:#f2a61d;">End users</div><div class="bubble" style="left:20%;top:66%;background:#64748b;">Vendors</div></div></div>
+      <div class="card"><table><thead><tr><th>Group</th><th>Engagement need</th><th>Message</th></tr></thead><tbody><tr><td>Sponsor</td><td>Decision approval.</td><td>Resolve scope and funding choices.</td></tr><tr><td>Operations</td><td>Workflow validation.</td><td>Confirm real world fit.</td></tr><tr><td>Technology</td><td>Feasibility review.</td><td>Confirm integration and controls.</td></tr><tr><td>End users</td><td>Adoption input.</td><td>Make process easier to use.</td></tr><tr><td>Finance</td><td>Cost and benefit review.</td><td>Validate business case.</td></tr></tbody></table></div>
+    </div>
+    <div class="callout">Stakeholder synthesis is most valuable when it shows what must be decided, not just what people said.</div>
+    <div class="footer-note">Sample visual structure. Final layouts are tailored to the client context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">04 Risks, Controls, And Actions</div></div>
+    <h2>Decision and conflict management.</h2>
+    <p class="muted">The pack identifies conflicts early and translates them into decision items.</p>
+    <table><thead><tr><th>Conflict</th><th>Why it matters</th><th>Owner</th><th>Recommended action</th></tr></thead><tbody><tr><td>Speed versus quality</td><td>Fast turnaround can weaken review.</td><td>Sponsor</td><td>Set targets by complexity.</td></tr><tr><td>Flexible intake versus scope control</td><td>Open requests can expand effort.</td><td>Operations lead</td><td>Define custom scope trigger.</td></tr><tr><td>Detailed docs versus executive summaries</td><td>Different audiences need different outputs.</td><td>Delivery lead</td><td>Use tiered deliverable format.</td></tr><tr><td>Security comfort levels</td><td>Sensitive materials need clear handling.</td><td>Security owner</td><td>Publish file handling note.</td></tr><tr><td>Metrics ownership</td><td>No one owns benefit tracking.</td><td>Program lead</td><td>Assign metric owners.</td></tr><tr><td>Approval authority</td><td>Signoff delays can block delivery.</td><td>Sponsor</td><td>Confirm approval matrix.</td></tr></tbody></table>
+    <div class="grid three" style="margin-top:14px;"><div class="card teal-card"><h3>Interview evidence</h3><ul><li>Themes</li><li>Quotes summarized</li><li>Needs</li></ul></div><div class="card gold-card"><h3>Conflict evidence</h3><ul><li>Tensions</li><li>Tradeoffs</li><li>Decision owners</li></ul></div><div class="card blue-card"><h3>Action evidence</h3><ul><li>Actions</li><li>Owners</li><li>Due dates</li></ul></div></div>
+    <div class="footer-note">Sample control structure. Final risks and controls depend on client policy, data, system, and operating context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">05 Roadmap And Decisions</div></div>
+    <h2>Stakeholder alignment roadmap.</h2>
+    <div class="phase-grid" style="margin-top:12px;"><div class="phase"><span class="tiny">Step 1</span><strong>Capture</strong><ul><li>Review notes</li><li>Group stakeholders</li><li>Extract themes</li></ul></div><div class="phase"><span class="tiny">Step 2</span><strong>Synthesize</strong><ul><li>Find patterns</li><li>Separate conflicts</li><li>Draft insights</li></ul></div><div class="phase"><span class="tiny">Step 3</span><strong>Decide</strong><ul><li>Assign owners</li><li>Resolve tradeoffs</li><li>Confirm priorities</li></ul></div><div class="phase"><span class="tiny">Step 4</span><strong>Communicate</strong><ul><li>Prepare summary</li><li>Share actions</li><li>Track decisions</li></ul></div></div>
+    <div class="grid two" style="margin-top:16px;">
+      <div class="card"><h3>Decision log</h3><table><thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead><tbody><tr><td>Priority themes</td><td>Approve top five shared priorities.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Conflicts</td><td>Resolve six conflict points before final scope.</td><td><span class="pill green">Required</span></td></tr><tr><td>Communication</td><td>Use audience specific summary.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Follow up</td><td>Review unresolved items weekly.</td><td><span class="pill green">Schedule</span></td></tr></tbody></table></div>
+      <div class="card"><h3>Open questions</h3><ul><li>Which stakeholders must approve final scope?</li><li>Which needs are non negotiable?</li><li>Which conflicts can be deferred?</li><li>Who owns communication back to stakeholders?</li></ul></div>
+    </div>
+    <div class="callout">The synthesis gives teams a clear picture of what stakeholders need, where alignment exists, and what must be decided next.</div>
+    <div class="footer-note">Sample deliverable. Decisions, timelines, and priorities are tailored during intake.</div>
+  </section></body></html>

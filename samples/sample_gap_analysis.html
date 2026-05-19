@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>BA Advisory Desk Sample Gap And Options Analysis</title><style>
+@page { size: Letter; margin: 0; }
+* { box-sizing: border-box; }
+body { background:#e8eef4; color:#101827; font-family: Inter, Arial, sans-serif; margin:0; }
+.page { background:#fff; display:flex; flex-direction:column; height:11in; overflow:hidden; padding:.48in; page-break-after:always; position:relative; width:8.5in; }
+.cover { background:radial-gradient(circle at 78% 18%, rgba(20,184,166,.26), transparent 28%), linear-gradient(135deg,#071527 0%,#0b2b38 56%,#123f48 100%); color:#fff; }
+.brand { align-items:center; display:flex; gap:12px; }
+.mark { align-items:center; background:#fff; border-radius:10px; color:#071527; display:flex; font-size:18px; font-weight:900; height:48px; justify-content:center; width:48px; }
+.brand strong { display:block; font-size:20px; }
+.brand span { color:#d9f7f3; display:block; font-size:12px; margin-top:3px; }
+.cover-title { margin-top:.86in; max-width:6.8in; }
+.label { color:#16d7c2; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+h1 { font-size:50px; line-height:1.0; margin:18px 0; }
+h2 { font-size:29px; line-height:1.07; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+p { line-height:1.46; margin:0 0 12px; }
+.cover-copy { color:#e7f4f7; font-size:18px; line-height:1.45; max-width:6.5in; }
+.cover-meta { bottom:.52in; display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; left:.52in; position:absolute; right:.52in; }
+.meta-card { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; min-height:92px; padding:15px; }
+.meta-card span { color:#9ee7dd; display:block; font-size:11px; font-weight:900; margin-bottom:8px; text-transform:uppercase; }
+.meta-card strong { color:#fff; display:block; font-size:16px; line-height:1.25; }
+.topbar { align-items:center; border-bottom:2px solid #e1e8ef; display:flex; justify-content:space-between; margin-bottom:20px; padding-bottom:12px; }
+.topbar .brand .mark { background:#071527; color:#fff; height:36px; width:36px; }
+.topbar .brand strong { color:#071527; font-size:15px; }
+.topbar .brand span { color:#64748b; font-size:10px; }
+.page-num { color:#64748b; font-size:11px; font-weight:800; }
+.grid { display:grid; gap:14px; }
+.two { grid-template-columns:1fr 1fr; }
+.three { grid-template-columns:repeat(3,1fr); }
+.four { grid-template-columns:repeat(4,1fr); }
+.card { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; padding:14px; }
+.dark-card { background:#071527; color:#fff; }
+.teal-card { background:#e6f7f4; border-color:#9bded5; }
+.gold-card { background:#fff7e6; border-color:#f2d38a; }
+.blue-card { background:#eef5ff; border-color:#b9d4f5; }
+.muted { color:#526173; }
+.kpi { color:#071527; display:block; font-size:32px; font-weight:900; line-height:1; }
+.tiny { color:#526173; display:block; font-size:10px; font-weight:900; margin-bottom:6px; text-transform:uppercase; }
+table { border-collapse:collapse; font-size:10px; width:100%; }
+th { background:#071527; color:#fff; font-size:9px; padding:7px; text-align:left; text-transform:uppercase; }
+td { border-bottom:1px solid #d9e5ec; line-height:1.3; padding:7px; vertical-align:top; }
+.pill { border-radius:999px; display:inline-block; font-size:9px; font-weight:900; padding:4px 7px; }
+.green { background:#dff8ee; color:#08735f; }
+.amber { background:#fff0c2; color:#8a5700; }
+.red { background:#ffe3e3; color:#9d1b1b; }
+.score-ring { align-items:center; background:conic-gradient(#118577 0 68%, #dfe8ef 68% 100%); border-radius:999px; display:flex; height:140px; justify-content:center; margin:0 auto; width:140px; }
+.score-ring span { align-items:center; background:#fff; border-radius:999px; color:#071527; display:flex; flex-direction:column; font-size:13px; font-weight:900; height:100px; justify-content:center; text-align:center; width:100px; }
+.score-ring b { display:block; font-size:32px; }
+.matrix { background:linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), #f8fbfc; border:1px solid #d9e5ec; border-radius:12px; height:300px; position:relative; }
+.axis { color:#526173; font-size:9px; font-weight:900; position:absolute; text-transform:uppercase; }
+.axis.y { left:10px; top:10px; }
+.axis.x { bottom:10px; right:12px; }
+.bubble { align-items:center; border-radius:999px; color:#fff; display:flex; font-size:9px; font-weight:900; height:58px; justify-content:center; line-height:1.1; padding:7px; position:absolute; text-align:center; width:58px; }
+.flow { display:grid; gap:10px; grid-template-columns:repeat(5,1fr); margin-top:12px; }
+.flow div { background:#eef8f6; border:1px solid #9bded5; border-radius:12px; min-height:96px; padding:12px; position:relative; }
+.flow div strong { display:block; font-size:14px; margin-bottom:7px; }
+.phase-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.phase { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; min-height:210px; padding:12px; }
+.phase strong { color:#071527; display:block; font-size:15px; margin-bottom:8px; }
+.slide-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+.slide { background:linear-gradient(135deg,#071527,#0e3f48); border-radius:14px; color:#fff; min-height:230px; padding:16px; position:relative; }
+.slide h3 { color:#fff; font-size:19px; margin-bottom:8px; }
+.slide p { color:#dceff2; font-size:11px; line-height:1.32; margin-bottom:10px; }
+.slide .stripe { background:#16d7c2; border-radius:999px; bottom:14px; height:6px; left:16px; position:absolute; width:42%; }
+.mini-heat { display:grid; gap:4px; grid-template-columns:repeat(4,1fr); margin-top:10px; }
+.mini-heat span { border-radius:6px; color:#071527; font-size:8px; font-weight:900; min-height:31px; padding:5px; }
+.mini-heat .low { background:#b7efe7; }
+.mini-heat .med { background:#ffe2a6; }
+.mini-heat .high { background:#ffb4b4; }
+.mini-option { margin-top:8px; }
+.mini-option div { align-items:center; display:grid; gap:6px; grid-template-columns:54px 1fr 26px; margin:6px 0; }
+.mini-option span { background:rgba(255,255,255,.17); border-radius:999px; height:8px; overflow:hidden; }
+.mini-option b { background:#16d7c2; display:block; height:100%; }
+.mini-option small { color:#dceff2; font-size:8px; font-weight:900; }
+.mini-road { border-left:2px solid #16d7c2; margin:10px 0 0 8px; padding-left:11px; }
+.mini-road div { margin-bottom:8px; position:relative; }
+.mini-road div:before { background:#16d7c2; border-radius:999px; content:""; height:8px; left:-16px; position:absolute; top:3px; width:8px; }
+.mini-road strong { color:#fff; display:block; font-size:10px; }
+.mini-road small { color:#dceff2; font-size:9px; }
+.decision-chips { display:grid; gap:6px; grid-template-columns:1fr 1fr; margin-top:10px; }
+.decision-chips span { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px; color:#fff; font-size:9px; font-weight:900; min-height:32px; padding:7px; }
+.bars div { align-items:center; display:grid; gap:8px; grid-template-columns:92px 1fr; margin:8px 0; }
+.bars span { background:#e7eef4; border-radius:999px; height:9px; overflow:hidden; }
+.bars b { background:#118577; display:block; height:100%; }
+.callout { background:#071527; border-radius:14px; color:#fff; margin-top:auto; padding:15px; }
+.footer-note { bottom:.27in; color:#64748b; font-size:9px; left:.48in; position:absolute; right:.48in; }
+ul { margin:8px 0 0 16px; padding:0; }
+li { line-height:1.34; margin-bottom:6px; }
+</style></head><body><section class="page cover">
+    <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+    <div class="cover-title"><div class="label">Sample Deliverable</div><h1>Gap And Options Analysis</h1><p class="cover-copy">A structured analysis package that converts findings into capability gaps, root causes, risk themes, options, priorities, and a practical action plan.</p></div>
+    <div class="cover-meta">
+      <div class="meta-card"><span>Client privacy</span><strong>Client names and identifying details are anonymized.</strong></div>
+      <div class="meta-card"><span>Deliverable type</span><strong>Gap register, maturity view, options analysis, action plan, and decision summary.</strong></div>
+      <div class="meta-card"><span>Typical buyer</span><strong>Transformation leaders, program managers, CIO offices, and operational executives.</strong></div>
+    </div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">01 Executive Snapshot</div></div>
+    <div class="grid two">
+      <div>
+        <div class="label">Situation</div>
+        <h2>The team knew there were gaps, but not what to fix first.</h2>
+        <p class="muted">Findings were spread across workshops, interviews, incident notes, and delivery observations. Leaders needed a structured view of gaps, impacts, options, and priorities.</p>
+        <div class="grid two"><div class="card teal-card"><span class="tiny">Analysis issue</span><strong>Findings were not grouped by root cause or business impact.</strong></div><div class="card gold-card"><span class="tiny">Leadership risk</span><strong>Action could focus on visible symptoms instead of the highest value fixes.</strong></div></div>
+      </div>
+      <div class="card"><span class="tiny">Action readiness</span><div class="score-ring"><span><b>77</b>Prioritized</span></div><p class="muted" style="text-align:center;margin-top:14px;">Gaps are grouped, scored, and connected to options and practical next steps.</p></div>
+    </div>
+    <div class="grid four" style="margin-top:18px;"><div class="card"><span class="tiny">Gaps captured</span><span class="kpi">26</span><p class="muted">Grouped by capability and impact.</p></div><div class="card"><span class="tiny">High priority</span><span class="kpi">8</span><p class="muted">Need leadership attention.</p></div><div class="card"><span class="tiny">Options</span><span class="kpi">3</span><p class="muted">Stabilize, improve, transform.</p></div><div class="card"><span class="tiny">Action owners</span><span class="kpi">12</span><p class="muted">Assigned by theme.</p></div></div>
+    <div class="callout">Start with stabilization gaps that reduce delivery risk, then move to process and operating model improvements.</div>
+    <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">02 Detailed Analysis</div></div>
+    <h2>Gap register with priority and recommendation.</h2>
+    <p class="muted">The gap register converts observations into action oriented entries that can be owned and tracked.</p>
+    <table><thead><tr><th>ID</th><th>Gap</th><th>Impact</th><th>Priority</th><th>Recommended action</th></tr></thead><tbody><tr><td>G 01</td><td>No single intake standard.</td><td>Incomplete work enters the pipeline.</td><td><span class="pill red">High</span></td><td>Create minimum input checklist.</td></tr><tr><td>G 02</td><td>Decision ownership is unclear.</td><td>Open questions remain unresolved.</td><td><span class="pill red">High</span></td><td>Assign decision owner by workstream.</td></tr><tr><td>G 03</td><td>Process exceptions are not tracked.</td><td>Repeat problems continue.</td><td><span class="pill red">High</span></td><td>Create exception log and monthly review.</td></tr><tr><td>G 04</td><td>Reporting metrics are inconsistent.</td><td>Leaders cannot compare performance.</td><td><span class="pill amber">Medium</span></td><td>Define metric catalog.</td></tr><tr><td>G 05</td><td>Training material is outdated.</td><td>Users rely on informal guidance.</td><td><span class="pill amber">Medium</span></td><td>Refresh quick guides.</td></tr><tr><td>G 06</td><td>Vendor handoff lacks approved scope.</td><td>Estimate changes and rework increase.</td><td><span class="pill red">High</span></td><td>Use vendor readiness checklist.</td></tr><tr><td>G 07</td><td>Requirements are not traced to business goals.</td><td>Low value scope can expand.</td><td><span class="pill amber">Medium</span></td><td>Add traceability view.</td></tr><tr><td>G 08</td><td>Risk reviews happen late.</td><td>Controls are added after design.</td><td><span class="pill red">High</span></td><td>Add early risk gate.</td></tr><tr><td>G 09</td><td>Data ownership is fragmented.</td><td>Reporting and automation are delayed.</td><td><span class="pill amber">Medium</span></td><td>Assign data owners.</td></tr><tr><td>G 10</td><td>No formal benefit tracking.</td><td>Improvements cannot be defended.</td><td><span class="pill amber">Medium</span></td><td>Create baseline and benefits dashboard.</td></tr><tr><td>G 11</td><td>Escalation path is unclear.</td><td>Teams lose time resolving blockers.</td><td><span class="pill amber">Medium</span></td><td>Define escalation triggers.</td></tr><tr><td>G 12</td><td>Closeout lessons are not captured.</td><td>Improvement learning is lost.</td><td><span class="pill green">Low</span></td><td>Add closeout review.</td></tr></tbody></table>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card teal-card"><h3>How this creates value</h3><ul><li>Creates a prioritized action view.</li><li>Connects gaps to business impact.</li><li>Separates symptoms from root causes.</li><li>Supports governance and progress tracking.</li></ul></div>
+      <div class="card gold-card"><h3>What this prevents</h3><ul><li>Action plans with no priorities.</li><li>Fixing symptoms only.</li><li>Ignoring ownership gaps.</li><li>Losing findings after workshops.</li></ul></div>
+    </div>
+    <div class="footer-note">Sample deliverable. Tables show representative structure and depth.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">03 Visual Framework</div></div>
+    <h2>Gap impact and urgency matrix.</h2>
+    <p class="muted">The visual makes it easier to see which gaps require immediate action and which can be sequenced later.</p>
+    <div class="grid two" style="align-items:start;margin-top:12px;">
+      <div><div class="matrix"><div class="axis y">Higher impact</div><div class="axis x">Higher urgency</div><div class="bubble" style="left:72%;top:18%;background:#9d1b1b;">Intake</div><div class="bubble" style="left:64%;top:28%;background:#9d1b1b;">Ownership</div><div class="bubble" style="left:54%;top:18%;background:#9d1b1b;">Risk gate</div><div class="bubble" style="left:40%;top:45%;background:#f2a61d;">Metrics</div><div class="bubble" style="left:58%;top:62%;background:#64748b;">Training</div><div class="bubble" style="left:24%;top:70%;background:#64748b;">Lessons</div></div></div>
+      <div class="card"><table><thead><tr><th>Theme</th><th>Immediate action</th><th>Longer term move</th></tr></thead><tbody><tr><td>Intake</td><td>Set minimum input standard.</td><td>Automate intake validation.</td></tr><tr><td>Ownership</td><td>Assign decision owners.</td><td>Create governance cadence.</td></tr><tr><td>Risk</td><td>Add early review gate.</td><td>Embed control design.</td></tr><tr><td>Metrics</td><td>Define core measures.</td><td>Build dashboard.</td></tr><tr><td>Training</td><td>Publish quick guide.</td><td>Create role based learning.</td></tr></tbody></table></div>
+    </div>
+    <div class="callout">A gap analysis has value only when it creates clear choices about what to fix first.</div>
+    <div class="footer-note">Sample visual structure. Final layouts are tailored to the client context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">04 Risks, Controls, And Actions</div></div>
+    <h2>Action controls and dependency view.</h2>
+    <p class="muted">Each action needs an owner, dependency, and review rhythm so findings become progress.</p>
+    <table><thead><tr><th>Action</th><th>Dependency</th><th>Owner</th><th>Review</th></tr></thead><tbody><tr><td>Create intake checklist.</td><td>Agreement on mandatory fields.</td><td>Operations lead</td><td>Weekly until launch.</td></tr><tr><td>Assign decision owners.</td><td>Workstream map.</td><td>Program sponsor</td><td>Biweekly.</td></tr><tr><td>Define metric catalog.</td><td>Reporting source review.</td><td>Data lead</td><td>Monthly.</td></tr><tr><td>Build vendor readiness checklist.</td><td>Procurement input.</td><td>Delivery lead</td><td>Before vendor release.</td></tr><tr><td>Add risk gate.</td><td>Risk criteria.</td><td>Risk lead</td><td>At intake and design.</td></tr><tr><td>Refresh training material.</td><td>Updated SOP.</td><td>Change lead</td><td>Before rollout.</td></tr></tbody></table>
+    <div class="grid three" style="margin-top:14px;"><div class="card teal-card"><h3>Priority rules</h3><ul><li>Impact</li><li>Urgency</li><li>Dependency</li></ul></div><div class="card gold-card"><h3>Governance</h3><ul><li>Owner</li><li>Review date</li><li>Escalation</li></ul></div><div class="card blue-card"><h3>Evidence</h3><ul><li>Baseline</li><li>Progress</li><li>Outcome</li></ul></div></div>
+    <div class="footer-note">Sample control structure. Final risks and controls depend on client policy, data, system, and operating context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">05 Roadmap And Decisions</div></div>
+    <h2>Gap closure roadmap.</h2>
+    <div class="phase-grid" style="margin-top:12px;"><div class="phase"><span class="tiny">0 to 30 days</span><strong>Stabilize</strong><ul><li>Minimum intake</li><li>Owners</li><li>Risk gate</li></ul></div><div class="phase"><span class="tiny">31 to 60 days</span><strong>Standardize</strong><ul><li>SOP updates</li><li>Metrics</li><li>Training</li></ul></div><div class="phase"><span class="tiny">61 to 90 days</span><strong>Improve</strong><ul><li>Dashboard</li><li>Vendor handoff</li><li>Exception review</li></ul></div><div class="phase"><span class="tiny">90 plus days</span><strong>Scale</strong><ul><li>Automation</li><li>Operating model</li><li>Benefits review</li></ul></div></div>
+    <div class="grid two" style="margin-top:16px;">
+      <div class="card"><h3>Decision log</h3><table><thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead><tbody><tr><td>Priority set</td><td>Focus first wave on eight high priority gaps.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Governance</td><td>Review gap register biweekly.</td><td><span class="pill green">Schedule</span></td></tr><tr><td>Metrics</td><td>Create benefit baseline.</td><td><span class="pill green">Required</span></td></tr><tr><td>Scale</td><td>Defer automation until process stabilizes.</td><td><span class="pill amber">Hold</span></td></tr></tbody></table></div>
+      <div class="card"><h3>Open questions</h3><ul><li>Which gaps are true blockers?</li><li>Who owns each workstream?</li><li>What evidence proves closure?</li><li>Which actions need funding?</li></ul></div>
+    </div>
+    <div class="callout">The analysis gives leaders a focused action plan instead of a long list of findings.</div>
+    <div class="footer-note">Sample deliverable. Decisions, timelines, and priorities are tailored during intake.</div>
+  </section></body></html>

@@ -1,0 +1,143 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" /><title>BA Advisory Desk Sample Vendor Readiness Checklist</title><style>
+@page { size: Letter; margin: 0; }
+* { box-sizing: border-box; }
+body { background:#e8eef4; color:#101827; font-family: Inter, Arial, sans-serif; margin:0; }
+.page { background:#fff; display:flex; flex-direction:column; height:11in; overflow:hidden; padding:.48in; page-break-after:always; position:relative; width:8.5in; }
+.cover { background:radial-gradient(circle at 78% 18%, rgba(20,184,166,.26), transparent 28%), linear-gradient(135deg,#071527 0%,#0b2b38 56%,#123f48 100%); color:#fff; }
+.brand { align-items:center; display:flex; gap:12px; }
+.mark { align-items:center; background:#fff; border-radius:10px; color:#071527; display:flex; font-size:18px; font-weight:900; height:48px; justify-content:center; width:48px; }
+.brand strong { display:block; font-size:20px; }
+.brand span { color:#d9f7f3; display:block; font-size:12px; margin-top:3px; }
+.cover-title { margin-top:.86in; max-width:6.8in; }
+.label { color:#16d7c2; font-size:12px; font-weight:900; letter-spacing:0; text-transform:uppercase; }
+h1 { font-size:50px; line-height:1.0; margin:18px 0; }
+h2 { font-size:29px; line-height:1.07; margin:0 0 12px; }
+h3 { font-size:16px; margin:0 0 8px; }
+p { line-height:1.46; margin:0 0 12px; }
+.cover-copy { color:#e7f4f7; font-size:18px; line-height:1.45; max-width:6.5in; }
+.cover-meta { bottom:.52in; display:grid; gap:12px; grid-template-columns:1fr 1fr 1fr; left:.52in; position:absolute; right:.52in; }
+.meta-card { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:12px; min-height:92px; padding:15px; }
+.meta-card span { color:#9ee7dd; display:block; font-size:11px; font-weight:900; margin-bottom:8px; text-transform:uppercase; }
+.meta-card strong { color:#fff; display:block; font-size:16px; line-height:1.25; }
+.topbar { align-items:center; border-bottom:2px solid #e1e8ef; display:flex; justify-content:space-between; margin-bottom:20px; padding-bottom:12px; }
+.topbar .brand .mark { background:#071527; color:#fff; height:36px; width:36px; }
+.topbar .brand strong { color:#071527; font-size:15px; }
+.topbar .brand span { color:#64748b; font-size:10px; }
+.page-num { color:#64748b; font-size:11px; font-weight:800; }
+.grid { display:grid; gap:14px; }
+.two { grid-template-columns:1fr 1fr; }
+.three { grid-template-columns:repeat(3,1fr); }
+.four { grid-template-columns:repeat(4,1fr); }
+.card { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; padding:14px; }
+.dark-card { background:#071527; color:#fff; }
+.teal-card { background:#e6f7f4; border-color:#9bded5; }
+.gold-card { background:#fff7e6; border-color:#f2d38a; }
+.blue-card { background:#eef5ff; border-color:#b9d4f5; }
+.muted { color:#526173; }
+.kpi { color:#071527; display:block; font-size:32px; font-weight:900; line-height:1; }
+.tiny { color:#526173; display:block; font-size:10px; font-weight:900; margin-bottom:6px; text-transform:uppercase; }
+table { border-collapse:collapse; font-size:10px; width:100%; }
+th { background:#071527; color:#fff; font-size:9px; padding:7px; text-align:left; text-transform:uppercase; }
+td { border-bottom:1px solid #d9e5ec; line-height:1.3; padding:7px; vertical-align:top; }
+.pill { border-radius:999px; display:inline-block; font-size:9px; font-weight:900; padding:4px 7px; }
+.green { background:#dff8ee; color:#08735f; }
+.amber { background:#fff0c2; color:#8a5700; }
+.red { background:#ffe3e3; color:#9d1b1b; }
+.score-ring { align-items:center; background:conic-gradient(#118577 0 68%, #dfe8ef 68% 100%); border-radius:999px; display:flex; height:140px; justify-content:center; margin:0 auto; width:140px; }
+.score-ring span { align-items:center; background:#fff; border-radius:999px; color:#071527; display:flex; flex-direction:column; font-size:13px; font-weight:900; height:100px; justify-content:center; text-align:center; width:100px; }
+.score-ring b { display:block; font-size:32px; }
+.matrix { background:linear-gradient(90deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), linear-gradient(0deg, transparent 49.5%, #cbd5e1 49.5%, #cbd5e1 50.5%, transparent 50.5%), #f8fbfc; border:1px solid #d9e5ec; border-radius:12px; height:300px; position:relative; }
+.axis { color:#526173; font-size:9px; font-weight:900; position:absolute; text-transform:uppercase; }
+.axis.y { left:10px; top:10px; }
+.axis.x { bottom:10px; right:12px; }
+.bubble { align-items:center; border-radius:999px; color:#fff; display:flex; font-size:9px; font-weight:900; height:58px; justify-content:center; line-height:1.1; padding:7px; position:absolute; text-align:center; width:58px; }
+.flow { display:grid; gap:10px; grid-template-columns:repeat(5,1fr); margin-top:12px; }
+.flow div { background:#eef8f6; border:1px solid #9bded5; border-radius:12px; min-height:96px; padding:12px; position:relative; }
+.flow div strong { display:block; font-size:14px; margin-bottom:7px; }
+.phase-grid { display:grid; gap:10px; grid-template-columns:repeat(4,1fr); }
+.phase { background:#f8fbfc; border:1px solid #d9e5ec; border-radius:12px; min-height:210px; padding:12px; }
+.phase strong { color:#071527; display:block; font-size:15px; margin-bottom:8px; }
+.slide-grid { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
+.slide { background:linear-gradient(135deg,#071527,#0e3f48); border-radius:14px; color:#fff; min-height:230px; padding:16px; position:relative; }
+.slide h3 { color:#fff; font-size:19px; margin-bottom:8px; }
+.slide p { color:#dceff2; font-size:11px; line-height:1.32; margin-bottom:10px; }
+.slide .stripe { background:#16d7c2; border-radius:999px; bottom:14px; height:6px; left:16px; position:absolute; width:42%; }
+.mini-heat { display:grid; gap:4px; grid-template-columns:repeat(4,1fr); margin-top:10px; }
+.mini-heat span { border-radius:6px; color:#071527; font-size:8px; font-weight:900; min-height:31px; padding:5px; }
+.mini-heat .low { background:#b7efe7; }
+.mini-heat .med { background:#ffe2a6; }
+.mini-heat .high { background:#ffb4b4; }
+.mini-option { margin-top:8px; }
+.mini-option div { align-items:center; display:grid; gap:6px; grid-template-columns:54px 1fr 26px; margin:6px 0; }
+.mini-option span { background:rgba(255,255,255,.17); border-radius:999px; height:8px; overflow:hidden; }
+.mini-option b { background:#16d7c2; display:block; height:100%; }
+.mini-option small { color:#dceff2; font-size:8px; font-weight:900; }
+.mini-road { border-left:2px solid #16d7c2; margin:10px 0 0 8px; padding-left:11px; }
+.mini-road div { margin-bottom:8px; position:relative; }
+.mini-road div:before { background:#16d7c2; border-radius:999px; content:""; height:8px; left:-16px; position:absolute; top:3px; width:8px; }
+.mini-road strong { color:#fff; display:block; font-size:10px; }
+.mini-road small { color:#dceff2; font-size:9px; }
+.decision-chips { display:grid; gap:6px; grid-template-columns:1fr 1fr; margin-top:10px; }
+.decision-chips span { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px; color:#fff; font-size:9px; font-weight:900; min-height:32px; padding:7px; }
+.bars div { align-items:center; display:grid; gap:8px; grid-template-columns:92px 1fr; margin:8px 0; }
+.bars span { background:#e7eef4; border-radius:999px; height:9px; overflow:hidden; }
+.bars b { background:#118577; display:block; height:100%; }
+.callout { background:#071527; border-radius:14px; color:#fff; margin-top:auto; padding:15px; }
+.footer-note { bottom:.27in; color:#64748b; font-size:9px; left:.48in; position:absolute; right:.48in; }
+ul { margin:8px 0 0 16px; padding:0; }
+li { line-height:1.34; margin-bottom:6px; }
+</style></head><body><section class="page cover">
+    <div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div>
+    <div class="cover-title"><div class="label">Sample Deliverable</div><h1>Vendor Readiness Checklist</h1><p class="cover-copy">A vendor readiness package that prepares teams to engage vendors with clear scope, evaluation criteria, questions, risks, assumptions, and handoff material.</p></div>
+    <div class="cover-meta">
+      <div class="meta-card"><span>Client privacy</span><strong>Client names and identifying details are anonymized.</strong></div>
+      <div class="meta-card"><span>Deliverable type</span><strong>Vendor scope, readiness checklist, evaluation criteria, RFP support, questions, and handoff pack.</strong></div>
+      <div class="meta-card"><span>Typical buyer</span><strong>Procurement teams, delivery leaders, technology groups, and consulting firms.</strong></div>
+    </div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">01 Executive Snapshot</div></div>
+    <div class="grid two">
+      <div>
+        <div class="label">Situation</div>
+        <h2>The team was ready to talk to vendors, but not ready to control the conversation.</h2>
+        <p class="muted">Vendor engagement was approaching, but scope, assumptions, evaluation criteria, and business questions were not yet clear enough to support fair comparison or stable delivery.</p>
+        <div class="grid two"><div class="card teal-card"><span class="tiny">Procurement issue</span><strong>Vendors could interpret the same need in different ways.</strong></div><div class="card gold-card"><span class="tiny">Delivery risk</span><strong>Weak handoff could lead to change requests, pricing drift, and unclear accountability.</strong></div></div>
+      </div>
+      <div class="card"><span class="tiny">Vendor readiness</span><div class="score-ring"><span><b>71</b>Prepare before release</span></div><p class="muted" style="text-align:center;margin-top:14px;">Core needs are known, but scope, assumptions, and evaluation criteria need sharpening before vendor release.</p></div>
+    </div>
+    <div class="grid four" style="margin-top:18px;"><div class="card"><span class="tiny">Readiness checks</span><span class="kpi">28</span><p class="muted">Across scope, data, process, controls, and support.</p></div><div class="card"><span class="tiny">Vendor questions</span><span class="kpi">34</span><p class="muted">Grouped by domain and risk.</p></div><div class="card"><span class="tiny">Evaluation criteria</span><span class="kpi">12</span><p class="muted">Weighted for fair comparison.</p></div><div class="card"><span class="tiny">High risk gaps</span><span class="kpi">6</span><p class="muted">Need resolution before release.</p></div></div>
+    <div class="callout">Do not release the vendor package until scope boundaries, evaluation criteria, and business acceptance measures are approved.</div>
+    <div class="footer-note">Sample deliverable. Client names and identifying details are anonymized to respect client privacy.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">02 Detailed Analysis</div></div>
+    <h2>Vendor readiness checklist.</h2>
+    <p class="muted">The checklist improves vendor comparison and reduces ambiguity before pricing and delivery commitments are made.</p>
+    <table><thead><tr><th>Area</th><th>Readiness question</th><th>Status</th><th>Why it matters</th></tr></thead><tbody><tr><td>Business goal</td><td>Is the business outcome stated in measurable terms?</td><td><span class="pill green">Ready</span></td><td>Vendors need the purpose, not just tasks.</td></tr><tr><td>Scope</td><td>Are in scope and out of scope items separated?</td><td><span class="pill amber">Needs work</span></td><td>Prevents pricing ambiguity.</td></tr><tr><td>Requirements</td><td>Are business, functional, and non functional needs documented?</td><td><span class="pill amber">Needs work</span></td><td>Supports comparable responses.</td></tr><tr><td>Data</td><td>Are source systems and data quality issues described?</td><td><span class="pill red">Gap</span></td><td>Affects feasibility and integration.</td></tr><tr><td>Security</td><td>Are privacy, access, and data handling needs stated?</td><td><span class="pill amber">Needs work</span></td><td>Protects sensitive information.</td></tr><tr><td>Process</td><td>Is the current workflow documented?</td><td><span class="pill green">Ready</span></td><td>Helps vendors understand operating fit.</td></tr><tr><td>Target state</td><td>Is the desired future state clear?</td><td><span class="pill amber">Needs work</span></td><td>Avoids solution guessing.</td></tr><tr><td>Evaluation</td><td>Are scoring criteria and weights approved?</td><td><span class="pill red">Gap</span></td><td>Supports fair selection.</td></tr><tr><td>Acceptance</td><td>Are success and signoff criteria defined?</td><td><span class="pill red">Gap</span></td><td>Reduces disputes after delivery.</td></tr><tr><td>Support</td><td>Is post implementation support expectation stated?</td><td><span class="pill amber">Needs work</span></td><td>Avoids hidden cost.</td></tr><tr><td>Timeline</td><td>Are milestone expectations realistic?</td><td><span class="pill green">Ready</span></td><td>Supports delivery planning.</td></tr><tr><td>Commercial</td><td>Are assumptions and pricing structure requested?</td><td><span class="pill green">Ready</span></td><td>Improves proposal comparison.</td></tr></tbody></table>
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card teal-card"><h3>How this creates value</h3><ul><li>Improves vendor response quality.</li><li>Reduces interpretation gaps.</li><li>Supports fair scoring.</li><li>Protects delivery scope.</li></ul></div>
+      <div class="card gold-card"><h3>What this prevents</h3><ul><li>Vendors pricing different scopes.</li><li>Evaluation based on presentation polish only.</li><li>Hidden assumptions.</li><li>Change requests caused by weak handoff.</li></ul></div>
+    </div>
+    <div class="footer-note">Sample deliverable. Tables show representative structure and depth.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">03 Visual Framework</div></div>
+    <h2>Vendor response quality matrix.</h2>
+    <p class="muted">The matrix shows where vendor responses should be compared by value and delivery confidence.</p>
+    <div class="grid two" style="align-items:start;margin-top:12px;">
+      <div><div class="matrix"><div class="axis y">Higher strategic fit</div><div class="axis x">Higher delivery confidence</div><div class="bubble" style="left:68%;top:20%;background:#118577;">Vendor A</div><div class="bubble" style="left:44%;top:28%;background:#f2a61d;">Vendor B</div><div class="bubble" style="left:58%;top:58%;background:#64748b;">Vendor C</div><div class="bubble" style="left:24%;top:62%;background:#9d1b1b;">Vendor D</div></div></div>
+      <div class="card"><table><thead><tr><th>Evaluation area</th><th>Weight</th><th>Evidence expected</th></tr></thead><tbody><tr><td>Business fit</td><td>20%</td><td>Clear link to business outcomes.</td></tr><tr><td>Functional fit</td><td>20%</td><td>Response maps to requirements.</td></tr><tr><td>Implementation approach</td><td>15%</td><td>Credible plan, roles, and timeline.</td></tr><tr><td>Security and controls</td><td>15%</td><td>Data, access, privacy, and audit controls.</td></tr><tr><td>Support model</td><td>10%</td><td>Post launch support clarity.</td></tr><tr><td>Commercial value</td><td>20%</td><td>Transparent pricing and assumptions.</td></tr></tbody></table></div>
+    </div>
+    <div class="callout">A strong vendor package lets vendors compete on the same problem, the same evidence, and the same decision criteria.</div>
+    <div class="footer-note">Sample visual structure. Final layouts are tailored to the client context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">04 Risks, Controls, And Actions</div></div>
+    <h2>Vendor questions and scope controls.</h2>
+    <p class="muted">Good vendor questions expose assumptions before selection, not after contract award.</p>
+    <table><thead><tr><th>Theme</th><th>Question</th><th>Expected response</th><th>Risk reduced</th></tr></thead><tbody><tr><td>Scope</td><td>What assumptions are included in your estimate?</td><td>List of assumptions and exclusions.</td><td>Hidden scope.</td></tr><tr><td>Delivery</td><td>What client roles are required each week?</td><td>Role and effort model.</td><td>Resource surprises.</td></tr><tr><td>Data</td><td>What source data quality is required?</td><td>Data prerequisites and risks.</td><td>Integration delay.</td></tr><tr><td>Security</td><td>How will sensitive files be protected?</td><td>Security and access approach.</td><td>Privacy risk.</td></tr><tr><td>Acceptance</td><td>How will completion be proven?</td><td>Acceptance criteria and evidence.</td><td>Signoff dispute.</td></tr><tr><td>Change</td><td>How will change requests be managed?</td><td>Change process and pricing logic.</td><td>Cost drift.</td></tr></tbody></table>
+    <div class="grid three" style="margin-top:14px;"><div class="card teal-card"><h3>Before release</h3><ul><li>Scope boundaries</li><li>Criteria</li><li>Questions</li></ul></div><div class="card gold-card"><h3>During evaluation</h3><ul><li>Scoring</li><li>Clarifications</li><li>Risk notes</li></ul></div><div class="card blue-card"><h3>After selection</h3><ul><li>Assumptions</li><li>Handoff</li><li>Acceptance</li></ul></div></div>
+    <div class="footer-note">Sample control structure. Final risks and controls depend on client policy, data, system, and operating context.</div>
+  </section><section class="page"><div class="topbar"><div class="brand"><div class="mark">BA</div><div><strong>BA Advisory Desk</strong><span>Business Analysis Services</span></div></div><div class="page-num">05 Roadmap And Decisions</div></div>
+    <h2>Vendor readiness roadmap.</h2>
+    <div class="phase-grid" style="margin-top:12px;"><div class="phase"><span class="tiny">Step 1</span><strong>Clarify</strong><ul><li>Business goal</li><li>Scope boundaries</li><li>Requirements</li></ul></div><div class="phase"><span class="tiny">Step 2</span><strong>Prepare</strong><ul><li>Questions</li><li>Evaluation criteria</li><li>Assumptions</li></ul></div><div class="phase"><span class="tiny">Step 3</span><strong>Evaluate</strong><ul><li>Score responses</li><li>Compare risks</li><li>Clarify gaps</li></ul></div><div class="phase"><span class="tiny">Step 4</span><strong>Handoff</strong><ul><li>Confirm scope</li><li>Set acceptance</li><li>Start governance</li></ul></div></div>
+    <div class="grid two" style="margin-top:16px;">
+      <div class="card"><h3>Decision log</h3><table><thead><tr><th>Decision</th><th>Recommendation</th><th>Status</th></tr></thead><tbody><tr><td>Release package</td><td>Release after high risk gaps are closed.</td><td><span class="pill amber">Conditional</span></td></tr><tr><td>Evaluation weights</td><td>Approve weighted criteria before release.</td><td><span class="pill green">Required</span></td></tr><tr><td>Clarification path</td><td>Use structured clarification log.</td><td><span class="pill green">Approve</span></td></tr><tr><td>Contract handoff</td><td>Attach approved assumptions and acceptance criteria.</td><td><span class="pill green">Control</span></td></tr></tbody></table></div>
+      <div class="card"><h3>Open questions</h3><ul><li>Which requirements are mandatory?</li><li>What vendor assumptions are unacceptable?</li><li>Who approves scoring?</li><li>What evidence is needed before award?</li></ul></div>
+    </div>
+    <div class="callout">The package helps teams enter vendor conversations with clarity, control, and a fair basis for selection.</div>
+    <div class="footer-note">Sample deliverable. Decisions, timelines, and priorities are tailored during intake.</div>
+  </section></body></html>

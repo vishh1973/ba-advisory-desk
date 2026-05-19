@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
     const stripe = getStripe();
 
     if ((productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
-      res.status(400).json({ error: "Please sign in and complete the client profile before purchasing this package." });
+      res.status(400).json({ error: "Please create or access your client workspace before purchasing this package." });
       return;
     }
 
