@@ -167,6 +167,7 @@
         <a href="#login">Client Login</a>
       </nav>
       <a class="primary small" href="#pricing">View Advisory Plans</a>
+      <button class="secondary small hidden" type="button" data-sign-out data-auth-required>Sign Out</button>
     </header>
 
     <main>
@@ -847,7 +848,7 @@
             <input id="loginCompany" type="hidden" />
             <button id="loginButton" type="button">Continue</button>
           </div>
-          <button class="secondary full hidden" id="signOutButton" type="button">Sign Out</button>
+          <button class="secondary full hidden" id="signOutButton" type="button" data-sign-out data-auth-required>Sign Out</button>
         </div>
       </section>
 
@@ -868,7 +869,10 @@
                 <p class="eyebrow">Client workspace</p>
                 <h2 id="clientName">Your organization</h2>
               </div>
-              <a class="primary" href="#request">Start a New Request</a>
+              <div class="workspace-header-actions">
+                <a class="primary" href="#request">Start a New Request</a>
+                <button class="secondary small hidden" type="button" data-sign-out data-auth-required>Sign Out</button>
+              </div>
             </div>
             <div class="tile-row focus-tiles">
               <article><span>Advisory Credits left</span><strong id="creditsLeft">0</strong></article>
@@ -1255,7 +1259,8 @@
               What are you attaching?
               <textarea id="attachmentDescription" rows="3" placeholder="Briefly describe the files, their purpose, and anything we should pay attention to."></textarea>
             </label>
-            <button type="submit">Submit Request</button>
+            <p id="requestStatus" class="admin-inline-status">Requests are checked against your profile, credit balance, and selected files before submission.</p>
+            <button id="requestSubmitButton" type="submit">Submit Request</button>
           </form>
         </div>
       </section>
@@ -1379,6 +1384,9 @@
           <p class="eyebrow">Operations desk</p>
           <h2>Prioritize client work and release deliverables.</h2>
           <p>Use this workspace to see the business at a glance, select a client, review their full file, manage credits, and release deliverables.</p>
+          <div class="section-actions">
+            <button class="secondary small hidden" type="button" data-sign-out data-auth-required>Sign Out</button>
+          </div>
         </div>
         <div class="admin-grid">
           <article>

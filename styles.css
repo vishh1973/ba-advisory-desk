@@ -113,6 +113,10 @@ nav a:hover {
   color: var(--teal-dark);
 }
 
+.site-header [data-sign-out] {
+  order: 4;
+}
+
 .primary,
 .secondary,
 button {
@@ -141,6 +145,16 @@ button:hover {
   background: var(--white);
   border: 1px solid var(--line);
   color: var(--navy);
+}
+
+.danger-button {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.danger-button:hover {
+  background: #fff1f2;
+  color: #7f1d1d;
 }
 
 .small {
@@ -734,6 +748,20 @@ h2 {
   display: flex;
   gap: 16px;
   justify-content: space-between;
+}
+
+.workspace-header-actions,
+.section-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.section-actions {
+  justify-content: center;
+  margin-top: 16px;
 }
 
 .metric-grid,
@@ -2597,14 +2625,21 @@ input[type="file"]::file-selector-button:hover {
   }
 
   .admin-action-row,
-  .admin-panel-head {
+  .admin-panel-head,
+  .workspace-header-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
   .admin-action-row,
+  .workspace-header-actions,
   .table-actions {
     justify-content: flex-start;
+  }
+
+  .workspace-header-actions .primary,
+  .workspace-header-actions .secondary {
+    width: 100%;
   }
 }
 

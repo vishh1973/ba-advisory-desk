@@ -50,6 +50,7 @@ const state = {
   requestFiles: JSON.parse(localStorage.getItem("baad-request-files") || "null") || [],
   adminDeliverables: [],
   adminDeliverableFiles: [],
+  adminClientUploads: [],
   adminRequestFiles: [],
   adminCreditLedger: [],
   adminPaymentHistory: [],
@@ -130,6 +131,29 @@ function showPersistentNotice(message) {
 function hideToast() {
   const toast = document.querySelector("#toast");
   if (toast) toast.classList.remove("show", "persistent");
+}
+
+function setInlineStatus(selector, message, level = "") {
+  const status = document.querySelector(selector);
+  if (!status) return;
+  status.textContent = message;
+  status.classList.remove("warning", "success");
+  if (level) status.classList.add(level);
+}
+
+function setButtonBusy(button, busy, labelWhenBusy = "Working") {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalLabel = button.textContent;
+    button.textContent = labelWhenBusy;
+    button.disabled = true;
+    button.dataset.busy = "true";
+    return;
+  }
+  button.textContent = button.dataset.originalLabel || button.textContent;
+  button.disabled = false;
+  delete button.dataset.busy;
+  delete button.dataset.originalLabel;
 }
 
 function formatToday() {
@@ -726,6 +750,15 @@ function resetClientWorkspaceState() {
   state.creditHistory = [];
   state.auditEvents = [];
   state.paymentHistory = [];
+  state.adminQueue = [];
+  state.adminClients = [];
+  state.adminDeliverables = [];
+  state.adminDeliverableFiles = [];
+  state.adminClientUploads = [];
+  state.adminRequestFiles = [];
+  state.adminCreditLedger = [];
+  state.adminPaymentHistory = [];
+  state.adminAuditEvents = [];
   state.creditsLeft = 0;
   state.creditThreshold = 2;
   state.passwordRecovery = false;
@@ -890,7 +923,7 @@ function setAuthStatus(message) {
 function updateAuthUi() {
   const isSignedIn = Boolean(state.session?.user);
   const loginButton = document.querySelector("#loginButton");
-  const signOutButton = document.querySelector("#signOutButton");
+  const signOutButtons = document.querySelectorAll("[data-sign-out]");
   const providerButtons = document.querySelectorAll("[data-provider]");
   const emailAuthGrid = document.querySelector(".email-auth-grid");
   const authIntro = document.querySelector(".auth-intro");
@@ -929,9 +962,7 @@ function updateAuthUi() {
   resetForm?.classList.add("hidden");
   recoveryForm?.classList.toggle("hidden", !state.passwordRecovery);
 
-  if (signOutButton) {
-    signOutButton.classList.toggle("hidden", !isSignedIn);
-  }
+  signOutButtons.forEach((button) => button.classList.toggle("hidden", !isSignedIn));
 
   if (isSignedIn) {
     state.client.email = getUserEmail() || state.client.email;
@@ -958,6 +989,17 @@ function updateAuthUi() {
         : "Sign in or create an account with your work email."
     );
   }
+}
+
+async function signOutCurrentUser() {
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
+  resetClientWorkspaceState();
+  updateAuthUi();
+  window.location.hash = "login";
+  setView();
+  showToast("Signed out.");
 }
 
 async function initAuth() {
@@ -1344,6 +1386,9 @@ async function loadClientWorkspaceData() {
     if (creditResult.data) {
       state.creditsLeft = Number(creditResult.data.balance ?? state.creditsLeft);
       state.creditThreshold = Number(creditResult.data.low_credit_threshold ?? state.creditThreshold);
+    } else if (!creditResult.error) {
+      state.creditsLeft = 0;
+      state.creditThreshold = config.lowCreditThreshold;
     }
 
     if (!ledgerResult.error && Array.isArray(ledgerResult.data)) {
@@ -1506,11 +1551,11 @@ async function uploadRequestFiles(requestId, organizationId) {
   }
 
   let uploaded = 0;
-  for (const file of files) {
-    const safeName = getSafeFileName(file.name);
-    const storagePath = `${userId}/${requestId}/${Date.now()}-${safeName}`;
+  for (const [index, file] of files.entries()) {
+    const storagePath = createClientStoragePath(userId, requestId, file.name, index);
     const { error: uploadError } = await supabaseClient.storage.from("client-files").upload(storagePath, file, {
       upsert: false,
+      contentType: getUploadContentType(file),
     });
 
     if (uploadError) {
@@ -1570,6 +1615,33 @@ function validateWorkspaceFiles(files) {
     return `${invalid.name} is larger than ${config.maxFileSizeMb} MB. Please reduce the file size or split the material.`;
   }
   return `${invalid.name} is not an accepted file type. Accepted files are PDF, Word, Excel, PowerPoint, PNG, and JPG.`;
+}
+
+function getUploadContentType(file) {
+  if (file?.type) return file.type;
+  const extension = getFileExtension(file?.name);
+  return (
+    {
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ppt: "application/vnd.ms-powerpoint",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      png: "image/png",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+    }[extension] || "application/octet-stream"
+  );
+}
+
+function createClientStoragePath(userId, folder, fileName, index = 0) {
+  const uniqueId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+  return `${userId}/${folder}/${uniqueId}-${index}-${getSafeFileName(fileName)}`;
 }
 
 function getPartialUploadError(fileName, uploaded, total, reason) {
@@ -1688,7 +1760,7 @@ async function saveClientUpload() {
     return { ok: false, error: "Please complete your client profile before uploading files." };
   }
 
-  for (const file of files) {
+  for (const [index, file] of files.entries()) {
     const entry = {
       id: `upload-${Date.now()}-${uploaded}`,
       fileId: "",
@@ -1705,10 +1777,10 @@ async function saveClientUpload() {
     };
 
     if (organizationId && userId && supabaseClient) {
-      const safeName = getSafeFileName(file.name);
-      const storagePath = `${userId}/workspace-uploads/${context.type}-${context.id || "workspace"}/${Date.now()}-${safeName}`;
+      const storagePath = createClientStoragePath(userId, `workspace-uploads/${context.type}-${context.id || "workspace"}`, file.name, index);
       const { error: uploadError } = await supabaseClient.storage.from("client-files").upload(storagePath, file, {
         upsert: false,
+        contentType: getUploadContentType(file),
       });
 
       if (uploadError) {
@@ -2107,6 +2179,7 @@ function renderRequests() {
     .map(
       (item) => {
         const canUpload = item.queueType === "request" && item.organizationId && item.requestId;
+        const canDownload = ["client-upload", "request-file"].includes(item.queueType) && item.fileId;
         return `
         <tr>
           <td>${escapeHtml(item.client)}</td>
@@ -2123,8 +2196,14 @@ function renderRequests() {
               ${
                 canUpload
                   ? `<button class="small" type="button" data-admin-action="prepare-upload" data-request-id="${escapeHtml(item.requestId)}" data-organization-id="${escapeHtml(item.organizationId)}">Upload</button>`
-                  : `<span class="status-pill muted">No upload action</span>`
+                  : ""
               }
+              ${
+                canDownload
+                  ? `<button class="secondary small" type="button" data-download-source-file="${escapeHtml(item.fileId)}" data-source-kind="${escapeHtml(item.fileKind || "request_file")}">Download</button>`
+                  : ""
+              }
+              ${!canUpload && !canDownload ? `<span class="status-pill muted">No file action</span>` : ""}
             </div>
           </td>
         </tr>
@@ -2788,6 +2867,11 @@ function renderClientFileRoom() {
                 ? `<button class="secondary small" type="button" data-download-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}">Download</button>`
                 : ""
             }
+            ${
+              file.fileId
+                ? `<button class="secondary small danger-button" type="button" data-delete-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}">Delete</button>`
+                : ""
+            }
           </div>
         </article>
       `
@@ -2802,8 +2886,7 @@ function getAdminOpenItemsForClient(client) {
 function getAdminFilesForClient(client) {
   return [
     ...state.adminRequestFiles.map((file) => ({ ...file, source: "Request source" })),
-    ...state.adminQueue
-      .filter((item) => item.queueType === "client-upload")
+    ...state.adminClientUploads
       .map((item) => ({
         id: item.requestId || item.id,
         fileId: item.fileId || item.id,
@@ -2812,6 +2895,7 @@ function getAdminFilesForClient(client) {
         clientEmail: item.clientEmail,
         client: item.client,
         fileName: item.type,
+        fileSize: item.fileSize || 0,
         source: "Client upload",
         contextLabel: item.dueLabel || "Workspace upload",
         status: item.status,
@@ -2848,7 +2932,7 @@ function getAdminClientHealth(client) {
 
 function renderAdminSnapshot() {
   const clients = state.adminClients.filter((client) => client.id);
-  const fileInbox = state.adminQueue.filter((item) => item.queueType === "client-upload").length + state.adminRequestFiles.length;
+  const fileInbox = state.adminClientUploads.length + state.adminRequestFiles.length;
   const released = state.adminDeliverables.length;
   const lowCreditClients = clients.filter((client) => getCreditAlertState(Number(client.balance || 0), Number(client.lowCreditThreshold || config.lowCreditThreshold)).level !== "healthy").length;
   const openWork = state.adminQueue.filter((item) => isPendingStatus(item.status)).length;
@@ -2928,7 +3012,7 @@ function renderAdminClientDossier() {
         .map(
           (file) => `
               <p><strong>${escapeHtml(file.fileName || file.type || "Client file")}</strong><br />
-              <span>${escapeHtml(file.source || "File")} | ${escapeHtml(file.contextLabel || file.status || "Received")} | ${escapeHtml(formatDateTime(file.createdAt || file.dueAt))}</span>
+              <span>${escapeHtml(file.source || "File")} | ${escapeHtml(file.contextLabel || file.status || "Received")} | ${escapeHtml(formatFileSize(file.fileSize))} | ${escapeHtml(formatDateTime(file.createdAt || file.dueAt))}</span>
               ${
                 file.fileId
                   ? `<br /><button class="secondary small" type="button" data-download-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}">Download</button>`
@@ -3103,6 +3187,9 @@ function normalizeAdminClientUpload(upload) {
     clientEmail: organization.billing_email || "",
     client: organization.name || (upload.organization_id ? `Workspace ${String(upload.organization_id).slice(0, 8)}` : "Client workspace"),
     type: upload.original_file_name || upload.upload_type || "Client upload",
+    fileName: upload.original_file_name || upload.upload_type || "Client upload",
+    fileSize: upload.file_size_bytes || 0,
+    source: "Client upload",
     action: "Review uploaded file",
     status: upload.status || "Received",
     dueAt: upload.created_at || null,
@@ -3154,11 +3241,13 @@ function applyAdminQueueData(data) {
     ...requests.map(normalizeAdminRequest),
     ...clientMessages.map(normalizeAdminClientMessage),
     ...clientUploads.map(normalizeAdminClientUpload),
+    ...requestFiles.map(normalizeAdminRequestFile),
     ...paymentOrders.map(normalizePaymentOrder),
     ...notifications.map(normalizeNotification),
     ...fallbackItems.map(normalizeAdminQueueItem),
   ].slice(0, 100);
   state.adminQueue = normalizedItems;
+  state.adminClientUploads = clientUploads.map(normalizeAdminClientUpload);
   state.adminRequestFiles = requestFiles.map(normalizeAdminRequestFile);
   state.adminNewCount = Number(data.requestCount ?? data.request_count ?? requests.length ?? 0);
   state.quoteCount = Number(data.quoteCount ?? data.quote_count ?? quoteItems.length ?? 0);
@@ -4300,17 +4389,27 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const downloadWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (downloadWindow) {
+    downloadWindow.document.write("<p>Preparing secure download...</p>");
+  }
+
   const result = await fetchClientApi("/api/deliverable-download-url", {
     method: "POST",
     body: { fileId },
   });
 
   if (!result.ok || !result.data?.signedUrl) {
+    if (downloadWindow) downloadWindow.close();
     showToast(result.error || "Download link could not be created.");
     return;
   }
 
-  window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
+  if (downloadWindow) {
+    downloadWindow.location.href = result.data.signedUrl;
+  } else {
+    window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
+  }
 });
 
 document.addEventListener("click", async (event) => {
@@ -4325,17 +4424,62 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const downloadWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (downloadWindow) {
+    downloadWindow.document.write("<p>Preparing secure download...</p>");
+  }
+
   const result = await fetchClientApi("/api/source-file-download-url", {
     method: "POST",
     body: { fileId, fileKind },
   });
 
   if (!result.ok || !result.data?.signedUrl) {
+    if (downloadWindow) downloadWindow.close();
     showToast(result.error || "Download link could not be created.");
     return;
   }
 
-  window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
+  if (downloadWindow) {
+    downloadWindow.location.href = result.data.signedUrl;
+  } else {
+    window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+});
+
+document.addEventListener("click", async (event) => {
+  const target = event.target.closest("[data-delete-source-file]");
+  if (!target) return;
+  event.preventDefault();
+
+  const fileId = target.dataset.deleteSourceFile;
+  const fileKind = target.dataset.sourceKind || "request_file";
+  if (!fileId) {
+    showToast("This file is not ready for deletion yet.");
+    return;
+  }
+
+  const confirmed = window.confirm("Delete this uploaded file from your workspace? This cannot be undone.");
+  if (!confirmed) return;
+
+  setButtonBusy(target, true, "Deleting");
+  const result = await fetchClientApi("/api/source-file-delete", {
+    method: "POST",
+    body: { fileId, fileKind },
+  });
+  setButtonBusy(target, false);
+
+  if (!result.ok || !result.data?.deleted) {
+    showPersistentNotice(result.error || "File could not be deleted.");
+    return;
+  }
+
+  state.requestFiles = state.requestFiles.filter((file) => !(file.fileId === fileId && file.fileKind === fileKind));
+  state.clientUploads = state.clientUploads.filter((file) => !(file.fileId === fileId && file.fileKind === fileKind));
+  saveState();
+  await loadClientWorkspaceData();
+  render();
+  showToast("File deleted from the workspace.");
 });
 
 document.addEventListener("click", (event) => {
@@ -4422,108 +4566,149 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   showToast("Client upload added to the workspace.");
 });
 
-document.querySelector("#signOutButton").addEventListener("click", async () => {
-  if (supabaseClient) {
-    await supabaseClient.auth.signOut();
-  }
-  resetClientWorkspaceState();
-  updateAuthUi();
-  window.location.hash = "login";
-  setView();
-  showToast("Signed out.");
+document.querySelectorAll("[data-sign-out]").forEach((button) => {
+  button.addEventListener("click", signOutCurrentUser);
 });
 
 document.querySelector("#requestForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (supabaseClient && getUserId()) {
-    await loadClientWorkspaceData();
-  }
-  const estimateValue = document.querySelector("#requestCreditEstimate").value;
-  const requestedCredits = estimateValue === "custom" || estimateValue === "rescue" ? 0 : Number(estimateValue || 1);
-  if (estimateValue === "custom") {
-    window.location.hash = "quote";
-    showPersistentNotice("This looks like a custom advisory scope. Please use the custom quote form so we can review the work properly before pricing it.");
-    addAuditEvent("Custom scope prompted", "Client selected custom scope review from request intake.");
-    saveState();
-    render();
-    return;
-  }
-
-  const userId = getUserId();
-  const organizationId = await getProfileOrganizationId();
-  if (supabaseClient && !organizationId) {
-    window.location.hash = "profile";
-    showPersistentNotice("Please complete your client profile before submitting a request. This keeps your files, payment, and deliverables connected.");
-    return;
-  }
-
-  if (estimateValue === "rescue" && !hasRescueSprintAccess()) {
-    window.location.hash = "billing";
-    showPersistentNotice("Please start or confirm the BA Rescue Sprint before submitting a Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
-    addAuditEvent("Rescue Sprint request paused", "Client selected Rescue Sprint scope without a recorded Rescue Sprint payment.");
-    saveState();
-    render();
-    return;
-  }
-
-  if (requestedCredits > 0 && state.creditsLeft < requestedCredits) {
-    showToast("Not enough Advisory Credits remain. Please add credits before submitting this deliverable request.");
-    addAuditEvent("Request paused", `Client attempted to submit a ${requestedCredits} credit request with insufficient balance.`);
-    saveState();
-    render();
-    return;
-  }
-
-  const selectedType = document.querySelector("#requestType").value;
-  const otherType = document.querySelector("#requestOther").value.trim();
-  const businessGoal = document.querySelector("#businessGoal").value.trim();
-  const targetAudience = document.querySelector("#targetAudience").value.trim();
-  const desiredOutput = document.querySelector("#desiredOutput")?.value.trim() || "";
-  const decisionDeadline = document.querySelector("#decisionDeadline")?.value || "";
-  const attachmentDescription = document.querySelector("#attachmentDescription").value.trim();
-  if (!businessGoal || !targetAudience || !desiredOutput || !decisionDeadline || !attachmentDescription) {
-    showPersistentNotice("Please complete the business goal, target audience, desired output, deadline, and attachment description before submitting.");
-    return;
-  }
-  const requestFiles = Array.from(document.querySelector("#fileUpload")?.files || []);
-  const requestFileValidationError = validateWorkspaceFiles(requestFiles);
-  if (requestFileValidationError) {
-    showPersistentNotice(requestFileValidationError);
-    return;
-  }
-
-  const request = {
-    id: generateRequestCode(),
-    type: selectedType === "Other" && otherType ? otherType : selectedType,
-    status: "Pending scope",
-    due: formatDisplayDate(decisionDeadline),
-    client: state.client.company,
-    createdAt: getIsoNow(),
-  };
-  const requestPayload = {
-    request_code: request.id,
-    organization_id: organizationId,
-    submitted_by: userId,
-    request_type: request.type,
-    business_goal: businessGoal,
-    target_audience: targetAudience,
-    attachment_description: `${attachmentDescription}\n\nDesired output: ${desiredOutput}\nDecision date: ${decisionDeadline}`,
-    status: "pending_scope",
-    credits_estimated: requestedCredits,
-    due_at: decisionDeadline || null,
+  const submitButton = document.querySelector("#requestSubmitButton") || event.submitter;
+  if (submitButton?.dataset.busy === "true") return;
+  const statusSelector = "#requestStatus";
+  const warn = (message) => {
+    setInlineStatus(statusSelector, message, "warning");
+    showPersistentNotice(message);
   };
 
-  let result;
-  let savedRequestId = null;
-  if (supabaseClient) {
-    const { data, error } = await supabaseClient.from("requests").insert(requestPayload).select("id").single();
-    result = error ? { ok: false, reason: error.message } : { ok: true };
-    savedRequestId = data?.id || null;
-  } else {
-    result = await writeToSupabase("requests", requestPayload);
-  }
+  setButtonBusy(submitButton, true, "Submitting Request");
+  setInlineStatus(statusSelector, "Checking your profile, credit balance, and selected files.");
 
-  if (result.ok) {
+  try {
+    if (!state.session?.user) {
+      window.location.hash = "login";
+      warn("Please sign in before submitting a request. This keeps your files, requests, and deliverables connected to one secure workspace.");
+      return;
+    }
+
+    if (!isEmailVerified()) {
+      window.location.hash = "login";
+      warn("Please verify your email before submitting a request.");
+      return;
+    }
+
+    if (supabaseClient && getUserId()) {
+      await loadClientWorkspaceData();
+    }
+
+    const estimateValue = document.querySelector("#requestCreditEstimate").value;
+    const requestedCredits = estimateValue === "custom" || estimateValue === "rescue" ? 0 : Number(estimateValue || 1);
+    if (estimateValue === "custom") {
+      window.location.hash = "quote";
+      setInlineStatus(statusSelector, "Custom scope selected. Please complete the custom advisory request form.", "success");
+      showPersistentNotice("This looks like a custom advisory scope. Please use the custom quote form so we can review the work properly before pricing it.");
+      addAuditEvent("Custom scope prompted", "Client selected custom scope review from request intake.");
+      saveState();
+      render();
+      return;
+    }
+
+    const userId = getUserId();
+    const organizationId = await getProfileOrganizationId();
+    if (supabaseClient && !organizationId) {
+      window.location.hash = "profile";
+      warn("Please complete your client profile before submitting a request. This keeps your files, payment, and deliverables connected.");
+      return;
+    }
+
+    if (supabaseClient && state.workspaceLoadIssue && requestedCredits > 0) {
+      warn("We could not verify your current Advisory Credit balance. Refresh the page and try again, or contact support if this continues.");
+      return;
+    }
+
+    if (estimateValue === "rescue" && !hasRescueSprintAccess()) {
+      window.location.hash = "billing";
+      warn("Please start or confirm the BA Rescue Sprint before submitting a Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
+      addAuditEvent("Rescue Sprint request paused", "Client selected Rescue Sprint scope without a recorded Rescue Sprint payment.");
+      saveState();
+      render();
+      return;
+    }
+
+    if (requestedCredits > 0 && Number(state.creditsLeft || 0) < requestedCredits) {
+      window.location.hash = "billing";
+      warn(`This request needs ${requestedCredits} Advisory Credit${requestedCredits === 1 ? "" : "s"}, but your workspace has ${state.creditsLeft}. Please add credits before submitting.`);
+      addAuditEvent("Request paused", `Client attempted to submit a ${requestedCredits} credit request with insufficient balance.`);
+      saveState();
+      render();
+      return;
+    }
+
+    const selectedType = document.querySelector("#requestType").value;
+    const otherType = document.querySelector("#requestOther").value.trim();
+    const businessGoal = document.querySelector("#businessGoal").value.trim();
+    const targetAudience = document.querySelector("#targetAudience").value.trim();
+    const desiredOutput = document.querySelector("#desiredOutput")?.value.trim() || "";
+    const decisionDeadline = document.querySelector("#decisionDeadline")?.value || "";
+    const attachmentDescription = document.querySelector("#attachmentDescription").value.trim();
+    if (selectedType === "Other" && !otherType) {
+      warn("Please describe the Business Analysis deliverable you need.");
+      return;
+    }
+    if (!businessGoal || !targetAudience || !desiredOutput || !decisionDeadline || !attachmentDescription) {
+      warn("Please complete the business goal, target audience, desired output, deadline, and attachment description before submitting.");
+      return;
+    }
+
+    const requestFiles = Array.from(document.querySelector("#fileUpload")?.files || []);
+    if (!requestFiles.length) {
+      warn("Please attach at least one source file before submitting. This can be a PDF, Word, Excel, PowerPoint, PNG, or JPG file.");
+      return;
+    }
+    const requestFileValidationError = validateWorkspaceFiles(requestFiles);
+    if (requestFileValidationError) {
+      warn(requestFileValidationError);
+      return;
+    }
+
+    const request = {
+      id: generateRequestCode(),
+      type: selectedType === "Other" && otherType ? otherType : selectedType,
+      status: "Pending scope",
+      due: formatDisplayDate(decisionDeadline),
+      client: state.client.company,
+      createdAt: getIsoNow(),
+    };
+    const requestPayload = {
+      request_code: request.id,
+      organization_id: organizationId,
+      submitted_by: userId,
+      request_type: request.type,
+      business_goal: businessGoal,
+      target_audience: targetAudience,
+      attachment_description: `${attachmentDescription}\n\nDesired output: ${desiredOutput}\nDecision date: ${decisionDeadline}`,
+      status: "pending_scope",
+      credits_estimated: requestedCredits,
+      due_at: decisionDeadline || null,
+    };
+
+    setInlineStatus(statusSelector, `Creating your request and preparing ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"} for upload.`);
+
+    let result;
+    let savedRequestId = null;
+    if (supabaseClient) {
+      const { data, error } = await supabaseClient.from("requests").insert(requestPayload).select("id").single();
+      result = error ? { ok: false, reason: error.message } : { ok: true };
+      savedRequestId = data?.id || null;
+    } else {
+      result = await writeToSupabase("requests", requestPayload);
+    }
+
+    if (!result.ok) {
+      warn(result.reason || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
+      return;
+    }
+
+    setInlineStatus(statusSelector, `Request created. Uploading ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"}.`);
     const uploadResult = await uploadRequestFiles(savedRequestId, organizationId);
     request.requestId = savedRequestId;
     state.requests.unshift(request);
@@ -4556,15 +4741,17 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       relatedLabel: request.id,
     });
     if (!uploadResult.ok) {
-      showPersistentNotice(`Request received, but file upload needs attention. ${uploadResult.reason || "Please upload the files from Messages and Files, or contact support."}`);
+      warn(`Request received, but file upload needs attention. ${uploadResult.reason || "Please upload the files from Messages and Files, or contact support."}`);
       return;
     }
-    showToast(
-      `Request received. Files uploaded: ${uploadResult.uploaded}. We will review and respond from ${config.supportEmail}.`
-    );
-  } else {
-    showPersistentNotice(result.reason || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
-    return;
+
+    const successMessage = `Request received. ${uploadResult.uploaded} file${uploadResult.uploaded === 1 ? "" : "s"} uploaded and attached to your workspace.`;
+    setInlineStatus(statusSelector, successMessage, "success");
+    showToast(successMessage);
+  } catch (error) {
+    warn(error.message || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
+  } finally {
+    setButtonBusy(submitButton, false);
   }
 });
 
