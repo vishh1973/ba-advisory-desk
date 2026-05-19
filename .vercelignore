@@ -1,0 +1,7 @@
+docs/
+supabase/
+tools/
+README.md
+DEPLOYMENT_GUIDE.md
+PROJECT_ISSUE_TRACKER.md
+.env.example

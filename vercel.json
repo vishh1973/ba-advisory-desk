@@ -7,6 +7,36 @@
       "schedule": "0 13 * * *"
     }
   ],
+  "rewrites": [
+    {
+      "source": "/docs/:path*",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/supabase/:path*",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/tools/:path*",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/README.md",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/DEPLOYMENT_GUIDE.md",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/PROJECT_ISSUE_TRACKER.md",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/.env.example",
+      "destination": "/404.html"
+    }
+  ],
   "headers": [
     {
       "source": "/admin.html",

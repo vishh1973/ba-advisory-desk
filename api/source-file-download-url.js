@@ -42,15 +42,21 @@ async function readSourceFile(supabase, fileKind, fileId) {
   if (fileKind === "client_upload") {
     const { data, error } = await supabase
       .from("client_uploads")
-      .select("id,organization_id,storage_bucket,storage_path,original_file_name,file_size_bytes")
+      .select("id,organization_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes")
       .eq("id", fileId)
       .single();
 
     if (error) throw error;
+    if (data.storage_bucket && data.storage_bucket !== "client-files") {
+      throw new Error("This file is not available for workspace download.");
+    }
+    if (data.uploaded_by && !String(data.storage_path || "").startsWith(`${data.uploaded_by}/`)) {
+      throw new Error("This file path is not available for this workspace.");
+    }
     return {
       id: data.id,
       organizationId: data.organization_id,
-      bucket: data.storage_bucket || "client-files",
+      bucket: "client-files",
       path: data.storage_path,
       fileName: data.original_file_name,
       fileSize: data.file_size_bytes,
@@ -60,11 +66,14 @@ async function readSourceFile(supabase, fileKind, fileId) {
 
   const { data, error } = await supabase
     .from("request_files")
-    .select("id,organization_id,storage_path,file_name,file_size_bytes")
+    .select("id,organization_id,uploaded_by,storage_path,file_name,file_size_bytes")
     .eq("id", fileId)
     .single();
 
   if (error) throw error;
+  if (data.uploaded_by && !String(data.storage_path || "").startsWith(`${data.uploaded_by}/`)) {
+    throw new Error("This file path is not available for this workspace.");
+  }
   return {
     id: data.id,
     organizationId: data.organization_id,

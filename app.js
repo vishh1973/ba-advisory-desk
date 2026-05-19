@@ -63,6 +63,7 @@ const state = {
   adminNewCount: 0,
   quoteCount: 0,
   passwordRecovery: false,
+  profileOrganizationId: "",
 };
 
 const views = {
@@ -155,6 +156,13 @@ function getIsoNow() {
   return new Date().toISOString();
 }
 
+function generateRequestCode() {
+  const now = new Date();
+  const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  const randomPart = String(Math.floor(1000 + Math.random() * 9000));
+  return `REQ ${datePart} ${randomPart}`;
+}
+
 function productLabel(productType) {
   const labels = {
     rescue_sprint: "BA Rescue Sprint",
@@ -192,6 +200,33 @@ function addPaymentHistory(item, amount, status) {
     status,
   });
   state.paymentHistory = state.paymentHistory.slice(0, 20);
+}
+
+function hasRecordedPayment(labelFragment) {
+  const target = String(labelFragment || "").toLowerCase();
+  return state.paymentHistory.some((payment) => {
+    const item = String(payment.item || "").toLowerCase();
+    const status = String(payment.status || "").toLowerCase();
+    const paidStatus =
+      status.includes("paid") ||
+      status.includes("succeeded") ||
+      status.includes("complete") ||
+      status.includes("active") ||
+      status.includes("trialing");
+    const pendingStatus =
+      status.includes("started") ||
+      status.includes("created") ||
+      status.includes("open") ||
+      status.includes("pending") ||
+      status.includes("failed") ||
+      status.includes("cancel") ||
+      status.includes("expired");
+    return item.includes(target) && paidStatus && !pendingStatus;
+  });
+}
+
+function hasRescueSprintAccess() {
+  return hasRecordedPayment("rescue sprint");
 }
 
 function getCreditAlertState(balance = state.creditsLeft, threshold = state.creditThreshold) {
@@ -241,6 +276,20 @@ function getSelectedAdminClient() {
   );
 }
 
+function getAdminClientByOrganization(organizationId) {
+  if (!organizationId) return getEmptyAdminClient();
+  return (
+    state.adminClients.find((client) => client.id === organizationId || client.selectionId === organizationId) ||
+    getEmptyAdminClient()
+  );
+}
+
+function getAdminCreditBalanceForOrganization(organizationId) {
+  const client = getAdminClientByOrganization(organizationId);
+  if (client.id) return Number(client.balance ?? 0);
+  return organizationId === state.selectedAdminClientId ? Number(state.creditsLeft || 0) : 0;
+}
+
 function syncSelectedAdminClientToState() {
   const client = getSelectedAdminClient();
   state.selectedAdminClientId = client.selectionId || client.id || "";
@@ -250,7 +299,7 @@ function syncSelectedAdminClientToState() {
 
 function hasSelectedAdminClient() {
   const client = getSelectedAdminClient();
-  return Boolean(client.id);
+  return Boolean(state.selectedAdminClientId && (client.id || client.email || client.name));
 }
 
 function updateSelectedAdminClientCreditAccount(balance, lowCreditThreshold) {
@@ -262,6 +311,10 @@ function updateSelectedAdminClientCreditAccount(balance, lowCreditThreshold) {
 
 function normalizeStatusValue(status) {
   return String(status || "").trim().toLowerCase().replace(/_/g, " ");
+}
+
+function toRequestStorageStatus(status) {
+  return normalizeStatusValue(status).replace(/\s+/g, "_");
 }
 
 function isPausedStatus(status) {
@@ -321,6 +374,7 @@ function isSelectedAdminRecord(record, client = getSelectedAdminClient()) {
 
 function getSelectedAdminQueueItems() {
   const selectedClient = getSelectedAdminClient();
+  if (!state.selectedAdminClientId) return state.adminQueue;
   if (!selectedClient.id && !selectedClient.email && !selectedClient.name) return [];
   return state.adminQueue.filter((item) => isSelectedAdminRecord(item, selectedClient));
 }
@@ -677,6 +731,7 @@ function resetClientWorkspaceState() {
   state.creditsLeft = 0;
   state.creditThreshold = 2;
   state.passwordRecovery = false;
+  state.profileOrganizationId = "";
   [
     "baad-client",
     "baad-requests",
@@ -1017,6 +1072,17 @@ async function fetchClientApi(path, options = {}) {
   }
 }
 
+async function notifyAdvisorEvent(payload) {
+  if (!supabaseClient || !getUserId()) {
+    return { ok: false, skipped: true, error: "Client workspace is not signed in." };
+  }
+
+  return fetchClientApi("/api/workspace-event-notification", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 async function updateServerCreditLedger(payload) {
   return fetchAdminApi("/api/ledger", {
     method: "POST",
@@ -1042,6 +1108,7 @@ function applyProfileToState(profile) {
 
   state.client.email = profile.work_email || getUserEmail() || state.client.email;
   state.client.company = organization.name || state.client.company || "Your organization";
+  state.profileOrganizationId = profile.organization_id || state.profileOrganizationId || "";
 
   setFieldValue("#profileFirstName", profile.first_name || firstName);
   setFieldValue("#profileLastName", profile.last_name || lastName);
@@ -1132,6 +1199,7 @@ function groupDeliverableVersions(rows) {
 }
 
 async function getProfileOrganizationId() {
+  if (state.profileOrganizationId) return state.profileOrganizationId;
   if (!supabaseClient || !getUserId()) return null;
 
   const { data, error } = await supabaseClient
@@ -1141,7 +1209,8 @@ async function getProfileOrganizationId() {
     .maybeSingle();
 
   if (error) return null;
-  return data?.organization_id || null;
+  state.profileOrganizationId = data?.organization_id || "";
+  return state.profileOrganizationId || null;
 }
 
 function normalizeClientMessage(row) {
@@ -1311,7 +1380,7 @@ async function loadClientWorkspaceData() {
 
 async function writeToSupabase(table, payload) {
   if (!supabaseClient) {
-    return { ok: false, reason: "The secure workspace is not available yet." };
+    return { ok: false, reason: `We could not reach the secure workspace. Please try again or contact ${config.supportEmail}.` };
   }
 
   try {
@@ -1533,7 +1602,15 @@ async function saveClientMessage() {
   addLocalMessage(entry);
   addAuditEvent("Client message received", `${context.label}: ${body.slice(0, 80)}`);
   saveState();
-  return { ok: true, storedOnline: Boolean(result.ok) };
+  const notification = await notifyAdvisorEvent({
+    eventType: "client_message",
+    title: "Client message received",
+    summary: `${context.label}: ${body}`,
+    relatedEntityType: context.deliverableId ? "deliverable" : context.requestId ? "request" : "workspace",
+    relatedEntityId: context.deliverableId || context.requestId || null,
+    relatedLabel: context.label,
+  });
+  return { ok: true, storedOnline: Boolean(result.ok), advisorNotified: notification.ok && notification.data?.sent !== false };
 }
 
 async function saveClientUpload() {
@@ -1584,7 +1661,9 @@ async function saveClientUpload() {
         return { ok: false, error: uploadError.message || "File could not be uploaded." };
       }
 
-      const recordResult = await writeToSupabase("client_uploads", {
+      const { data: uploadRecord, error: recordError } = await supabaseClient
+        .from("client_uploads")
+        .insert({
           organization_id: organizationId,
           uploaded_by: userId,
           deliverable_id: context.deliverableId,
@@ -1596,10 +1675,13 @@ async function saveClientUpload() {
           storage_path: storagePath,
           note,
           status: "received",
-        });
-      if (!recordResult.ok) {
-        return { ok: false, error: recordResult.reason || "File record could not be saved to the workspace." };
+        })
+        .select("id")
+        .single();
+      if (recordError) {
+        return { ok: false, error: recordError.message || "File record could not be saved to the workspace." };
       }
+      entry.fileId = uploadRecord?.id || "";
       storedOnline = true;
     }
 
@@ -1609,7 +1691,15 @@ async function saveClientUpload() {
 
   addAuditEvent("Client files received", `${uploaded} file${uploaded === 1 ? "" : "s"} attached to ${context.label}.`);
   saveState();
-  return { ok: true, uploaded, storedOnline };
+  const notification = await notifyAdvisorEvent({
+    eventType: "client_file_upload",
+    title: "Client files uploaded",
+    summary: `${uploaded} file${uploaded === 1 ? "" : "s"} attached to ${context.label}. Purpose: ${purpose}. ${note ? `Notes: ${note}` : ""}`,
+    relatedEntityType: context.deliverableId ? "deliverable" : context.requestId ? "request" : "workspace",
+    relatedEntityId: context.deliverableId || context.requestId || null,
+    relatedLabel: context.label,
+  });
+  return { ok: true, uploaded, storedOnline, advisorNotified: notification.ok && notification.data?.sent !== false };
 }
 
 async function getNextDeliverableVersionNumber(deliverableId) {
@@ -1637,6 +1727,7 @@ async function uploadAdminDeliverable() {
   const deliverableType = document.querySelector("#adminDeliverableType")?.value || "Business Analysis deliverable";
   const summary = document.querySelector("#adminDeliverableSummary")?.value.trim() || "";
   const releaseNote = document.querySelector("#adminDeliverableReleaseNote")?.value.trim() || "Released to client workspace.";
+  const creditsUsed = Math.max(0, Number(document.querySelector("#adminReleaseCreditsUsed")?.value || 0));
   const notifyClient = Boolean(document.querySelector("#adminNotifyClient")?.checked);
   const files = getAdminUploadFiles();
 
@@ -1646,6 +1737,15 @@ async function uploadAdminDeliverable() {
 
   if (!state.adminClients.some((client) => client.id === organizationId)) {
     return { ok: false, error: "The selected client workspace is not available for upload." };
+  }
+
+  const selectedClient = getAdminClientByOrganization(organizationId);
+  const availableCredits = getAdminCreditBalanceForOrganization(organizationId);
+  if (creditsUsed > 0 && creditsUsed > availableCredits) {
+    return {
+      ok: false,
+      error: `This client has ${availableCredits} Advisory Credit${availableCredits === 1 ? "" : "s"} available. Add credits or set credits to 0 only when this release is covered by a fixed scope.`,
+    };
   }
 
   if (
@@ -1680,7 +1780,7 @@ async function uploadAdminDeliverable() {
         title,
         deliverable_type: deliverableType,
         summary,
-        status: "delivered",
+        status: "draft",
         created_by: getUserId(),
         uploaded_by: getUserId(),
       })
@@ -1696,7 +1796,7 @@ async function uploadAdminDeliverable() {
         title,
         deliverable_type: deliverableType,
         summary,
-        status: "delivered",
+        status: "draft",
         updated_at: new Date().toISOString(),
       })
       .eq("id", deliverableId);
@@ -1712,10 +1812,10 @@ async function uploadAdminDeliverable() {
       request_id: requestId || null,
       organization_id: organizationId,
       version_number: versionNumber,
-      status: "released",
+      status: "draft",
       summary,
       release_note: releaseNote,
-      released_at: new Date().toISOString(),
+      released_at: null,
       released_by: getUserId(),
       created_by: getUserId(),
     })
@@ -1751,6 +1851,26 @@ async function uploadAdminDeliverable() {
     uploaded += 1;
   }
 
+  let creditResult = { ok: true, data: { balance: availableCredits } };
+  if (creditsUsed > 0) {
+    creditResult = await updateServerCreditLedger({
+      organizationId,
+      type: "consume",
+      credits: creditsUsed,
+      reason: `Released deliverable: ${title}`,
+      requestId: requestId || null,
+      recipientEmail: getClientEmail(selectedClient) || null,
+      idempotencyKey: `admin-release-${organizationId}-${deliverableId}-${version.id}-${creditsUsed}`,
+    });
+
+    if (!creditResult.ok) {
+      return { ok: false, error: creditResult.error || "Advisory Credits could not be recorded. Files remain in draft and were not released.", uploaded };
+    }
+
+    state.creditsLeft = Number(creditResult.data?.balance ?? state.creditsLeft);
+    updateSelectedAdminClientCreditAccount(state.creditsLeft, creditResult.data?.lowCreditThreshold ?? state.creditThreshold);
+  }
+
   const { error: deliverableUpdateError } = await supabaseClient
     .from("deliverables")
     .update({
@@ -1763,7 +1883,44 @@ async function uploadAdminDeliverable() {
     })
     .eq("id", deliverableId);
 
-  if (deliverableUpdateError) return { ok: false, error: deliverableUpdateError.message, uploaded };
+  if (deliverableUpdateError) {
+    if (creditsUsed > 0) {
+      await updateServerCreditLedger({
+        organizationId,
+        type: "adjust",
+        credits: -creditsUsed,
+        reason: `Credit reversal because release failed: ${title}`,
+        requestId: requestId || null,
+        recipientEmail: getClientEmail(selectedClient) || null,
+        idempotencyKey: `admin-release-reversal-${organizationId}-${deliverableId}-${version.id}-${creditsUsed}`,
+      });
+    }
+    return { ok: false, error: deliverableUpdateError.message, uploaded };
+  }
+
+  const { error: versionReleaseError } = await supabaseClient
+    .from("deliverable_versions")
+    .update({
+      status: "released",
+      released_at: new Date().toISOString(),
+      released_by: getUserId(),
+    })
+    .eq("id", version.id);
+
+  if (versionReleaseError) {
+    if (creditsUsed > 0) {
+      await updateServerCreditLedger({
+        organizationId,
+        type: "adjust",
+        credits: -creditsUsed,
+        reason: `Credit reversal because version release failed: ${title}`,
+        requestId: requestId || null,
+        recipientEmail: getClientEmail(selectedClient) || null,
+        idempotencyKey: `admin-version-release-reversal-${organizationId}-${deliverableId}-${version.id}-${creditsUsed}`,
+      });
+    }
+    return { ok: false, error: versionReleaseError.message, uploaded };
+  }
 
   if (requestId) {
     await supabaseClient
@@ -1776,7 +1933,7 @@ async function uploadAdminDeliverable() {
       .eq("id", requestId);
   }
 
-  let notificationResult = { ok: true };
+  let notificationResult = { ok: true, data: { sent: false, queued: false } };
   if (notifyClient) {
     notificationResult = await fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
@@ -1790,9 +1947,13 @@ async function uploadAdminDeliverable() {
   return {
     ok: true,
     uploaded,
+    creditsUsed,
+    balance: creditsUsed > 0 ? Number(creditResult.data?.balance ?? state.creditsLeft) : availableCredits,
     deliverableId,
     versionId: version.id,
-    notificationSent: notificationResult.ok,
+    notificationRequested: notifyClient,
+    notificationQueued: notifyClient && notificationResult.ok && notificationResult.data?.queued === true,
+    notificationSent: notifyClient && notificationResult.ok && notificationResult.data?.sent === true,
     notificationError: notificationResult.error,
   };
 }
@@ -1992,6 +2153,7 @@ function renderClientDeliverables() {
           ${deliverable.summary ? `<p>${escapeHtml(deliverable.summary)}</p>` : ""}
           <div class="deliverable-files">${currentFileHtml}</div>
           <div class="deliverable-actions">
+            <button class="small" type="button" data-client-action="approve-deliverable" data-deliverable-id="${escapeHtml(deliverable.id)}">Mark Reviewed And Accepted</button>
             <button class="secondary small" type="button" data-client-action="message" data-context="deliverable:${escapeHtml(deliverable.id)}">Message About This</button>
             <button class="secondary small" type="button" data-client-action="upload" data-context="deliverable:${escapeHtml(deliverable.id)}">Upload Revision Files</button>
           </div>
@@ -2342,6 +2504,48 @@ function renderCreditControls() {
         : `${state.creditsLeft} Advisory Credits available for the selected client.`;
     deliveryCreditStatus.classList.toggle("warning", state.creditsLeft <= state.creditThreshold);
   }
+  updateAdminReleaseReadiness();
+}
+
+function updateAdminReleaseReadiness() {
+  const status = document.querySelector("#adminDeliverableUploadStatus");
+  const button = document.querySelector("#adminReleaseFilesButton");
+  if (!status || !button) return;
+
+  const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
+  const title = document.querySelector("#adminDeliverableTitle")?.value.trim();
+  const creditsUsed = Math.max(0, Number(document.querySelector("#adminReleaseCreditsUsed")?.value || 0));
+  const availableCredits = getAdminCreditBalanceForOrganization(organizationId);
+  const files = getAdminUploadFiles();
+  const validationError = validateWorkspaceFiles(files);
+
+  let message = "Select a client and upload files when the deliverable is ready.";
+  let ready = true;
+
+  if (!organizationId) {
+    message = "Step 1: select a client before releasing files.";
+    ready = false;
+  } else if (!title) {
+    message = "Step 2: add a clear deliverable title.";
+    ready = false;
+  } else if (!files.length) {
+    message = "Step 3: choose one or more deliverable files.";
+    ready = false;
+  } else if (validationError) {
+    message = validationError;
+    ready = false;
+  } else if (creditsUsed > availableCredits) {
+    message = `This client has ${availableCredits} Advisory Credit${availableCredits === 1 ? "" : "s"} available. Add credits or set credits to 0 only if this work is covered by a fixed scope.`;
+    ready = false;
+  } else {
+    const creditText = creditsUsed > 0 ? ` ${creditsUsed} Advisory Credit${creditsUsed === 1 ? "" : "s"} will be recorded.` : " No Advisory Credits will be recorded.";
+    message = `${files.length} file${files.length === 1 ? "" : "s"} ready to release to the selected client.${creditText}`;
+  }
+
+  status.textContent = message;
+  status.classList.toggle("warning", !ready);
+  status.classList.toggle("success", ready);
+  button.disabled = !ready;
 }
 
 function render() {
@@ -2401,7 +2605,9 @@ function getLatestClientActivityLabel() {
 }
 
 function getClientNextStep() {
-  const hasProfile = Boolean(state.client.email && state.client.company);
+  const hasProfile = supabaseClient
+    ? Boolean(state.profileOrganizationId)
+    : Boolean(state.client.email && state.client.company);
   const reviewCount = state.deliverables.filter((deliverable) => getVerificationLevel(deliverable.verificationStatus) !== "approved").length;
   if (!hasProfile) {
     return {
@@ -2545,6 +2751,7 @@ function getAdminLastActivityForClient(client) {
 }
 
 function getAdminClientHealth(client) {
+  if (!client?.id) return "Inquiry";
   const alert = getCreditAlertState(Number(client.balance || 0), Number(client.lowCreditThreshold || config.lowCreditThreshold));
   if (alert.level === "depleted") return "Blocked";
   if (alert.level === "low") return "Needs top up";
@@ -2573,7 +2780,7 @@ function renderAdminSnapshot() {
 function renderAdminClientPortfolio() {
   const table = document.querySelector("#adminClientPortfolioTable tbody");
   if (!table) return;
-  const clients = state.adminClients.filter((client) => client.id);
+  const clients = state.adminClients;
   if (!clients.length) {
     table.innerHTML = `<tr><td colspan="5" class="empty-cell">No client workspaces are available yet.</td></tr>`;
     return;
@@ -2604,7 +2811,7 @@ function renderAdminClientDossier() {
   const files = document.querySelector("#adminDossierFiles");
   const deliverables = document.querySelector("#adminDossierDeliverables");
   const messages = document.querySelector("#adminDossierMessages");
-  if (!client.id) {
+  if (!state.selectedAdminClientId) {
     const empty = `<p class="muted">Select a client to open their complete file.</p>`;
     if (profile) profile.innerHTML = empty;
     if (files) files.innerHTML = empty;
@@ -2616,6 +2823,7 @@ function renderAdminClientDossier() {
   if (profile) {
     const profileRows = [
       ["Email", getClientEmail(client) || "Not recorded"],
+      ["Workspace status", client.id ? "Client workspace active" : "Inquiry without workspace"],
       ["Industry", client.industry || "Not recorded"],
       ["Country", client.country || "Not recorded"],
       ["Time zone", client.timezone || "Not recorded"],
@@ -2626,10 +2834,10 @@ function renderAdminClientDossier() {
   }
 
   if (files) {
-    const fileRows = getAdminFilesForClient(client);
+    const fileRows = client.id ? getAdminFilesForClient(client) : [];
     files.innerHTML = fileRows.length
       ? fileRows
-        .slice(0, 8)
+        .slice(0, 20)
         .map(
           (file) => `
               <p><strong>${escapeHtml(file.fileName || file.type || "Client file")}</strong><br />
@@ -2642,17 +2850,17 @@ function renderAdminClientDossier() {
             `
         )
           .join("")
-      : `<p class="muted">No client files are attached yet.</p>`;
+      : `<p class="muted">${client.id ? "No client files are attached yet." : "Create or link a client workspace before file handling."}</p>`;
   }
 
   if (deliverables) {
-    const rows = state.adminDeliverables.filter((deliverable) => isSelectedAdminRecord(deliverable, client));
+    const rows = client.id ? state.adminDeliverables.filter((deliverable) => isSelectedAdminRecord(deliverable, client)) : [];
     deliverables.innerHTML = rows.length
       ? rows
           .slice(0, 8)
           .map((deliverable) => `<p><strong>${escapeHtml(deliverable.title)}</strong><br /><span>${escapeHtml(deliverable.type)} | Version ${escapeHtml(deliverable.currentVersion || 1)} | ${escapeHtml(deliverable.status)}</span></p>`)
           .join("")
-      : `<p class="muted">No deliverables have been released yet.</p>`;
+      : `<p class="muted">${client.id ? "No deliverables have been released yet." : "No deliverables can be released until a client workspace exists."}</p>`;
   }
 
   if (messages) {
@@ -3281,6 +3489,41 @@ async function updateSignedInPassword(password, confirm) {
   return { ok: true, message: "Password updated." };
 }
 
+async function markDeliverableAccepted(deliverableId) {
+  if (!deliverableId) return { ok: false, error: "Select a deliverable first." };
+  const deliverable = state.deliverables.find((item) => item.id === deliverableId);
+  if (!deliverable) return { ok: false, error: "Deliverable could not be found in this workspace." };
+
+  const note = "Client reviewed and accepted this deliverable.";
+  if (supabaseClient && getUserId()) {
+    const { error: messageError } = await supabaseClient.from("client_deliverable_messages").insert({
+      organization_id: state.profileOrganizationId || (await getProfileOrganizationId()),
+      deliverable_id: deliverableId,
+      submitted_by: getUserId(),
+      subject: "Deliverable accepted",
+      body: note,
+      status: "accepted",
+    });
+    if (messageError) {
+      return { ok: false, error: messageError.message || "Acceptance could not be recorded." };
+    }
+  }
+
+  deliverable.verificationStatus = "Accepted";
+  addAuditEvent("Deliverable accepted", `${deliverable.title} accepted by client.`);
+  saveState();
+  await notifyAdvisorEvent({
+    eventType: "deliverable_accepted",
+    title: "Deliverable accepted",
+    summary: `${deliverable.title} was marked reviewed and accepted by the client.`,
+    relatedEntityType: "deliverable",
+    relatedEntityId: deliverableId,
+    relatedLabel: deliverable.title,
+  });
+  render();
+  return { ok: true };
+}
+
 function toggleOther(selectId, wrapperId) {
   const select = document.querySelector(selectId);
   const wrapper = document.querySelector(wrapperId);
@@ -3638,6 +3881,16 @@ document.addEventListener("click", async (event) => {
 
     if (state.creditsLeft <= 0 || creditsUsed > state.creditsLeft) {
       const pausedStatus = "Paused, awaiting credits";
+      if (supabaseClient && adminItem?.requestId && adminItem?.organizationId) {
+        await supabaseClient
+          .from("requests")
+          .update({
+            status: toRequestStorageStatus(pausedStatus),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", adminItem.requestId)
+          .eq("organization_id", adminItem.organizationId);
+      }
       if (request) {
         request.status = pausedStatus;
       }
@@ -3648,6 +3901,11 @@ document.addEventListener("click", async (event) => {
       saveState();
       render();
       showToast("Delivery paused until credits are added.");
+      return;
+    }
+
+    if (adminItem && creditsUsed > 0 && isShippedStatus(adminItem.status)) {
+      showToast("Credits already appear to be recorded for this item. Use 0 credits for later status changes.");
       return;
     }
 
@@ -3670,11 +3928,29 @@ document.addEventListener("click", async (event) => {
       state.creditsLeft = Number(result.data.balance ?? state.creditsLeft);
     }
 
+    const displayStatus = status === "Delivered" || status === "Completed" || status === "Completed and shipped" ? "Complete" : status;
+    if (supabaseClient && adminItem?.requestId && adminItem?.organizationId) {
+      const { error: statusUpdateError } = await supabaseClient
+        .from("requests")
+        .update({
+          status: toRequestStorageStatus(displayStatus),
+          shipped_at: isShippedStatus(displayStatus) ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", adminItem.requestId)
+        .eq("organization_id", adminItem.organizationId);
+
+      if (statusUpdateError) {
+        showToast(statusUpdateError.message || "Request status could not be saved.");
+        return;
+      }
+    }
+
     if (request) {
-      request.status = status === "Delivered" || status === "Completed" || status === "Completed and shipped" ? "Complete" : status;
+      request.status = displayStatus;
     }
     if (adminItem) {
-      adminItem.status = status === "Delivered" || status === "Completed" || status === "Completed and shipped" ? "Complete" : status;
+      adminItem.status = displayStatus;
     }
     if (creditsUsed > 0 && !adminItem?.organizationId) {
       state.creditsLeft = Math.max(0, state.creditsLeft - creditsUsed);
@@ -3691,7 +3967,7 @@ document.addEventListener("click", async (event) => {
     const status = document.querySelector("#adminDeliverableUploadStatus");
     if (status) {
       status.textContent = "Uploading deliverable files and preparing the client release.";
-      status.classList.remove("warning");
+      status.classList.remove("warning", "success");
     }
 
     const result = await uploadAdminDeliverable();
@@ -3705,10 +3981,19 @@ document.addEventListener("click", async (event) => {
     }
 
     if (status) {
-      status.textContent = result.notificationSent
-        ? `Deliverable uploaded. ${result.uploaded} file${result.uploaded === 1 ? "" : "s"} released and client notification sent.`
-        : `Deliverable uploaded. ${result.uploaded} file${result.uploaded === 1 ? "" : "s"} released. Client notification needs review.`;
-      status.classList.toggle("warning", !result.notificationSent);
+      const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"} released`;
+      const creditText = result.creditsUsed > 0 ? ` ${result.creditsUsed} Advisory Credit${result.creditsUsed === 1 ? "" : "s"} recorded.` : " No Advisory Credits were recorded for this release.";
+      if (!result.notificationRequested) {
+        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification was not selected.`;
+      } else if (result.notificationSent) {
+        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification sent.`;
+      } else if (result.notificationQueued) {
+        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification is queued and needs email service review.`;
+      } else {
+        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification needs review.`;
+      }
+      status.classList.toggle("warning", result.notificationRequested && !result.notificationSent);
+      status.classList.toggle("success", !result.notificationRequested || result.notificationSent);
     }
 
     const fileInput = document.querySelector("#adminDeliverableFiles");
@@ -3896,6 +4181,17 @@ document.addEventListener("click", (event) => {
   if (!target) return;
   const context = target.dataset.context || "workspace:";
   const action = target.dataset.clientAction;
+  if (action === "approve-deliverable") {
+    event.preventDefault();
+    markDeliverableAccepted(target.dataset.deliverableId).then((result) => {
+      if (!result.ok) {
+        showPersistentNotice(result.error || "Deliverable acceptance could not be recorded.");
+        return;
+      }
+      showToast("Deliverable marked reviewed and accepted.");
+    });
+    return;
+  }
   const selector = action === "upload" ? "#clientUploadContext" : "#clientMessageContext";
   const field = document.querySelector(selector);
   if (field) field.value = context;
@@ -3921,7 +4217,11 @@ document.querySelector("#clientMessageForm")?.addEventListener("submit", async (
   }
   document.querySelector("#clientMessageBody").value = "";
   if (status) {
-    status.textContent = result.storedOnline ? "Message sent and attached to the selected item." : "Message saved in this workspace.";
+    status.textContent = result.advisorNotified
+      ? "Message sent, attached, and shared with the advisory team."
+      : result.storedOnline
+        ? "Message sent and attached to the selected item. The advisory team will review it in the workspace."
+        : "Message saved in this workspace.";
     status.classList.add("success");
   }
   render();
@@ -3948,9 +4248,12 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   document.querySelector("#clientUploadNotes").value = "";
   document.querySelector("#clientUploadFileList").textContent = "No files selected yet.";
   if (status) {
-    status.textContent = result.storedOnline
-      ? `${result.uploaded} file${result.uploaded === 1 ? "" : "s"} uploaded and attached.`
-      : `${result.uploaded} file${result.uploaded === 1 ? "" : "s"} recorded in this workspace.`;
+    const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"}`;
+    status.textContent = result.advisorNotified
+      ? `${fileText} uploaded, attached, and shared with the advisory team.`
+      : result.storedOnline
+        ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
+        : `${fileText} recorded in this workspace.`;
     status.classList.add("success");
   }
   render();
@@ -3970,11 +4273,32 @@ document.querySelector("#signOutButton").addEventListener("click", async () => {
 
 document.querySelector("#requestForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (supabaseClient && getUserId()) {
+    await loadClientWorkspaceData();
+  }
   const estimateValue = document.querySelector("#requestCreditEstimate").value;
   const requestedCredits = estimateValue === "custom" || estimateValue === "rescue" ? 0 : Number(estimateValue || 1);
   if (estimateValue === "custom") {
-    showToast("This request is better handled as a custom scope. Please use Request Custom Scope.");
+    window.location.hash = "quote";
+    showPersistentNotice("This looks like a custom advisory scope. Please use the custom quote form so we can review the work properly before pricing it.");
     addAuditEvent("Custom scope prompted", "Client selected custom scope review from request intake.");
+    saveState();
+    render();
+    return;
+  }
+
+  const userId = getUserId();
+  const organizationId = await getProfileOrganizationId();
+  if (supabaseClient && !organizationId) {
+    window.location.hash = "profile";
+    showPersistentNotice("Please complete your client profile before submitting a request. This keeps your files, payment, and deliverables connected.");
+    return;
+  }
+
+  if (estimateValue === "rescue" && !hasRescueSprintAccess()) {
+    window.location.hash = "billing";
+    showPersistentNotice("Please start or confirm the BA Rescue Sprint before submitting a Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
+    addAuditEvent("Rescue Sprint request paused", "Client selected Rescue Sprint scope without a recorded Rescue Sprint payment.");
     saveState();
     render();
     return;
@@ -4001,20 +4325,13 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
   }
 
   const request = {
-    id: `REQ ${1043 + state.requests.length}`,
+    id: generateRequestCode(),
     type: selectedType === "Other" && otherType ? otherType : selectedType,
     status: "Pending scope",
-    due: "To be scoped",
+    due: formatDisplayDate(decisionDeadline),
     client: state.client.company,
+    createdAt: getIsoNow(),
   };
-  const userId = getUserId();
-  const organizationId = await getProfileOrganizationId();
-  if (supabaseClient && !organizationId) {
-    window.location.hash = "profile";
-    showToast("Please complete your client profile before submitting a request.");
-    return;
-  }
-
   const requestPayload = {
     request_code: request.id,
     organization_id: organizationId,
@@ -4025,6 +4342,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     attachment_description: `${attachmentDescription}\n\nDesired output: ${desiredOutput}\nDecision date: ${decisionDeadline}`,
     status: "pending_scope",
     credits_estimated: requestedCredits,
+    due_at: decisionDeadline || null,
   };
 
   let result;
@@ -4039,6 +4357,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
   const uploadResult = await uploadRequestFiles(savedRequestId, organizationId);
   if (result.ok) {
+    request.requestId = savedRequestId;
     state.requests.unshift(request);
     addAuditEvent(
       "Request submitted",
@@ -4053,6 +4372,14 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     showPersistentNotice(result.reason || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
     return;
   }
+  await notifyAdvisorEvent({
+    eventType: "client_request_submitted",
+    title: "New client request submitted",
+    summary: `${request.id}: ${request.type}. Desired output: ${desiredOutput}. Deadline: ${decisionDeadline}. Files uploaded: ${uploadResult.uploaded}.`,
+    relatedEntityType: "request",
+    relatedEntityId: savedRequestId,
+    relatedLabel: request.id,
+  });
   if (!uploadResult.ok) {
     showPersistentNotice(`Request received, but one or more files could not be uploaded. ${uploadResult.reason || "Please upload the files from Messages and Files, or contact support."}`);
     return;
@@ -4125,8 +4452,12 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
   const orgResult = await saveClientProfileToSupabase();
   render();
   if (orgResult.ok) {
-    showToast("Client profile saved.");
-    await resumePendingCheckout();
+    const checkoutResumed = await resumePendingCheckout();
+    if (!checkoutResumed) {
+      await loadClientWorkspaceData();
+      window.location.hash = "dashboard";
+      showToast("Client profile saved. Your workspace is ready.");
+    }
   } else {
     showPersistentNotice(orgResult.reason || `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`);
   }
@@ -4163,7 +4494,7 @@ document.querySelector("#fileUpload").addEventListener("change", (event) => {
   }
   const validationError = validateWorkspaceFiles(files);
   const fileItems = files
-    .map((file) => `<div><strong>${file.name}</strong> <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span></div>`)
+    .map((file) => `<div><strong>${escapeHtml(file.name)}</strong> <span>${escapeHtml(formatFileSize(file.size))}</span></div>`)
     .join("");
   list.innerHTML = validationError ? `<div class="file-warning">${escapeHtml(validationError)}</div>${fileItems}` : fileItems;
 });
@@ -4200,6 +4531,21 @@ document.querySelector("#adminDeliverableFiles")?.addEventListener("change", (ev
   if (validationError) {
     list.innerHTML = `<div class="file-warning">${escapeHtml(validationError)}</div>${list.innerHTML}`;
   }
+  updateAdminReleaseReadiness();
+});
+
+[
+  "#adminUploadClientSelect",
+  "#adminUploadRequestSelect",
+  "#adminExistingDeliverableSelect",
+  "#adminDeliverableTitle",
+  "#adminDeliverableType",
+  "#adminDeliverableSummary",
+  "#adminDeliverableReleaseNote",
+  "#adminReleaseCreditsUsed",
+].forEach((selector) => {
+  document.querySelector(selector)?.addEventListener("input", updateAdminReleaseReadiness);
+  document.querySelector(selector)?.addEventListener("change", updateAdminReleaseReadiness);
 });
 
 window.addEventListener("hashchange", setView);

@@ -1,9 +1,9 @@
 window.BAAD_CONTENT = {
   hero: {
     eyebrow: "Senior Business Analysis advisory for complex delivery decisions",
-    headline: "Decision ready analysis without large consulting overhead.",
+    headline: "Senior Business Analysis support for decisions, requirements, and delivery clarity.",
     benefit:
-      "Why add headcount when you can access senior Business Analysis capacity for sharper direction, stronger governance, and delivery ready execution?",
+      "Access senior Business Analysis capacity for scoped decisions and client-ready deliverables without hiring full time.",
     body:
       "We help teams diagnose ambiguity, structure scope, frame options, assess risks, and produce the artifacts leaders and delivery teams need to move with confidence.",
     proofPoints: [
@@ -285,7 +285,7 @@ window.BAAD_CONTENT = {
           {
             question: "What is the BA Rescue Sprint?",
             answer:
-              "The BA Rescue Sprint is a one time package for a messy project, unclear requirements, scattered stakeholder feedback, or stalled documentation that needs fast structure.",
+              "The BA Rescue Sprint is a one time package for unclear scope, scattered stakeholder feedback, stalled documentation, or delivery material that needs senior Business Analysis structure.",
           },
           {
             question: "What is included in the Starter plan?",
@@ -295,7 +295,7 @@ window.BAAD_CONTENT = {
           {
             question: "What happens if I need more credits?",
             answer:
-              "Starter clients can purchase a Credit Top Up. The current top up package adds 3 Advisory Credits for $1,000. Top up credits are tracked separately and expire according to the stated top up period.",
+              "Starter clients can purchase a Credit Top Up. The current top up package adds 3 Advisory Credits for $1,000 USD. Top up credits are tracked separately and expire according to the stated top up period.",
           },
           {
             question: "What if my request is too large for credits?",

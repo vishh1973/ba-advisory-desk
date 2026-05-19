@@ -11,7 +11,7 @@ window.BAAD_CONFIG = {
   },
   stripePaymentLinks: {},
   authProviders: {
-    google: true,
+    google: false,
     apple: false,
     emailPassword: true,
   },
