@@ -1619,6 +1619,17 @@ document.addEventListener("click", (event) => {
   beginCheckout(target.dataset.action);
 });
 
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-mailto]");
+  if (!target) return;
+  event.preventDefault();
+  const mailtoUrl = target.getAttribute("href") || `mailto:${config.supportEmail}`;
+  window.location.href = mailtoUrl;
+  setTimeout(() => {
+    showToast(`Email client opened. If nothing opens, email ${config.supportEmail}.`);
+  }, 250);
+});
+
 document.addEventListener("change", (event) => {
   if (event.target.id === "adminClientSelect" || event.target.id === "adminUploadClientSelect") {
     state.selectedAdminClientId = event.target.value;
