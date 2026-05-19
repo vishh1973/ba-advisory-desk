@@ -16,11 +16,16 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   background: #f4f8fb;
   color: var(--ink);
   font-family: Inter, Arial, sans-serif;
   margin: 0;
+  overflow-x: hidden;
 }
 
 img,
@@ -28,6 +33,17 @@ video,
 canvas {
   height: auto;
   max-width: 100%;
+}
+
+p,
+li,
+span,
+small,
+strong,
+h1,
+h2,
+h3 {
+  overflow-wrap: break-word;
 }
 
 a {
@@ -322,21 +338,20 @@ button:hover {
   position: relative;
 }
 
-.nav-group summary {
+.nav-parent {
+  background: transparent;
+  border: 0;
   color: #344255;
   cursor: pointer;
+  font: inherit;
   font-weight: 800;
-  list-style: none;
+  padding: 0;
   white-space: nowrap;
 }
 
-.nav-group summary::-webkit-details-marker {
-  display: none;
-}
-
-.nav-group summary::after {
-  content: " v";
-  font-size: 11px;
+.nav-parent:hover,
+.nav-parent:focus {
+  color: var(--teal-dark);
 }
 
 .nav-dropdown {
@@ -344,7 +359,7 @@ button:hover {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
-  display: grid;
+  display: none;
   gap: 2px;
   min-width: 190px;
   padding: 8px;
@@ -361,6 +376,16 @@ button:hover {
 
 .nav-dropdown a:hover {
   background: #eef8f6;
+}
+
+.nav-group.open .nav-dropdown {
+  display: grid;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav-group:hover .nav-dropdown {
+    display: grid;
+  }
 }
 
 .faq-hero {
@@ -1314,6 +1339,7 @@ th {
 .dashboard-shell {
   margin: 0 auto;
   max-width: 1220px;
+  min-width: 0;
 }
 
 .auth-card {
@@ -1334,6 +1360,35 @@ th {
 .auth-intro {
   color: var(--navy);
   font-weight: 800;
+}
+
+.account-standard {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 22px 0;
+}
+
+.account-standard article {
+  background: linear-gradient(145deg, #ffffff, #eef8f6);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.account-standard strong {
+  color: var(--navy);
+  display: block;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.account-standard span {
+  color: var(--slate);
+  display: block;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .sso-actions {
@@ -1440,12 +1495,19 @@ th {
   line-height: 1.5;
 }
 
+.email-auth-panel .primary.full {
+  justify-self: start;
+  min-width: 160px;
+  width: auto;
+}
+
 .link-button {
   background: transparent;
   border: 0;
   color: var(--teal-dark);
   justify-content: flex-start;
-  padding: 0;
+  min-height: 44px;
+  padding: 10px 0;
   text-decoration: underline;
 }
 
@@ -2199,6 +2261,7 @@ input[type="file"]::file-selector-button:hover {
 
 @media (max-width: 980px) {
   .about-hero,
+  .account-standard,
   .faq-hero,
   .faq-category,
   .hero,
@@ -2297,12 +2360,13 @@ input[type="file"]::file-selector-button:hover {
   }
 
   nav {
-    display: grid;
+    display: flex;
     flex: 1 0 100%;
+    flex-wrap: wrap;
     font-size: 13px;
     gap: 8px 12px;
-    grid-template-columns: repeat(4, max-content);
     justify-content: flex-start;
+    max-width: 100%;
     overflow: visible;
     padding-bottom: 0;
   }
@@ -2318,6 +2382,7 @@ input[type="file"]::file-selector-button:hover {
 
   .view {
     padding: 36px 20px;
+    width: 100%;
   }
 
   .hero {
@@ -2381,6 +2446,22 @@ input[type="file"]::file-selector-button:hover {
   .admin-grid article,
   .admin-alert-panel {
     padding: 18px;
+  }
+
+  .auth-card,
+  .form-layout,
+  .dashboard-shell,
+  .about-hero,
+  .faq-hero,
+  .faq-category,
+  .panel,
+  .form-card,
+  .price-card,
+  .proof-panel,
+  .home-proof,
+  .sample-library {
+    max-width: 100%;
+    min-width: 0;
   }
 
   .admin-alert-panel {
@@ -2463,8 +2544,14 @@ input[type="file"]::file-selector-button:hover {
     display: none;
   }
 
-  nav a:nth-child(3),
-  nav a:nth-child(4) {
-    display: none;
+  .nav-dropdown {
+    left: 0;
+    max-width: calc(100vw - 28px);
+    min-width: min(260px, calc(100vw - 28px));
+    right: auto;
+  }
+
+  .email-auth-panel .primary.full {
+    width: 100%;
   }
 }

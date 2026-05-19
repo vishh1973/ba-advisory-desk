@@ -39,7 +39,7 @@ const state = {
     company: "Your organization",
   },
   requests: JSON.parse(localStorage.getItem("baad-requests") || "null") || [],
-  creditsLeft: Number(localStorage.getItem("baad-credits") || config.starterCredits),
+  creditsLeft: Number(localStorage.getItem("baad-credits") || 0),
   creditThreshold: Number(localStorage.getItem("baad-credit-threshold") || config.lowCreditThreshold),
   creditHistory: JSON.parse(localStorage.getItem("baad-credit-history") || "null") || [],
   paymentHistory: JSON.parse(localStorage.getItem("baad-payment-history") || "null") || [],
@@ -524,12 +524,38 @@ function getNormalizedEmail(value) {
 }
 
 function isStrongPassword(password) {
-  return String(password || "").length >= 12 && /[A-Za-z]/.test(password) && /\d/.test(password);
+  const value = String(password || "");
+  return (
+    value.length >= 12 &&
+    /[a-z]/.test(value) &&
+    /[A-Z]/.test(value) &&
+    /\d/.test(value) &&
+    /[^A-Za-z0-9]/.test(value)
+  );
+}
+
+function getFriendlyAuthError(error, fallback = "Account access could not be completed.") {
+  const rawMessage = typeof error === "string" ? error : error?.message || "";
+  const message = rawMessage.toLowerCase();
+  if (!rawMessage) return fallback;
+  if (message.includes("already") || message.includes("registered")) {
+    return "An account may already exist for this email. Please sign in or reset your password.";
+  }
+  if (message.includes("invalid login") || message.includes("invalid credentials")) {
+    return "The email or password does not match an active account. Please check the details or reset your password.";
+  }
+  if (message.includes("email not confirmed") || message.includes("confirm")) {
+    return "Please verify your email before signing in. Check your inbox for the BA Advisory Desk email.";
+  }
+  if (message.includes("rate") || message.includes("too many")) {
+    return "Too many attempts were made. Please wait a few minutes and try again.";
+  }
+  return rawMessage;
 }
 
 function validatePasswordPair(password, confirm) {
   if (!isStrongPassword(password)) {
-    return "Password must be at least 12 characters and include letters and numbers.";
+    return "Password must be at least 12 characters and include upper and lower case letters, a number, and a symbol.";
   }
   if (password !== confirm) {
     return "Password confirmation does not match.";
@@ -544,6 +570,23 @@ function syncAuthEmailFields(email = state.client.email || getUserEmail()) {
   setFieldValue("#passwordResetEmail", normalized);
 }
 
+function clearPublicAuthFields() {
+  [
+    "#passwordLoginEmail",
+    "#passwordSignupEmail",
+    "#passwordResetEmail",
+    "#passwordSignupCompany",
+    "#passwordLoginPassword",
+    "#passwordSignupPassword",
+    "#passwordSignupConfirm",
+    "#passwordRecoveryNew",
+    "#passwordRecoveryConfirm",
+  ].forEach((selector) => {
+    const field = document.querySelector(selector);
+    if (field) field.value = "";
+  });
+}
+
 function getUserEmail() {
   return state.session?.user?.email || "";
 }
@@ -556,7 +599,7 @@ function getProviderName(provider) {
   return {
     google: "Google",
     apple: "Apple",
-  }[provider] || "your identity provider";
+  }[provider] || "the selected sign in option";
 }
 
 function getAuthProvider() {
@@ -582,8 +625,102 @@ function applyPendingPostAuthRoute() {
   }
 }
 
+function getPendingCheckoutType() {
+  return localStorage.getItem("baad-pending-checkout");
+}
+
+function setPendingCheckoutType(type) {
+  if (type) {
+    localStorage.setItem("baad-pending-checkout", type);
+  }
+}
+
+function clearPendingCheckoutType() {
+  localStorage.removeItem("baad-pending-checkout");
+}
+
+function isEmailVerified() {
+  const user = state.session?.user;
+  if (!user) return false;
+  return Boolean(user.email_confirmed_at || user.confirmed_at || user.user_metadata?.email_verified);
+}
+
+function resetClientWorkspaceState() {
+  state.session = null;
+  state.client = { email: "", company: "" };
+  state.requests = [];
+  state.deliverables = [];
+  state.clientMessages = [];
+  state.clientUploads = [];
+  state.creditHistory = [];
+  state.auditEvents = [];
+  state.paymentHistory = [];
+  state.creditsLeft = 0;
+  state.creditThreshold = 2;
+  state.passwordRecovery = false;
+  [
+    "baad-client",
+    "baad-requests",
+    "baad-credits",
+    "baad-credit-threshold",
+    "baad-credit-history",
+    "baad-payment-history",
+    "baad-audit-events",
+    "baad-deliverables",
+    "baad-client-messages",
+    "baad-client-uploads",
+  ].forEach((key) => localStorage.removeItem(key));
+  localStorage.removeItem("baad-post-auth-route");
+  clearPendingCheckoutType();
+}
+
+function closeNavigationMenus() {
+  document.querySelectorAll("[data-nav-menu].open").forEach((menu) => {
+    menu.classList.remove("open");
+    menu.querySelector("[data-nav-toggle]")?.setAttribute("aria-expanded", "false");
+  });
+}
+
+function clearSensitiveAuthFields() {
+  [
+    "#passwordLoginPassword",
+    "#passwordSignupPassword",
+    "#passwordSignupConfirm",
+    "#passwordRecoveryNew",
+    "#passwordRecoveryConfirm",
+    "#accountNewPassword",
+    "#accountConfirmPassword",
+  ].forEach((selector) => {
+    const field = document.querySelector(selector);
+    if (field) field.value = "";
+  });
+}
+
+function scrollPageToStart() {
+  const setTop = () => {
+    if (typeof window.scrollTo === "function") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+    const scrollRoot = document.scrollingElement || document.documentElement || document.body;
+    if (scrollRoot) scrollRoot.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+  window.requestAnimationFrame(() => {
+    setTop();
+    window.requestAnimationFrame(setTop);
+  });
+}
+
 async function routeAfterAuth(defaultRoute = "dashboard") {
   if (!state.session?.user) return;
+  if (!isEmailVerified()) {
+    localStorage.removeItem("baad-post-auth-route");
+    window.location.hash = "login";
+    setAuthStatus("Please verify your email before opening the client workspace.");
+    return;
+  }
   if (isAdminUser()) {
     localStorage.removeItem("baad-post-auth-route");
     window.location.hash = "admin";
@@ -591,6 +728,10 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
   }
 
   const organizationId = await getProfileOrganizationId();
+  if (organizationId && getPendingCheckoutType()) {
+    await resumePendingCheckout();
+    return;
+  }
   const pendingRoute = getPendingPostAuthRoute() || defaultRoute;
   localStorage.removeItem("baad-post-auth-route");
   window.location.hash = organizationId ? pendingRoute : "profile";
@@ -602,6 +743,13 @@ function getAuthErrorMessage() {
   const hashParams = new URLSearchParams(hashValue);
   const error = params.get("error_description") || params.get("error") || hashParams.get("error_description") || hashParams.get("error");
   return error ? decodeURIComponent(error).replace(/\+/g, " ") : "";
+}
+
+function isPasswordRecoveryUrl() {
+  const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const hashParams = new URLSearchParams(hashValue);
+  const queryParams = new URLSearchParams(window.location.search);
+  return hashParams.get("type") === "recovery" || queryParams.get("type") === "recovery";
 }
 
 function isAdminUser() {
@@ -628,17 +776,36 @@ function updateAuthUi() {
   const emailAuthGrid = document.querySelector(".email-auth-grid");
   const authIntro = document.querySelector(".auth-intro");
   const authDivider = document.querySelector(".auth-divider");
+  const ssoActions = document.querySelector(".sso-actions");
   const resetForm = document.querySelector("#passwordResetForm");
   const recoveryForm = document.querySelector("#passwordRecoveryForm");
   const showEmailOptions = !isSignedIn && !state.passwordRecovery;
+  const enabledProviders = config.authProviders || {};
+  const enabledProviderCount = ["google", "apple"].filter((provider) => enabledProviders[provider] !== false).length;
 
   if (loginButton) {
-    loginButton.textContent = isSignedIn ? "Go To Dashboard" : "Continue With Google";
+    loginButton.textContent = isSignedIn ? "Go To Dashboard" : "Client Login";
   }
 
-  providerButtons.forEach((button) => button.classList.toggle("hidden", !showEmailOptions));
+  providerButtons.forEach((button) => {
+    const provider = button.dataset.provider;
+    button.classList.toggle("hidden", !showEmailOptions || enabledProviders[provider] === false);
+  });
+  ssoActions?.classList.toggle("hidden", !showEmailOptions || enabledProviderCount === 0);
+  if (authIntro && !isSignedIn) {
+    const providerLabels = [
+      enabledProviders.google === false ? "" : "Google",
+      enabledProviders.apple ? "Apple" : "",
+      enabledProviders.emailPassword === false ? "" : "email and password",
+    ].filter(Boolean);
+    const formattedProviders =
+      providerLabels.length > 2
+        ? `${providerLabels.slice(0, -1).join(", ")}, or ${providerLabels.at(-1)}`
+        : providerLabels.join(" or ");
+    authIntro.textContent = `Use ${formattedProviders || "a secure account"} to access your client workspace.`;
+  }
   authIntro?.classList.toggle("hidden", !showEmailOptions);
-  authDivider?.classList.toggle("hidden", !showEmailOptions);
+  authDivider?.classList.toggle("hidden", !showEmailOptions || enabledProviderCount === 0);
   emailAuthGrid?.classList.toggle("hidden", !showEmailOptions);
   resetForm?.classList.add("hidden");
   recoveryForm?.classList.toggle("hidden", !state.passwordRecovery);
@@ -655,13 +822,15 @@ function updateAuthUi() {
     saveState();
     if (state.passwordRecovery) {
       setAuthStatus("Enter a new password to finish securing your account.");
+    } else if (!isEmailVerified()) {
+      setAuthStatus("Please verify your email before opening the client workspace.");
     } else {
       setAuthStatus(isAdminUser() ? `Signed in as ${state.client.email}. Admin access is available.` : `Signed in as ${state.client.email}.`);
     }
   } else {
-    syncAuthEmailFields();
+    clearPublicAuthFields();
     document.querySelector("#accountSecurityForm")?.classList.add("hidden");
-    setAuthStatus("Choose Google, Apple, or email and password to access your client workspace.");
+    setAuthStatus("Sign in or create an account with your work email.");
   }
 }
 
@@ -671,12 +840,17 @@ async function initAuth() {
     return;
   }
 
+  state.passwordRecovery = isPasswordRecoveryUrl();
   const { data } = await supabaseClient.auth.getSession();
   state.session = data.session;
   if (state.session?.user) {
     await loadSignedInProfile();
     await loadClientWorkspaceData();
-    await routeAfterAuth();
+    if (state.passwordRecovery) {
+      window.history.replaceState(null, "", `${window.location.pathname}#login`);
+    } else {
+      await routeAfterAuth();
+    }
   }
   updateAuthUi();
 
@@ -690,6 +864,9 @@ async function initAuth() {
     if (event === "PASSWORD_RECOVERY") {
       state.passwordRecovery = true;
       window.location.hash = "login";
+      updateAuthUi();
+      render();
+      return;
     }
     updateAuthUi();
     if (session?.user) {
@@ -1067,16 +1244,43 @@ async function saveClientProfileToSupabase() {
     return { ok: false, reason: "Please sign in before saving the secure client profile." };
   }
 
+  if (!isEmailVerified()) {
+    return { ok: false, reason: "Please verify your email before saving the client profile." };
+  }
+
+  const profileEmail = getNormalizedEmail(document.querySelector("#profileEmail").value || getUserEmail());
+  const signedInEmail = getNormalizedEmail(getUserEmail());
+  if (profileEmail && signedInEmail && profileEmail !== signedInEmail) {
+    return { ok: false, reason: "Use the same email as your signed in client account. This keeps payments, files, and deliverables connected securely." };
+  }
+
+  const requiredProfileFields = [
+    ["#profileFirstName", "first name"],
+    ["#profileLastName", "last name"],
+    ["#profileTitle", "job title"],
+    ["#profileCompany", "company or agency name"],
+    ["#profileIndustry", "industry"],
+    ["#profileCountry", "country"],
+    ["#profileTimezone", "time zone"],
+  ];
+  const missingFields = requiredProfileFields
+    .filter(([selector]) => !String(document.querySelector(selector)?.value || "").trim())
+    .map(([, label]) => label);
+  if (missingFields.length) {
+    return { ok: false, reason: `Please complete these profile fields before saving: ${missingFields.join(", ")}.` };
+  }
+  const companyName = document.querySelector("#profileCompany").value.trim();
+
   const { data: organizationId, error } = await supabaseClient.rpc("save_client_workspace_profile", {
-    p_org_name: document.querySelector("#profileCompany").value,
+    p_org_name: companyName,
     p_industry: document.querySelector("#profileIndustry").value,
     p_country: document.querySelector("#profileCountry").value,
     p_timezone: document.querySelector("#profileTimezone").value,
     p_company_type: document.querySelector("#profileIndustry").value,
-    p_billing_email: document.querySelector("#profileEmail").value || state.client.email || getUserEmail(),
+    p_billing_email: profileEmail || state.client.email || getUserEmail(),
     p_first_name: document.querySelector("#profileFirstName").value,
     p_last_name: document.querySelector("#profileLastName").value,
-    p_work_email: document.querySelector("#profileEmail").value || getUserEmail(),
+    p_work_email: profileEmail || getUserEmail(),
     p_phone: document.querySelector("#profilePhone").value,
     p_job_title: document.querySelector("#profileTitle").value,
     p_department: document.querySelector("#profileFunction").value,
@@ -1196,6 +1400,10 @@ async function saveClientMessage() {
   };
 
   const organizationId = await getProfileOrganizationId();
+  if (supabaseClient && !organizationId) {
+    return { ok: false, error: "Please complete your client profile before sending a workspace message." };
+  }
+
   const result =
     organizationId && supabaseClient
       ? await writeToSupabase("client_deliverable_messages", {
@@ -1207,7 +1415,11 @@ async function saveClientMessage() {
           body,
           status: "received",
         })
-      : { ok: false };
+      : { ok: true };
+
+  if (!result.ok) {
+    return { ok: false, error: result.reason || "Message could not be saved to the client workspace." };
+  }
 
   addLocalMessage(entry);
   addAuditEvent("Client message received", `${context.label}: ${body.slice(0, 80)}`);
@@ -1228,6 +1440,9 @@ async function saveClientUpload() {
   const userId = getUserId();
   let storedOnline = false;
   let uploaded = 0;
+  if (supabaseClient && !organizationId) {
+    return { ok: false, error: "Please complete your client profile before uploading files." };
+  }
 
   for (const file of files) {
     const entry = {
@@ -1250,8 +1465,11 @@ async function saveClientUpload() {
         upsert: false,
       });
 
-      if (!uploadError) {
-        const recordResult = await writeToSupabase("client_uploads", {
+      if (uploadError) {
+        return { ok: false, error: uploadError.message || "File could not be uploaded." };
+      }
+
+      const recordResult = await writeToSupabase("client_uploads", {
           organization_id: organizationId,
           uploaded_by: userId,
           deliverable_id: context.deliverableId,
@@ -1264,8 +1482,10 @@ async function saveClientUpload() {
           note,
           status: "received",
         });
-        storedOnline = storedOnline || Boolean(recordResult.ok);
+      if (!recordResult.ok) {
+        return { ok: false, error: recordResult.reason || "File record could not be saved to the workspace." };
       }
+      storedOnline = true;
     }
 
     addLocalUpload(entry);
@@ -1451,12 +1671,17 @@ function setView() {
     setAuthStatus("Please sign in with the administrator email to open the admin workspace.");
   }
 
+  if ((key === "admin" || protectedViews.includes(key)) && state.session?.user && !state.passwordRecovery && !isEmailVerified()) {
+    key = "login";
+    setAuthStatus("Please verify your email before opening the secure workspace.");
+  }
+
   if (key === "admin" && state.session?.user && !isAdminUser()) {
     key = "dashboard";
     showToast("Admin access is restricted to the administrator email.");
   }
 
-  if (supabaseClient && protectedViews.includes(key) && !state.session?.user) {
+  if (protectedViews.includes(key) && !state.session?.user) {
     setPendingPostAuthRoute(key);
     key = "login";
     setAuthStatus("Please sign in before opening the client workspace.");
@@ -1472,6 +1697,8 @@ function setView() {
   if (key === "admin") {
     loadAdminQueue();
   }
+  closeNavigationMenus();
+  scrollPageToStart();
 }
 
 function renderRequests() {
@@ -1502,7 +1729,9 @@ function renderRequests() {
 
   const adminRows = adminSource
     .map(
-      (item) => `
+      (item) => {
+        const canUpload = item.queueType === "request" && item.organizationId && item.requestId;
+        return `
         <tr>
           <td>${escapeHtml(item.client)}</td>
           <td>${escapeHtml(item.dueLabel || item.due || "Not dated")}</td>
@@ -1515,11 +1744,16 @@ function renderRequests() {
           <td>
             <div class="table-actions">
               <a class="secondary small" href="${escapeHtml(getClientMailto({ email: item.clientEmail }, `Follow up on ${item.id || "request"}`))}" data-mailto="admin-row">Message</a>
-              <button class="small" type="button" data-admin-action="prepare-upload" data-request-id="${escapeHtml(item.requestId || item.id || "")}" data-organization-id="${escapeHtml(item.organizationId || "")}">Upload</button>
+              ${
+                canUpload
+                  ? `<button class="small" type="button" data-admin-action="prepare-upload" data-request-id="${escapeHtml(item.requestId)}" data-organization-id="${escapeHtml(item.organizationId)}">Upload</button>`
+                  : `<span class="status-pill muted">No upload action</span>`
+              }
             </div>
           </td>
         </tr>
-      `
+      `;
+      }
     )
     .join("");
 
@@ -1872,7 +2106,9 @@ function renderCreditControls() {
       .join("");
   }
   if (deliverableSelect) {
-    const deliverables = state.adminQueue.filter((item) => item.requestId || item.id);
+    const deliverables = state.adminQueue.filter(
+      (item) => item.queueType === "request" && isSelectedAdminRecord(item, selectedClient) && (item.requestId || item.id)
+    );
     const source = deliverables.length ? deliverables : state.requests;
     deliverableSelect.innerHTML = source
       .map((request) => {
@@ -1896,7 +2132,7 @@ function renderCreditControls() {
   }
   if (uploadRequestSelect) {
     const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const requests = state.adminQueue.filter((item) => !selectedOrg || item.organizationId === selectedOrg);
+    const requests = state.adminQueue.filter((item) => item.queueType === "request" && (!selectedOrg || item.organizationId === selectedOrg));
     uploadRequestSelect.innerHTML =
       `<option value="">No linked request</option>` +
       requests
@@ -1986,6 +2222,7 @@ function normalizeAdminQueueItem(item) {
   const status = item.status || item.current_status || "New";
 
   return {
+    queueType: item.queueType || item.queue_type || "request",
     id: requestCode,
     requestId,
     organizationId: item.organizationId || item.organization_id || organization.id || null,
@@ -2002,6 +2239,7 @@ function normalizeAdminQueueItem(item) {
 function normalizeAdminRequest(request) {
   const status = request.status || "New";
   return {
+    queueType: "request",
     id: request.request_code || request.id || "Request",
     requestId: request.id || null,
     organizationId: request.organization_id || null,
@@ -2021,6 +2259,7 @@ function normalizeAdminRequest(request) {
 
 function normalizeCustomQuoteRequest(quote) {
   return {
+    queueType: "quote",
     id: quote.id || "Custom quote",
     requestId: quote.id || null,
     organizationId: quote.organization_id || null,
@@ -2038,6 +2277,7 @@ function normalizePaymentOrder(order) {
   const organization = order.client_organizations || {};
   const isRescueSprint = order.product_type === "rescue_sprint";
   return {
+    queueType: "payment",
     id: order.id || "Payment",
     requestId: order.id || null,
     organizationId: order.organization_id || null,
@@ -2053,6 +2293,7 @@ function normalizePaymentOrder(order) {
 
 function normalizeNotification(notification) {
   return {
+    queueType: "notification",
     id: notification.id || "Notification",
     requestId: notification.related_entity_id || notification.id || null,
     organizationId: notification.organization_id || null,
@@ -2066,15 +2307,53 @@ function normalizeNotification(notification) {
   };
 }
 
+function normalizeAdminClientMessage(message) {
+  const organization = message.client_organizations || {};
+  return {
+    queueType: "client-message",
+    id: message.id || "Client message",
+    requestId: message.request_id || message.deliverable_id || message.id || null,
+    organizationId: message.organization_id || null,
+    clientEmail: organization.billing_email || "",
+    client: organization.name || (message.organization_id ? `Workspace ${String(message.organization_id).slice(0, 8)}` : "Client workspace"),
+    type: message.subject || "Client workspace message",
+    action: "Review and respond",
+    status: message.status || "Received",
+    dueAt: message.created_at || null,
+    dueLabel: "Client message",
+  };
+}
+
+function normalizeAdminClientUpload(upload) {
+  const organization = upload.client_organizations || {};
+  return {
+    queueType: "client-upload",
+    id: upload.id || "Client upload",
+    requestId: upload.request_id || upload.deliverable_id || upload.id || null,
+    organizationId: upload.organization_id || null,
+    clientEmail: organization.billing_email || "",
+    client: organization.name || (upload.organization_id ? `Workspace ${String(upload.organization_id).slice(0, 8)}` : "Client workspace"),
+    type: upload.original_file_name || upload.upload_type || "Client upload",
+    action: "Review uploaded file",
+    status: upload.status || "Received",
+    dueAt: upload.created_at || null,
+    dueLabel: upload.upload_type || "Client upload",
+  };
+}
+
 function applyAdminQueueData(data) {
   const requests = data.requests || [];
   const quoteItems = data.quotes || data.customQuoteRequests || [];
   const paymentOrders = data.paymentOrders || [];
   const notifications = data.notifications || [];
+  const clientMessages = data.clientMessages || [];
+  const clientUploads = data.clientUploads || [];
   const fallbackItems = data.items || data.queue || data.adminQueue || [];
   const normalizedItems = [
     ...quoteItems.map(normalizeCustomQuoteRequest),
     ...requests.map(normalizeAdminRequest),
+    ...clientMessages.map(normalizeAdminClientMessage),
+    ...clientUploads.map(normalizeAdminClientUpload),
     ...paymentOrders.map(normalizePaymentOrder),
     ...notifications.map(normalizeNotification),
     ...fallbackItems.map(normalizeAdminQueueItem),
@@ -2215,14 +2494,20 @@ const countries = [
 
 function populateCountries() {
   document.querySelectorAll("[data-country-select]").forEach((select) => {
-    select.innerHTML = countries.map((country) => `<option>${country}</option>`).join("");
-    select.value = "Canada";
+    select.innerHTML = `<option value="">Select country</option>${countries.map((country) => `<option>${country}</option>`).join("")}`;
+    select.value = "";
   });
 }
 
 function setupOAuthButtons() {
+  const enabledProviders = config.authProviders || {};
   document.querySelectorAll("[data-provider]").forEach((button) => {
     button.type = "button";
+    const label = button.querySelector(".sso-label");
+    if (label) {
+      label.textContent = `Continue with ${getProviderName(button.dataset.provider)}`;
+    }
+    button.classList.toggle("hidden", enabledProviders[button.dataset.provider] === false);
   });
 }
 
@@ -2234,6 +2519,11 @@ function rememberClientLoginFields() {
 }
 
 async function signInWithOAuthProvider(provider) {
+  if ((config.authProviders || {})[provider] === false) {
+    showToast("This sign in option is not available yet. Please use another sign in option.");
+    return;
+  }
+
   if (state.session?.user) {
     window.location.hash = isAdminUser() ? "admin" : "dashboard";
     return;
@@ -2303,20 +2593,31 @@ async function createPasswordAccount() {
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: getFriendlyAuthError(error, "Account could not be created.") };
+  }
+
+  if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    return {
+      ok: false,
+      error: "An account may already exist for this email. Please sign in or reset your password.",
+    };
   }
 
   if (data?.session) {
     state.session = data.session;
     await loadSignedInProfile();
     updateAuthUi();
+    if (!isEmailVerified()) {
+      window.location.hash = "login";
+      return { ok: true, message: "Account created. Please verify your email before opening the client workspace." };
+    }
     window.location.hash = "profile";
     return { ok: true, message: "Account created. Please complete your client profile." };
   }
 
   return {
     ok: true,
-    message: "Account created. Please check your email to verify your account, then return to sign in.",
+    message: "Please check your email to verify your account. If an account already exists for this email, sign in or reset your password.",
   };
 }
 
@@ -2337,13 +2638,17 @@ async function signInWithPassword() {
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: getFriendlyAuthError(error, "Sign in could not be completed.") };
   }
 
   state.session = data.session;
   await loadSignedInProfile();
   await loadClientWorkspaceData();
   updateAuthUi();
+  if (!isEmailVerified()) {
+    window.location.hash = "login";
+    return { ok: false, error: "Please verify your email before opening the client workspace." };
+  }
   const organizationId = await getProfileOrganizationId();
   window.location.hash = isAdminUser() ? "admin" : organizationId ? "dashboard" : "profile";
   return { ok: true, message: isAdminUser() ? "Signed in. Admin access is available." : "Signed in. Your workspace is ready." };
@@ -2359,14 +2664,38 @@ async function sendPasswordResetInstructions() {
   }
 
   const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-    redirectTo: `${getAuthRedirectUrl()}#login`,
+    redirectTo: getAuthRedirectUrl(),
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: getFriendlyAuthError(error, "Password reset instructions could not be sent.") };
   }
 
-  return { ok: true, message: "Password reset instructions have been sent. Please check your email." };
+  return { ok: true, message: "If a client account exists for that email, reset instructions will arrive shortly." };
+}
+
+async function resendVerificationInstructions() {
+  const email = getNormalizedEmail(document.querySelector("#passwordSignupEmail")?.value || document.querySelector("#passwordLoginEmail")?.value);
+  if (!email) {
+    return { ok: false, error: "Please enter your work email first." };
+  }
+  if (!supabaseClient) {
+    return { ok: false, error: `Verification email is temporarily unavailable. Please contact ${config.supportEmail}.` };
+  }
+
+  const { error } = await supabaseClient.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: getAuthRedirectUrl(),
+    },
+  });
+
+  if (error) {
+    return { ok: false, error: getFriendlyAuthError(error, "Verification email could not be sent.") };
+  }
+
+  return { ok: true, message: "If this email is waiting for verification, a new verification email will arrive shortly." };
 }
 
 async function updateSignedInPassword(password, confirm) {
@@ -2378,7 +2707,7 @@ async function updateSignedInPassword(password, confirm) {
     return { ok: false, error: "Please sign in before updating your password." };
   }
   if (getAuthProvider() !== "email") {
-    return { ok: false, error: "Password updates are available for email and password accounts. Google and Apple passwords are managed by those providers." };
+    return { ok: false, error: "Password updates are available for email and password accounts. Password changes for external sign in accounts are handled in those accounts." };
   }
   if (!supabaseClient) {
     return { ok: false, error: `Password update is temporarily unavailable. Please contact ${config.supportEmail}.` };
@@ -2386,10 +2715,11 @@ async function updateSignedInPassword(password, confirm) {
 
   const { error } = await supabaseClient.auth.updateUser({ password });
   if (error) {
-    return { ok: false, error: error.message };
+    return { ok: false, error: getFriendlyAuthError(error, "Password could not be updated.") };
   }
 
   state.passwordRecovery = false;
+  clearSensitiveAuthFields();
   updateAuthUi();
   return { ok: true, message: "Password updated." };
 }
@@ -2431,6 +2761,12 @@ async function requireClientWorkspaceForCheckout() {
     return null;
   }
 
+  if (!isEmailVerified()) {
+    window.location.hash = "login";
+    showPersistentNotice("Please verify your email before checkout. This protects your payment, files, and workspace access.");
+    return null;
+  }
+
   const organizationId = await getProfileOrganizationId();
   if (!organizationId) {
     window.location.hash = "profile";
@@ -2451,9 +2787,13 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
 
   if (productType) {
     try {
+      const accessToken = await getSessionAccessToken();
       const response = await fetch("/api/create-checkout-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({
           productType,
           email: state.client.email,
@@ -2462,6 +2802,7 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
       });
       const data = await response.json();
       if (response.ok && data.url) {
+        clearPendingCheckoutType();
         window.location.href = data.url;
         return true;
       }
@@ -2474,6 +2815,11 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
   const priceId = config.stripePrices[linkKey];
 
   if (paymentLink) {
+    if (options.requireWorkspace) {
+      showPersistentNotice(`${fallbackMessage} Please try again in a moment or contact ${config.supportEmail}. Your selected service is saved to this workspace.`);
+      return false;
+    }
+    clearPendingCheckoutType();
     window.location.href = paymentLink;
     return true;
   }
@@ -2482,7 +2828,21 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
   return false;
 }
 
-async function beginCheckout(type) {
+async function resumePendingCheckout() {
+  const pendingType = getPendingCheckoutType();
+  if (!pendingType) return false;
+  const organizationId = await getProfileOrganizationId();
+  if (!state.session?.user || !organizationId || !isEmailVerified()) return false;
+  showPersistentNotice("Your client workspace is ready. Secure checkout is opening now.");
+  await beginCheckout(pendingType, { fromResume: true });
+  return true;
+}
+
+async function beginCheckout(type, options = {}) {
+  if (!options.fromResume) {
+    setPendingCheckoutType(type);
+  }
+
   if (type === "buy-sprint") {
     addAuditEvent("Checkout started", "BA Rescue Sprint checkout opened.");
     saveState();
@@ -2510,10 +2870,47 @@ async function beginCheckout(type) {
 }
 
 document.addEventListener("click", (event) => {
+  const navToggle = event.target.closest("[data-nav-toggle]");
+  if (navToggle) {
+    event.preventDefault();
+    const menu = navToggle.closest("[data-nav-menu]");
+    const willOpen = !menu?.classList.contains("open");
+    closeNavigationMenus();
+    if (menu && willOpen) {
+      menu.classList.add("open");
+      navToggle.setAttribute("aria-expanded", "true");
+    }
+    return;
+  }
+
+  const routeLink = event.target.closest('a[href^="#"]');
+  if (routeLink && !routeLink.dataset.action && !routeLink.dataset.mailto) {
+    const route = routeLink.getAttribute("href").replace("#", "") || "home";
+    closeNavigationMenus();
+    if ((window.location.hash.replace("#", "") || "home") === route) {
+      event.preventDefault();
+      setView();
+    }
+    return;
+  }
+
   const target = event.target.closest("[data-action]");
   if (!target) return;
   event.preventDefault();
   beginCheckout(target.dataset.action);
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-nav-menu]")) {
+    closeNavigationMenus();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeNavigationMenus();
+    hideToast();
+  }
 });
 
 document.querySelector("#toastClose")?.addEventListener("click", hideToast);
@@ -2541,6 +2938,15 @@ document.addEventListener("change", (event) => {
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-admin-action]");
   if (!target) return;
+  const lockedAdminActions = new Set(["save-credit-settings", "ship-deliverable", "upload-deliverable"]);
+  const shouldLockAction = lockedAdminActions.has(target.dataset.adminAction);
+  if (shouldLockAction && target.dataset.busy === "true") return;
+  if (shouldLockAction) {
+    target.dataset.busy = "true";
+    target.disabled = true;
+  }
+
+  try {
 
   if (target.dataset.adminAction === "focus-upload" || target.dataset.adminAction === "prepare-upload") {
     const organizationId = target.dataset.organizationId || getSelectedAdminClient().id || "";
@@ -2588,6 +2994,8 @@ document.addEventListener("click", async (event) => {
         credits: ledgerAdjustment,
         reason: reason || "Credit account update",
         lowCreditThreshold,
+        recipientEmail: getClientEmail(selectedClient),
+        idempotencyKey: `admin-credit-${selectedClient.id}-${Date.now()}`,
       });
 
       if (!result.ok) {
@@ -2620,7 +3028,13 @@ document.addEventListener("click", async (event) => {
     const requestId = document.querySelector("#adminDeliverableSelect").value;
     const status = document.querySelector("#adminDeliverableStatus").value;
     const creditsUsed = Math.max(0, Number(document.querySelector("#adminCreditsUsed").value || 0));
-    const adminItem = state.adminQueue.find((item) => item.requestId === requestId || item.id === requestId);
+    const selectedClient = getSelectedAdminClient();
+    const adminItem = state.adminQueue.find(
+      (item) =>
+        item.queueType === "request" &&
+        isSelectedAdminRecord(item, selectedClient) &&
+        (item.requestId === requestId || item.id === requestId)
+    );
     const request = state.requests.find((item) => item.id === requestId);
     if (!request && !adminItem) {
       showToast("Select a deliverable before saving.");
@@ -2655,6 +3069,7 @@ document.addEventListener("click", async (event) => {
         reason: `${status}: ${request?.type || adminItem.type}`,
         requestId: adminItem.requestId || null,
         recipientEmail: adminItem.clientEmail || null,
+        idempotencyKey: `admin-delivery-${adminItem.organizationId}-${adminItem.requestId || adminItem.id}-${status}-${creditsUsed}`,
       });
 
       if (!result.ok) {
@@ -2715,6 +3130,12 @@ document.addEventListener("click", async (event) => {
     render();
     showToast("Deliverable uploaded to the client workspace.");
   }
+  } finally {
+    if (shouldLockAction) {
+      target.dataset.busy = "false";
+      target.disabled = false;
+    }
+  }
 });
 
 document.addEventListener("click", async (event) => {
@@ -2726,67 +3147,109 @@ document.addEventListener("click", async (event) => {
 
 document.querySelector("#passwordSignUpForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const result = await createPasswordAccount();
-  if (!result.ok) {
-    showPersistentNotice(result.error || "Account could not be created.");
-    setAuthStatus(result.error || "Account could not be created.");
-    return;
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    const result = await createPasswordAccount();
+    if (!result.ok) {
+      showPersistentNotice(result.error || "Account could not be created.");
+      setAuthStatus(result.error || "Account could not be created.");
+      return;
+    }
+    clearSensitiveAuthFields();
+    showPersistentNotice(result.message);
+    setAuthStatus(result.message);
+    render();
+  } finally {
+    clearSensitiveAuthFields();
+    if (button) button.disabled = false;
   }
-  document.querySelector("#passwordSignupPassword").value = "";
-  document.querySelector("#passwordSignupConfirm").value = "";
-  showPersistentNotice(result.message);
-  setAuthStatus(result.message);
-  render();
 });
 
 document.querySelector("#passwordSignInForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const result = await signInWithPassword();
-  if (!result.ok) {
-    showPersistentNotice(result.error || "Sign in could not be completed.");
-    setAuthStatus(result.error || "Sign in could not be completed.");
-    return;
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    const result = await signInWithPassword();
+    if (!result.ok) {
+      showPersistentNotice(result.error || "Sign in could not be completed.");
+      setAuthStatus(result.error || "Sign in could not be completed.");
+      return;
+    }
+    clearSensitiveAuthFields();
+    showToast(result.message);
+    render();
+  } finally {
+    clearSensitiveAuthFields();
+    if (button) button.disabled = false;
   }
-  document.querySelector("#passwordLoginPassword").value = "";
-  showToast(result.message);
-  render();
 });
 
 document.querySelector("#showResetPassword")?.addEventListener("click", () => {
   const resetForm = document.querySelector("#passwordResetForm");
   resetForm?.classList.toggle("hidden");
-  syncAuthEmailFields(document.querySelector("#passwordLoginEmail")?.value || state.client.email);
+  const typedEmail = document.querySelector("#passwordLoginEmail")?.value;
+  if (typedEmail) syncAuthEmailFields(typedEmail);
   setAuthStatus("Enter your work email and request secure reset instructions.");
 });
 
 document.querySelector("#passwordResetForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const result = await sendPasswordResetInstructions();
-  if (!result.ok) {
-    showPersistentNotice(result.error || "Password reset instructions could not be sent.");
-    setAuthStatus(result.error || "Password reset instructions could not be sent.");
-    return;
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    const result = await sendPasswordResetInstructions();
+    if (!result.ok) {
+      showPersistentNotice(result.error || "Password reset instructions could not be sent.");
+      setAuthStatus(result.error || "Password reset instructions could not be sent.");
+      return;
+    }
+    showPersistentNotice(result.message);
+    setAuthStatus(result.message);
+  } finally {
+    clearSensitiveAuthFields();
+    if (button) button.disabled = false;
   }
-  showPersistentNotice(result.message);
-  setAuthStatus(result.message);
 });
 
 document.querySelector("#passwordRecoveryForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const result = await updateSignedInPassword(
-    document.querySelector("#passwordRecoveryNew")?.value || "",
-    document.querySelector("#passwordRecoveryConfirm")?.value || ""
-  );
-  if (!result.ok) {
-    showPersistentNotice(result.error || "Password could not be updated.");
-    setAuthStatus(result.error || "Password could not be updated.");
-    return;
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    const result = await updateSignedInPassword(
+      document.querySelector("#passwordRecoveryNew")?.value || "",
+      document.querySelector("#passwordRecoveryConfirm")?.value || ""
+    );
+    if (!result.ok) {
+      showPersistentNotice(result.error || "Password could not be updated.");
+      setAuthStatus(result.error || "Password could not be updated.");
+      return;
+    }
+    clearSensitiveAuthFields();
+    showPersistentNotice(result.message);
+    setAuthStatus(result.message);
+    await loadSignedInProfile();
+    await loadClientWorkspaceData();
+    await routeAfterAuth();
+    render();
+  } finally {
+    clearSensitiveAuthFields();
+    if (button) button.disabled = false;
   }
-  document.querySelector("#passwordRecoveryNew").value = "";
-  document.querySelector("#passwordRecoveryConfirm").value = "";
-  showToast(result.message);
-  window.location.hash = "dashboard";
-  render();
+});
+
+document.querySelector("#resendVerificationEmail")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const result = await resendVerificationInstructions();
+    showPersistentNotice(result.ok ? result.message : result.error);
+    setAuthStatus(result.ok ? result.message : result.error);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 document.addEventListener("click", async (event) => {
@@ -2883,9 +3346,10 @@ document.querySelector("#signOutButton").addEventListener("click", async () => {
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
   }
-  state.session = null;
-  state.passwordRecovery = false;
+  resetClientWorkspaceState();
   updateAuthUi();
+  window.location.hash = "login";
+  setView();
   showToast("Signed out.");
 });
 
@@ -2911,6 +3375,16 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
   const selectedType = document.querySelector("#requestType").value;
   const otherType = document.querySelector("#requestOther").value.trim();
+  const businessGoal = document.querySelector("#businessGoal").value.trim();
+  const targetAudience = document.querySelector("#targetAudience").value.trim();
+  const desiredOutput = document.querySelector("#desiredOutput")?.value.trim() || "";
+  const decisionDeadline = document.querySelector("#decisionDeadline")?.value || "";
+  const attachmentDescription = document.querySelector("#attachmentDescription").value.trim();
+  if (!businessGoal || !targetAudience || !desiredOutput || !decisionDeadline || !attachmentDescription) {
+    showPersistentNotice("Please complete the business goal, target audience, desired output, deadline, and attachment description before submitting.");
+    return;
+  }
+
   const request = {
     id: `REQ ${1043 + state.requests.length}`,
     type: selectedType === "Other" && otherType ? otherType : selectedType,
@@ -2926,22 +3400,14 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     return;
   }
 
-  state.requests.unshift(request);
-  addAuditEvent(
-    "Request submitted",
-    estimateValue === "rescue"
-      ? `${request.id} submitted for BA Rescue Sprint delivery.`
-      : `${request.id} submitted with an estimated ${requestedCredits} Advisory Credit scope.`
-  );
-  saveState();
   const requestPayload = {
     request_code: request.id,
     organization_id: organizationId,
     submitted_by: userId,
     request_type: request.type,
-    business_goal: document.querySelector("#businessGoal").value,
-    target_audience: document.querySelector("#targetAudience").value,
-    attachment_description: document.querySelector("#attachmentDescription").value,
+    business_goal: businessGoal,
+    target_audience: targetAudience,
+    attachment_description: `${attachmentDescription}\n\nDesired output: ${desiredOutput}\nDecision date: ${decisionDeadline}`,
     status: "pending_scope",
     credits_estimated: requestedCredits,
   };
@@ -2958,9 +3424,20 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
   const uploadResult = await uploadRequestFiles(savedRequestId, organizationId);
   if (result.ok) {
+    state.requests.unshift(request);
+    addAuditEvent(
+      "Request submitted",
+      estimateValue === "rescue"
+        ? `${request.id} submitted for BA Rescue Sprint delivery.`
+        : `${request.id} submitted with an estimated ${requestedCredits} Advisory Credit scope.`
+    );
+    saveState();
     await loadClientWorkspaceData();
+    window.location.hash = "dashboard";
+  } else {
+    showPersistentNotice(result.reason || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
+    return;
   }
-  window.location.hash = "dashboard";
   showToast(
     result.ok && uploadResult.ok
       ? `Request received. Files uploaded: ${uploadResult.uploaded}. We will review and respond from ${config.supportEmail}.`
@@ -3030,11 +3507,12 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
   saveState();
   const orgResult = await saveClientProfileToSupabase();
   render();
-  showToast(
-    orgResult.ok
-      ? "Client profile saved."
-      : `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`
-  );
+  if (orgResult.ok) {
+    showToast("Client profile saved.");
+    await resumePendingCheckout();
+  } else {
+    showPersistentNotice(orgResult.reason || `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`);
+  }
 });
 
 document.querySelector("#accountSecurityForm")?.addEventListener("submit", async (event) => {
@@ -3047,8 +3525,7 @@ document.querySelector("#accountSecurityForm")?.addEventListener("submit", async
     showPersistentNotice(result.error || "Password could not be updated.");
     return;
   }
-  document.querySelector("#accountNewPassword").value = "";
-  document.querySelector("#accountConfirmPassword").value = "";
+  clearSensitiveAuthFields();
   showToast("Password updated.");
 });
 

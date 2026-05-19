@@ -10,4 +10,9 @@ window.BAAD_CONFIG = {
     creditTopUp: "price_1TYXDQAPPPI08UZDPKSUXUQv",
   },
   stripePaymentLinks: {},
+  authProviders: {
+    google: false,
+    apple: false,
+    emailPassword: true,
+  },
 };

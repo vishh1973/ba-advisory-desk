@@ -15,10 +15,8 @@ with check (
 
 revoke update on public.profiles from authenticated;
 grant update (
-  organization_id,
   first_name,
   last_name,
-  work_email,
   phone,
   job_title,
   department,
@@ -28,18 +26,6 @@ grant update (
 ) on public.profiles to authenticated;
 
 revoke insert on public.profiles from authenticated;
-grant insert (
-  id,
-  organization_id,
-  first_name,
-  last_name,
-  work_email,
-  phone,
-  job_title,
-  department,
-  preferred_working_style,
-  primary_business_need
-) on public.profiles to authenticated;
 
 do $$
 begin

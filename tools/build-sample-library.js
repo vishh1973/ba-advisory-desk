@@ -1,4 +1,4 @@
-const fs = require("node:fs");
+﻿const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
@@ -662,8 +662,8 @@ addDoc({
     ["UAT 08", "Admin marks deliverable delivered.", "Operations admin", "Status and credit history update.", "Approved deliverable."],
     ["UAT 09", "Receive low credit reminder.", "Client user", "Email shows balance and top up link.", "Balance at threshold."],
     ["UAT 10", "Cancel checkout before payment.", "Client user", "User returns to appropriate billing or pricing path.", "Checkout session."],
-    ["UAT 11", "Access workspace after magic link.", "Client user", "Dashboard opens for signed in user.", "Valid email link."],
-    ["UAT 12", "Attempt access after expired link.", "Client user", "User receives fresh link instruction.", "Expired link."],
+    ["UAT 11", "Access workspace after sign in.", "Client user", "Dashboard opens for signed in user.", "Valid account session."],
+    ["UAT 12", "Attempt access after expired session.", "Client user", "User receives clear sign in instruction.", "Expired session."],
   ],
   valuePoints: ["Tests real business outcomes.", "Shows signoff evidence clearly.", "Reduces late acceptance surprises.", "Improves alignment between business and delivery teams."],
   prevents: ["Technical tests replacing business validation.", "Missing data blocking UAT.", "Unclear defect severity.", "Signoff without evidence."],

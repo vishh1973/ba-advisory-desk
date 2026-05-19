@@ -5,6 +5,12 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase() || null;
 }
 
+function getBearerToken(req) {
+  const header = req.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1] : null;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed." });
@@ -14,16 +20,45 @@ module.exports = async function handler(req, res) {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     const productType = body.productType;
-    const clientEmail = normalizeEmail(body.email);
     const organizationId = body.organizationId || null;
     const workspaceId = body.workspaceId || organizationId || null;
     const priceConfig = getPriceConfig(productType);
     const baseUrl = process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com";
     const supabase = getSupabaseAdmin();
     const stripe = getStripe();
+    const bearerToken = getBearerToken(req);
 
     if ((productType === "rescue_sprint" || productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
       res.status(400).json({ error: "Please create or access your client workspace before purchasing this service." });
+      return;
+    }
+
+    if (!bearerToken) {
+      res.status(401).json({ error: "Please sign in before checkout." });
+      return;
+    }
+
+    const { data: authResult, error: authError } = await supabase.auth.getUser(bearerToken);
+    if (authError || !authResult?.user) {
+      res.status(401).json({ error: "Please sign in before checkout." });
+      return;
+    }
+
+    if (!authResult.user.email_confirmed_at && !authResult.user.confirmed_at) {
+      res.status(403).json({ error: "Please verify your email before checkout." });
+      return;
+    }
+
+    const userId = authResult.user.id;
+    const clientEmail = normalizeEmail(authResult.user.email);
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id,organization_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profileError || !profile || profile.organization_id !== organizationId) {
+      res.status(403).json({ error: "Please complete your client workspace profile before checkout." });
       return;
     }
 
@@ -31,7 +66,7 @@ module.exports = async function handler(req, res) {
       .from("payment_orders")
       .insert({
         organization_id: organizationId,
-        user_id: body.userId || null,
+        user_id: userId,
         product_type: productType,
         amount_cents: priceConfig.amountCents,
         currency: "usd",

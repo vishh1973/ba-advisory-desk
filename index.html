@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="BA Advisory Desk provides senior business analysis advisory support for requirements, business cases, SOPs, UAT support, process clarity, vendor readiness, and executive ready documentation."
+      content="BA Advisory Desk provides senior business analysis advisory support for scope clarity, requirements, business cases, SOPs, UAT support, governance material, AI assessment artifacts, vendor readiness, and executive ready documentation."
     />
     <meta
       name="keywords"
@@ -27,16 +27,16 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk</title>
-    <link rel="stylesheet" href="./styles.css?v=2" />
+    <link rel="stylesheet" href="./styles.css?v=4" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./config.js"></script>
+    <script src="./config.js?v=4"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": ["ProfessionalService", "Organization"],
         "name": "BA Advisory Desk",
         "url": "https://baadvisorydesk.com",
-        "description": "BA Advisory Desk provides senior business analysis advisory support on demand for requirements, business cases, SOPs, UAT support, process clarity, vendor readiness, and executive ready documentation.",
+        "description": "BA Advisory Desk provides senior business analysis advisory support on demand for scope clarity, requirements, business cases, SOPs, UAT support, governance material, AI assessment artifacts, vendor readiness, and executive ready documentation.",
         "areaServed": "Worldwide",
         "knowsAbout": [
           "Business analysis",
@@ -97,7 +97,7 @@
         "name": "BA Advisory Desk",
         "url": "https://baadvisorydesk.com",
         "inLanguage": "en",
-        "description": "A productized senior business analysis advisory service for teams that need clear scope, requirements, business cases, SOPs, UAT support, process clarity, vendor readiness, and executive documentation."
+        "description": "A productized senior business analysis advisory service for teams that need clear scope, requirements, business cases, SOPs, UAT support, governance material, AI assessment artifacts, vendor readiness, and executive documentation."
       }
     </script>
     <script type="application/ld+json">
@@ -156,14 +156,14 @@
         <a href="#samples">Sample Work</a>
         <a href="#pricing">Pricing</a>
         <a href="#faq">FAQ</a>
-        <details class="nav-group">
-          <summary>About Us</summary>
-          <div class="nav-dropdown">
+        <div class="nav-group" data-nav-menu>
+          <button class="nav-parent" type="button" aria-expanded="false" data-nav-toggle>About Us</button>
+          <div class="nav-dropdown" role="menu">
             <a href="#about">Who We Are</a>
             <a href="#security">Security</a>
             <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support" data-mailto="support">Contact Support</a>
           </div>
-        </details>
+        </div>
         <a href="#login">Client Login</a>
       </nav>
       <a class="primary small" href="#pricing">View Advisory Plans</a>
@@ -173,12 +173,11 @@
       <section class="view active" id="view-home">
         <div class="hero">
           <div>
-            <p class="eyebrow" data-content="hero-eyebrow">On demand Business Analysis support without hiring overhead</p>
-            <h1 data-content="hero-headline">Big consulting clarity without big consulting overhead.</h1>
-            <div class="benefit" data-content="hero-benefit">Why add headcount when you can access senior Business Analysis capability on demand for clarity, structure, and delivery momentum?</div>
+            <p class="eyebrow" data-content="hero-eyebrow">Senior Business Analysis advisory for complex delivery decisions</p>
+            <h1 data-content="hero-headline">Decision ready analysis without large consulting overhead.</h1>
+            <div class="benefit" data-content="hero-benefit">Why add headcount when you can access senior Business Analysis capacity for sharper direction, stronger governance, and delivery ready execution?</div>
             <p class="hero-text" data-content="hero-body">
-              We help teams turn unclear project inputs, stakeholder notes, and draft materials into requirements, business cases, SOPs,
-              process maps, UAT support, decision logs, and executive ready presentations.
+              We help teams diagnose ambiguity, structure scope, frame options, assess risks, and produce the artifacts leaders and delivery teams need to move with confidence.
             </p>
             <div class="actions">
               <a class="primary" href="#pricing">View Plans</a>
@@ -186,61 +185,61 @@
             </div>
             <div class="hero-proof-grid" data-render="hero-proof" aria-label="Business Analysis advisory proof points">
               <article>
-                <strong>Scope becomes usable.</strong>
-                <span>Scattered notes become requirements, decisions, and delivery ready documents.</span>
+                <strong>Business questions become decisions.</strong>
+                <span>We clarify objectives, scope, risks, options, stakeholder impacts, and the path to approval.</span>
               </article>
               <article>
-                <strong>Complex work gets structured.</strong>
-                <span>Requirements, governance, vendor scope, AI readiness, and executive material shaped into usable outputs.</span>
+                <strong>Delivery teams get usable artifacts.</strong>
+                <span>Requirements, governance, vendor scope, AI readiness, and executive material prepared for action.</span>
               </article>
               <article>
-                <strong>Built for momentum.</strong>
-                <span>Clear intake, private workspace, and senior review when teams need progress.</span>
+                <strong>Momentum without fixed headcount.</strong>
+                <span>A private workspace, structured intake, and senior review help work move forward with control.</span>
               </article>
             </div>
           </div>
           <aside class="proof-panel" data-render="advisory-offer">
             <div class="card-head">
-              <span>Advisory Offer</span>
-              <strong>Messy inputs, clear decisions, ready deliverables.</strong>
+              <span>Business Analysis Advisory Offer</span>
+              <strong>Senior analysis that turns complex initiatives into decisions, requirements, and delivery action.</strong>
             </div>
             <p class="offer-intro">
-              We convert rough notes, draft decks, transcripts, and stakeholder asks into advisory work your team can use immediately.
+              We help teams define the problem, align stakeholders, structure scope, and produce advisory grade deliverables for approvals, vendor direction, build readiness, UAT, governance, AI assessment, and rollout.
             </p>
             <div class="offer-flow" aria-label="Business Analysis offer flow">
-              <span>Input</span>
-              <span>Synthesis</span>
-              <span>Output</span>
+              <span>Clarify</span>
+              <span>Shape</span>
+              <span>Equip</span>
             </div>
             <div class="advisory-scorecard offer-stack">
               <article>
                 <span>01</span>
                 <div>
-                  <em>Client brings</em>
-                  <strong>Rough project material</strong>
-                  <small>Notes, decks, transcripts, screenshots, workflows, policies, vendor notes, or open stakeholder asks.</small>
+                  <em>Strategic clarity</em>
+                  <strong>Define the business problem and decision context</strong>
+                  <small>Clarify outcomes, stakeholders, scope boundaries, assumptions, risks, dependencies, and the decisions required to move forward.</small>
                 </div>
               </article>
               <article>
                 <span>02</span>
                 <div>
-                  <em>We create</em>
-                  <strong>Structured client ready work</strong>
-                  <small>Requirements, business cases, SOPs, UAT packs, governance models, AI assessment material, board presentations, and decision material.</small>
+                  <em>Delivery grade artifacts</em>
+                  <strong>Create the documentation teams need to execute</strong>
+                  <small>Business requirements, functional and non functional requirements, business cases, SOPs, process models, UAT packs, governance models, AI assessment material, and board presentations.</small>
                 </div>
               </article>
               <article>
                 <span>03</span>
                 <div>
-                  <em>Client receives</em>
-                  <strong>A practical decision path</strong>
-                  <small>Risks, assumptions, open questions, recommendations, and next actions are made clear.</small>
+                  <em>Execution confidence</em>
+                  <strong>Leave with a practical path to approval and delivery</strong>
+                  <small>Recommendations, decision options, acceptance criteria, ownership, open questions, next actions, and traceability for delivery momentum.</small>
                 </div>
               </article>
             </div>
             <div class="offer-result">
               <strong>Bottom line</strong>
-              <span>Senior Business Analysis support without new headcount, long onboarding, or large firm overhead.</span>
+              <span>Engage senior Business Analysis and transformation advisory capacity when the work is too important to stay vague, but not large enough to justify full time hiring or large firm cost.</span>
             </div>
           </aside>
         </div>
@@ -751,25 +750,39 @@
           <p class="form-note">
             Rescue Sprint purchases, Starter subscriptions, and credit top ups use a private workspace so payments, files, requests, and deliverables connect to the right client account.
           </p>
-          <p id="authStatus" class="auth-status">Choose the sign in option you prefer.</p>
-          <p class="auth-intro">Use Google, Apple, or a secure email and password account.</p>
-          <div class="sso-actions" aria-label="Client sign in options">
-            <button class="sso-button google" type="button" data-provider="google">
+          <p id="authStatus" class="auth-status">Sign in or create an account with your work email.</p>
+          <p class="auth-intro">Use a secure account to access your client workspace.</p>
+          <div class="account-standard">
+            <article>
+              <strong>One verified email</strong>
+              <span>Your profile, payments, files, messages, and deliverables stay connected to the same client account.</span>
+            </article>
+            <article>
+              <strong>Secure password control</strong>
+              <span>Create a password, reset it when needed, and update it from your workspace after sign in.</span>
+            </article>
+            <article>
+              <strong>Workspace first</strong>
+              <span>Purchases open after your account and profile are ready so work is attached to the correct client.</span>
+            </article>
+          </div>
+          <div class="sso-actions hidden" aria-label="Client sign in options">
+            <button class="sso-button google hidden" type="button" data-provider="google">
               <span class="sso-mark" aria-hidden="true">G</span>
-              Continue with Google
+              <span class="sso-label"></span>
             </button>
-            <button class="sso-button apple" type="button" data-provider="apple">
+            <button class="sso-button apple hidden" type="button" data-provider="apple">
               <span class="sso-mark" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false" role="img" aria-label="Apple">
                   <path d="M16.6 12.5c0-2 1.6-3 1.7-3.1-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 0-.6-.7-1.6-1-2.6-1-1.3 0-2.6.8-3.2 2-1.4 2.4-.4 5.9 1 7.9.7 1 1.5 2.1 2.5 2.1 1 0 1.4-.7 2.6-.7s1.5.7 2.6.7 1.8-1 2.5-2c.8-1.1 1.1-2.2 1.1-2.3-.1 0-2.3-.9-2.3-3zm-2-6c.6-.7 1-1.6.9-2.5-.9 0-1.9.6-2.5 1.3-.6.6-1 1.6-.9 2.5.9.1 1.9-.5 2.5-1.3z" />
                 </svg>
               </span>
-              Continue with Apple
+              <span class="sso-label"></span>
             </button>
           </div>
-          <div class="auth-divider"><span>or use email and password</span></div>
+          <div class="auth-divider hidden"><span>or use email and password</span></div>
           <div class="email-auth-grid">
-            <form id="passwordSignInForm" class="email-auth-panel">
+            <form id="passwordSignInForm" class="email-auth-panel" autocomplete="off">
               <h3>Sign in</h3>
               <label>
                 Work email
@@ -782,7 +795,7 @@
               <button type="submit" class="primary full">Sign In</button>
               <button type="button" class="link-button" id="showResetPassword">Forgot password?</button>
             </form>
-            <form id="passwordSignUpForm" class="email-auth-panel">
+            <form id="passwordSignUpForm" class="email-auth-panel" autocomplete="off">
               <h3>Create account</h3>
               <label>
                 Work email
@@ -795,25 +808,26 @@
               <label>
                 Password
                 <input id="passwordSignupPassword" type="password" autocomplete="new-password" placeholder="Create a secure password" required />
-                <small>Use at least 12 characters with a mix of letters and numbers.</small>
+                <small>Use at least 12 characters with upper and lower case letters, a number, and a symbol.</small>
               </label>
               <label>
                 Confirm password
                 <input id="passwordSignupConfirm" type="password" autocomplete="new-password" placeholder="Confirm password" required />
               </label>
               <button type="submit" class="primary full">Create Secure Account</button>
+              <button type="button" class="link-button" id="resendVerificationEmail">Resend verification email</button>
             </form>
           </div>
-          <form id="passwordResetForm" class="email-auth-panel reset-panel hidden">
+          <form id="passwordResetForm" class="email-auth-panel reset-panel hidden" autocomplete="off">
             <h3>Reset password</h3>
-            <p>Enter your work email and we will send secure reset instructions.</p>
+            <p>Enter your work email. For security, we do not disclose whether an account exists. Reset instructions are sent only when the email belongs to a client account.</p>
             <label>
               Work email
               <input id="passwordResetEmail" type="email" autocomplete="email" placeholder="name@company.com" required />
             </label>
             <button type="submit" class="primary full">Send Reset Instructions</button>
           </form>
-          <form id="passwordRecoveryForm" class="email-auth-panel reset-panel hidden">
+          <form id="passwordRecoveryForm" class="email-auth-panel reset-panel hidden" autocomplete="off">
             <h3>Create a new password</h3>
             <p>Enter a new password for your client workspace account.</p>
             <label>
@@ -849,13 +863,13 @@
           <div class="dashboard-main">
             <div class="dashboard-header">
               <div>
-                <p class="eyebrow">Starter Plan</p>
+                <p class="eyebrow">Client workspace</p>
                 <h2 id="clientName">Your organization</h2>
               </div>
               <a class="primary" href="#request">Submit Business Analysis Request</a>
             </div>
             <div class="tile-row">
-              <article><span>Advisory Credits left</span><strong id="creditsLeft">5</strong></article>
+              <article><span>Advisory Credits left</span><strong id="creditsLeft">0</strong></article>
               <article><span>Active requests</span><strong id="activeCount">1</strong></article>
               <article><span>New deliverables</span><strong id="newDeliverableCount">0</strong></article>
               <article><span>Next renewal</span><strong>Jun 18</strong></article>
@@ -1038,11 +1052,12 @@
             <div class="form-grid two">
               <label>
                 Work email
-                <input id="profileEmail" type="email" placeholder="name@company.com" />
+                <input id="profileEmail" type="email" placeholder="name@company.com" readonly />
+                <small>This uses the email connected to your signed in account.</small>
               </label>
               <label>
                 Phone number
-                <input id="profilePhone" type="tel" placeholder="+1 555 010 0000" />
+                <input id="profilePhone" type="tel" placeholder="+ country code and phone number" />
               </label>
             </div>
             <div class="form-grid two">
@@ -1063,6 +1078,7 @@
               <label>
                 Industry
                 <select id="profileIndustry">
+                  <option value="">Select industry</option>
                   <option>Software or SaaS</option>
                   <option>Consulting services</option>
                   <option>Public sector</option>
@@ -1085,6 +1101,7 @@
               <label>
                 Time zone
                 <select id="profileTimezone">
+                  <option value="">Select time zone</option>
                   <option>America/Toronto</option>
                   <option>America/New_York</option>
                   <option>America/Chicago</option>
@@ -1118,7 +1135,7 @@
           <form id="accountSecurityForm" class="form-card">
             <p class="eyebrow">Account security</p>
             <h3>Update your password.</h3>
-            <p class="scope-note">Use this only for email and password accounts. Google and Apple passwords are managed by those providers.</p>
+            <p class="scope-note">Use this only for email and password accounts. Password changes for external sign in accounts are handled in those accounts.</p>
             <label>
               New password
               <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="New password" />
@@ -1143,7 +1160,7 @@
             <label>
               Request type
               <select id="requestType">
-                <option>Requirements cleanup</option>
+                <option>Requirements clarity package</option>
                 <option>User stories and acceptance criteria</option>
                 <option>Business case</option>
                 <option>Executive presentation</option>
@@ -1181,11 +1198,19 @@
             </label>
             <label>
               Business goal
-              <textarea id="businessGoal" rows="4">Clean up the draft requirements and identify gaps before the vendor sprint planning session.</textarea>
+              <textarea id="businessGoal" rows="4" placeholder="Describe the business outcome, decision, delivery issue, or advisory support you need."></textarea>
             </label>
             <label>
               Target audience
-              <input id="targetAudience" value="Product owner, delivery lead, and vendor team" />
+              <input id="targetAudience" placeholder="Who will use this deliverable or decision support?" />
+            </label>
+            <label>
+              Desired output
+              <textarea id="desiredOutput" rows="3" placeholder="Describe the deliverable you expect, such as requirements package, business case, SOP, UAT pack, AI assessment, or board presentation."></textarea>
+            </label>
+            <label>
+              Deadline or decision date
+              <input id="decisionDeadline" type="date" />
             </label>
             <label>
               Upload source files
@@ -1240,20 +1265,20 @@
         <div class="form-layout">
           <div>
             <p class="eyebrow">Checkout complete</p>
-            <h2>Your payment has been received.</h2>
+            <h2>Checkout is complete. We are confirming your payment.</h2>
             <p>
               Your next step is the client workspace. Use the same email address used at checkout so your payment,
               profile, source files, messages, requests, and deliverables stay connected to one account.
             </p>
             <div class="action-row">
-              <a class="primary" href="#login">Client Login</a>
-              <a class="secondary" href="#request">Submit First Request</a>
+              <a class="primary" href="#login">Open Client Workspace</a>
+              <a class="secondary" href="#billing">View Billing</a>
             </div>
           </div>
           <div class="panel">
             <h3>What happens next</h3>
             <ul class="check-list">
-              <li>Sign in with Google, Apple, or email and password to open your client workspace.</li>
+              <li>Use your workspace account to open the client workspace.</li>
               <li>Your profile captures company, role, timezone, and delivery context.</li>
               <li>Rescue Sprint and monthly clients use the same intake, file upload, messages, and delivery tracking flow.</li>
               <li>Your first request can include multiple supporting files.</li>
@@ -1275,7 +1300,7 @@
           <article>
             <span>Access</span>
             <strong>Client login</strong>
-            <small>Clients can use Google, Apple, or email and password account access for a controlled private workspace.</small>
+            <small>Clients use controlled account access for a private workspace.</small>
           </article>
           <article>
             <span>Files</span>
@@ -1615,8 +1640,8 @@
       <span id="toastText"></span>
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
-    <script src="./content.js?v=2"></script>
-    <script src="./app.js?v=2"></script>
+    <script src="./content.js?v=4"></script>
+    <script src="./app.js?v=4"></script>
   </body>
 </html>
 

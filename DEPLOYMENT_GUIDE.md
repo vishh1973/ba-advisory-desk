@@ -70,13 +70,27 @@ Run this SQL next in Supabase SQL Editor:
 ```text
 supabase/credit_payment_schema_v1.sql
 supabase/20260519_sso_admin_deliverable_storage_hardening.sql
+supabase/20260519_auth_admin_hardening.sql
+supabase/20260519_credit_expiry_hardening.sql
+supabase/20260519_final_auth_workspace_hardening.sql
 ```
 
-This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, and the low-credit reminder function.
+This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, low-credit reminders, and final profile or workspace access hardening.
 
 ## Supabase sign in setup
 
-In Supabase Authentication, enable Google as the first social provider. Add Apple after the Apple developer settings are ready.
+In Supabase Authentication, keep email and password sign in enabled.
+
+Set the password policy to match the app rule:
+
+- Minimum 12 characters.
+- Upper and lower case letters.
+- At least one number.
+- At least one symbol.
+
+Keep email confirmation enabled so client workspaces do not open before the client verifies the account email.
+
+Google and Apple are hidden in the app until each provider is fully configured. Enable Google first after the Google OAuth client is created. Add Apple after the Apple developer settings are ready.
 
 Add these redirect URLs in Supabase Authentication settings:
 
@@ -88,6 +102,66 @@ http://localhost:4281/index.html
 ```
 
 Admin access is restricted to the allowlisted administrator email in the database and the Vercel `ADMIN_EMAIL` value.
+
+The app blocks checkout and secure workspace access until the client is signed in, email verified, and client profile completed.
+
+## Branded Supabase authentication emails
+
+Supabase authentication emails must be branded as BA Advisory Desk before public use.
+
+Configure Supabase Auth SMTP with Resend:
+
+```text
+Sender name: BA Advisory Desk
+Sender email: support@baadvisorydesk.com
+SMTP host: smtp.resend.com
+SMTP port: 465
+SMTP username: resend
+SMTP password: Resend API key
+Security: SSL or TLS
+```
+
+Then update Supabase Auth email templates so confirmation and password reset emails use BA Advisory Desk wording and buttons. Do not leave platform default sender names or default template wording in place.
+
+## Google sign-in setup
+
+Google sign-in is hidden in the app until Supabase Google auth is configured.
+
+1. Go to Google Cloud Credentials:
+   https://console.cloud.google.com/apis/credentials
+2. Create or select the Google Cloud project for BA Advisory Desk.
+3. Configure the OAuth consent screen.
+4. Create an OAuth Client ID for a web application.
+5. Add this authorized redirect URI:
+
+```text
+https://ydkehgqitnxmvqoicxwu.supabase.co/auth/v1/callback
+```
+
+6. Copy the Google Client ID and Client Secret.
+7. Go to Supabase Auth Providers:
+   https://supabase.com/dashboard/project/ydkehgqitnxmvqoicxwu/auth/providers
+8. Enable Google and paste the Client ID and Client Secret.
+9. Change `authProviders.google` to `true` in `config.js` after a successful sign-in test.
+
+## Apple sign-in setup
+
+Apple sign-in is hidden in the app until Apple credentials are ready.
+
+1. Go to Apple Developer Identifiers:
+   https://developer.apple.com/account/resources/identifiers/list
+2. Create or configure the required App ID, Services ID, and Sign in with Apple settings.
+3. Add this return URL for the Services ID:
+
+```text
+https://ydkehgqitnxmvqoicxwu.supabase.co/auth/v1/callback
+```
+
+4. Create the Apple key and client secret required by Supabase.
+5. Go to Supabase Auth Providers:
+   https://supabase.com/dashboard/project/ydkehgqitnxmvqoicxwu/auth/providers
+6. Enable Apple and paste the required values.
+7. Change `authProviders.apple` to `true` in `config.js` after a successful sign-in test.
 
 ## Stripe setup
 

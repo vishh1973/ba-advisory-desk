@@ -1,55 +1,55 @@
 window.BAAD_CONTENT = {
   hero: {
-    eyebrow: "On demand Business Analysis support without hiring overhead",
-    headline: "Big consulting clarity without big consulting overhead.",
+    eyebrow: "Senior Business Analysis advisory for complex delivery decisions",
+    headline: "Decision ready analysis without large consulting overhead.",
     benefit:
-      "Why add headcount when you can access senior Business Analysis capability on demand for clarity, structure, and delivery momentum?",
+      "Why add headcount when you can access senior Business Analysis capacity for sharper direction, stronger governance, and delivery ready execution?",
     body:
-      "We help teams turn unclear project inputs, stakeholder notes, and draft materials into requirements, business cases, SOPs, process maps, UAT support, decision logs, and executive ready presentations.",
+      "We help teams diagnose ambiguity, structure scope, frame options, assess risks, and produce the artifacts leaders and delivery teams need to move with confidence.",
     proofPoints: [
       {
-        title: "Scope becomes usable.",
-        body: "Scattered notes become requirements, decisions, and delivery ready documents.",
+        title: "Business questions become decisions.",
+        body: "We clarify objectives, scope, risks, options, stakeholder impacts, and the path to approval.",
       },
       {
-        title: "Complex work gets structured.",
-        body: "Requirements, governance, vendor scope, AI readiness, and executive material are shaped into usable outputs.",
+        title: "Delivery teams get usable artifacts.",
+        body: "Requirements, governance, vendor scope, AI readiness, and executive material are prepared for action.",
       },
       {
-        title: "Built for momentum.",
-        body: "Clear intake, private workspace, and senior review help teams move forward with confidence.",
+        title: "Momentum without fixed headcount.",
+        body: "A private workspace, structured intake, and senior review help work move forward with control.",
       },
     ],
   },
   advisoryOffer: {
-    eyebrow: "Advisory Offer",
-    headline: "Messy inputs, clear decisions, ready deliverables.",
+    eyebrow: "Business Analysis Advisory Offer",
+    headline: "Senior analysis that turns complex initiatives into decisions, requirements, and delivery action.",
     intro:
-      "We convert rough notes, draft decks, transcripts, and stakeholder asks into advisory work your team can use immediately.",
-    steps: ["Input", "Synthesis", "Output"],
+      "We help teams define the problem, align stakeholders, structure scope, and produce advisory grade deliverables for approvals, vendor direction, build readiness, UAT, governance, AI assessment, and rollout.",
+    steps: ["Clarify", "Shape", "Equip"],
     cards: [
       {
         number: "01",
-        label: "Client brings",
-        title: "Rough project material",
-        body: "Notes, decks, transcripts, screenshots, workflows, policies, vendor notes, or open stakeholder asks.",
+        label: "Strategic clarity",
+        title: "Define the business problem and decision context",
+        body: "Clarify outcomes, stakeholders, scope boundaries, assumptions, risks, dependencies, and the decisions required to move forward.",
       },
       {
         number: "02",
-        label: "We create",
-        title: "Structured client ready work",
-        body: "Requirements, business cases, SOPs, UAT packs, governance models, AI assessment material, board presentations, and decision material.",
+        label: "Delivery grade artifacts",
+        title: "Create the documentation teams need to execute",
+        body: "Business requirements, functional and non functional requirements, business cases, SOPs, process models, UAT packs, governance models, AI assessment material, and board presentations.",
       },
       {
         number: "03",
-        label: "Client receives",
-        title: "A practical decision path",
-        body: "Risks, assumptions, open questions, recommendations, and next actions are made clear.",
+        label: "Execution confidence",
+        title: "Leave with a practical path to approval and delivery",
+        body: "Recommendations, decision options, acceptance criteria, ownership, open questions, next actions, and traceability for delivery momentum.",
       },
     ],
     resultLabel: "Bottom line",
     result:
-      "Senior Business Analysis support without new headcount, long onboarding, or large firm overhead.",
+      "Engage senior Business Analysis and transformation advisory capacity when the work is too important to stay vague, but not large enough to justify full time hiring or large firm cost.",
   },
   representativeOutcomes: {
     eyebrow: "Representative outcomes",
@@ -314,9 +314,9 @@ window.BAAD_CONTENT = {
               "Yes. A client workspace is required before checkout so payments, files, requests, messages, credits, and deliverables stay connected to the right account.",
           },
           {
-            question: "Can I sign in without Google or Apple?",
+            question: "How do I access the private workspace?",
             answer:
-              "Yes. Clients can use Google, Apple, or email and password. Email and password accounts support account creation, sign in, password reset, and password update.",
+              "Clients use controlled account access tied to their work email. Email and password accounts support account creation, email verification, sign in, password reset, and password update.",
           },
           {
             question: "Can I upload multiple files?",

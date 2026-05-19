@@ -5,10 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>BA Advisory Desk Checkout Complete</title>
-    <meta http-equiv="refresh" content="0; url=./index.html#checkout-success" />
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const next = new URL("./index.html", window.location.href);
+      if (params.get("session_id")) next.searchParams.set("session_id", params.get("session_id"));
+      if (params.get("product")) next.searchParams.set("product", params.get("product"));
+      next.hash = "checkout-success";
+      window.location.replace(next.toString());
+    </script>
   </head>
   <body>
     <p>Opening BA Advisory Desk.</p>
-    <p><a href="./index.html#checkout-success">Continue to Client Login</a></p>
+    <p><a href="./index.html#checkout-success">Continue to client workspace</a></p>
   </body>
 </html>

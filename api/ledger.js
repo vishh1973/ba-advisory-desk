@@ -22,18 +22,47 @@ module.exports = async function handler(req, res) {
     const requestId = body.requestId || null;
     const recipientEmail = body.email || body.clientEmail || body.recipientEmail || null;
     const requestedThreshold = Number(body.lowCreditThreshold);
+    const thresholdProvided = Number.isFinite(requestedThreshold);
 
     if (!organizationId || !["grant", "reserve", "consume", "release", "adjust"].includes(type)) {
       res.status(400).json({ error: "Missing or invalid ledger request." });
       return;
     }
 
-    if ((type === "adjust" && credits === 0) || (type !== "adjust" && credits <= 0)) {
+    if ((type === "adjust" && credits === 0 && !thresholdProvided) || (type !== "adjust" && credits <= 0)) {
       res.status(400).json({ error: "Credit amount must be greater than zero." });
       return;
     }
 
     const supabase = getSupabaseAdmin();
+    if (type === "adjust" && credits === 0 && thresholdProvided) {
+      const { data: account, error: accountError } = await supabase
+        .from("credit_accounts")
+        .select("id,balance,low_credit_threshold")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (accountError) throw accountError;
+      if (!account?.id) {
+        res.status(404).json({ error: "Credit account was not found." });
+        return;
+      }
+
+      const lowCreditThreshold = Math.max(0, requestedThreshold);
+      const { error: thresholdError } = await supabase
+        .from("credit_accounts")
+        .update({
+          low_credit_threshold: lowCreditThreshold,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", account.id);
+
+      if (thresholdError) throw thresholdError;
+
+      res.status(200).json({ balance: Number(account.balance || 0), lowCreditThreshold, thresholdOnly: true });
+      return;
+    }
+
     const rpcCredits = type === "adjust" ? credits : Math.abs(credits);
     const { data: ledgerResult, error: ledgerError } = await supabase
       .rpc("apply_credit_change", {

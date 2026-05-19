@@ -800,12 +800,8 @@ $$;
 
 revoke update on public.profiles from authenticated;
 grant update (
-  auth_email,
-  auth_provider,
-  email_verified,
   first_name,
   last_name,
-  work_email,
   phone,
   job_title,
   department,

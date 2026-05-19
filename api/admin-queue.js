@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const limit = readLimit(req);
 
-    const [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents] = await Promise.all([
+    const [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads] = await Promise.all([
       supabase
         .from("requests")
         .select("id,organization_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at,client_organizations(name,billing_email)")
@@ -58,9 +58,19 @@ module.exports = async function handler(req, res) {
         .select("id,organization_id,event_type,event_detail,related_entity_type,related_entity_id,source,created_at,client_organizations(name,billing_email)")
         .order("created_at", { ascending: false })
         .limit(limit),
+      supabase
+        .from("client_deliverable_messages")
+        .select("id,organization_id,deliverable_id,request_id,subject,body,status,created_at,client_organizations(name,billing_email)")
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("client_uploads")
+        .select("id,organization_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_organizations(name,billing_email)")
+        .order("created_at", { ascending: false })
+        .limit(limit),
     ]);
 
-    const firstError = [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents].find((result) => result.error);
+    const firstError = [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
 
     const { data: deliverables, error: deliverablesError } = await supabase
@@ -79,6 +89,8 @@ module.exports = async function handler(req, res) {
       notifications: notifications.data || [],
       creditLedger: creditLedger.data || [],
       auditEvents: auditEvents.data || [],
+      clientMessages: clientMessages.data || [],
+      clientUploads: clientUploads.data || [],
       deliverables: deliverables || [],
     });
   } catch (error) {
