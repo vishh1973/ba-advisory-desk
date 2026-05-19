@@ -15,6 +15,18 @@ module.exports = async function handler(req, res) {
 
   try {
     const supabase = getSupabaseAdmin();
+    const { data: creditAccounts, error: accountError } = await supabase
+      .from("credit_accounts")
+      .select("organization_id")
+      .not("organization_id", "is", null)
+      .limit(500);
+
+    if (accountError) throw accountError;
+
+    for (const account of creditAccounts || []) {
+      await supabase.rpc("expire_credit_grants", { p_organization_id: account.organization_id }).then(() => null, () => null);
+    }
+
     await supabase.rpc("queue_low_credit_reminders");
 
     const { data: notifications, error } = await supabase
@@ -43,7 +55,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    res.status(200).json({ queued: notifications?.length || 0, sent });
+    res.status(200).json({ checkedAccounts: creditAccounts?.length || 0, queued: notifications?.length || 0, sent });
   } catch (error) {
     res.status(500).json({ error: error.message || "Reminder job failed." });
   }

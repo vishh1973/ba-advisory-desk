@@ -2509,6 +2509,25 @@ input[type="file"]::file-selector-button:hover {
   }
 }
 
+@media (max-width: 620px) {
+  .toast {
+    align-items: stretch;
+    bottom: 12px;
+    flex-direction: column;
+    left: 12px;
+    max-height: min(44vh, 340px);
+    max-width: none;
+    overflow-y: auto;
+    right: 12px;
+    transform: none;
+    width: auto;
+  }
+
+  .toast button {
+    align-self: flex-start;
+  }
+}
+
 @media (max-width: 980px) {
   .about-hero,
   .account-standard,

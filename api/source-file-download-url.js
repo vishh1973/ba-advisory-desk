@@ -42,7 +42,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
   if (fileKind === "client_upload") {
     const { data, error } = await supabase
       .from("client_uploads")
-      .select("id,organization_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes")
+      .select("id,organization_id,request_id,deliverable_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes")
       .eq("id", fileId)
       .single();
 
@@ -52,6 +52,26 @@ async function readSourceFile(supabase, fileKind, fileId) {
     }
     if (data.uploaded_by && !String(data.storage_path || "").startsWith(`${data.uploaded_by}/`)) {
       throw new Error("This file path is not available for this workspace.");
+    }
+    if (data.request_id) {
+      const { data: request, error: requestError } = await supabase
+        .from("requests")
+        .select("id,organization_id")
+        .eq("id", data.request_id)
+        .single();
+      if (requestError || request.organization_id !== data.organization_id) {
+        throw new Error("This file is not available for workspace download.");
+      }
+    }
+    if (data.deliverable_id) {
+      const { data: deliverable, error: deliverableError } = await supabase
+        .from("deliverables")
+        .select("id,organization_id")
+        .eq("id", data.deliverable_id)
+        .single();
+      if (deliverableError || deliverable.organization_id !== data.organization_id) {
+        throw new Error("This file is not available for workspace download.");
+      }
     }
     return {
       id: data.id,
@@ -66,13 +86,23 @@ async function readSourceFile(supabase, fileKind, fileId) {
 
   const { data, error } = await supabase
     .from("request_files")
-    .select("id,organization_id,uploaded_by,storage_path,file_name,file_size_bytes")
+    .select("id,request_id,organization_id,uploaded_by,storage_path,file_name,file_size_bytes")
     .eq("id", fileId)
     .single();
 
   if (error) throw error;
   if (data.uploaded_by && !String(data.storage_path || "").startsWith(`${data.uploaded_by}/`)) {
     throw new Error("This file path is not available for this workspace.");
+  }
+  if (data.request_id) {
+    const { data: request, error: requestError } = await supabase
+      .from("requests")
+      .select("id,organization_id")
+      .eq("id", data.request_id)
+      .single();
+    if (requestError || request.organization_id !== data.organization_id) {
+      throw new Error("This file is not available for workspace download.");
+    }
   }
   return {
     id: data.id,

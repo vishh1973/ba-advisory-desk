@@ -27,9 +27,9 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk</title>
-    <link rel="stylesheet" href="./styles.css?v=5" />
+    <link rel="stylesheet" href="./styles.css?v=7" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./config.js?v=5"></script>
+    <script src="./config.js?v=7"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -736,7 +736,7 @@
               <tr><td>Main deliverable</td><td>One polished Business Analysis deliverable package with gap and risk analysis</td><td>Five defined Business Analysis deliverable units each month</td><td>Custom advisory package defined in writing</td></tr>
               <tr><td>Input allowance</td><td>Up to 60 pages or 10 files for analysis</td><td>Files submitted per request through the client workspace</td><td>Defined during discovery</td></tr>
               <tr><td>Advisory call</td><td>30 minute triage call</td><td>30 minute monthly advisory sync</td><td>45 minute discovery call</td></tr>
-              <tr><td>Extra credits</td><td>Not applicable</td><td>3 additional Advisory Credits for $1,000 USD</td><td>Secure invoice</td></tr>
+              <tr><td>Extra credits</td><td>Not applicable</td><td>3 additional Advisory Credits for $1,000 USD. Added credits expire 30 days after purchase.</td><td>Secure invoice</td></tr>
               <tr><td>Typical timing</td><td>Target confirmed at intake, often 3 to 5 business days after complete inputs</td><td>Target confirmed at intake, often 2 to 4 business days for standard requests</td><td>Set in the proposal</td></tr>
               <tr><td>Not included</td><td>Full requirements ownership, live meeting facilitation, delivery execution, or unlimited revisions</td><td>Full time BA coverage, meeting ownership, system configuration, legal review, or unlimited revisions</td><td>Anything outside the approved written scope</td></tr>
             </tbody>
@@ -859,7 +859,8 @@
             <a href="#profile">Client Profile</a>
             <a href="#request">Start a Request</a>
             <a href="#billing">Billing</a>
-            <a href="#dashboard">Deliverables</a>
+            <a href="#deliverables">Deliverables</a>
+            <a href="#messages">Messages And Files</a>
           </aside>
           <div class="dashboard-main">
             <div class="dashboard-header">
@@ -917,7 +918,7 @@
                 <article><span>Completed</span><strong id="completedCount">0</strong><ul id="completedDeliverables"></ul></article>
               </div>
             </div>
-            <details class="panel client-detail-section">
+            <details class="panel client-detail-section" id="clientWorkspaceRequests">
               <summary>Requests</summary>
               <table id="requestTable">
                 <thead>
@@ -926,7 +927,7 @@
                 <tbody></tbody>
               </table>
             </details>
-            <details class="panel client-detail-section">
+            <details class="panel client-detail-section" id="clientWorkspaceFiles">
               <summary>Source files and revision uploads</summary>
               <div class="panel-heading">
                 <div>
@@ -957,7 +958,7 @@
               </div>
               <div id="clientDeliverablesList" class="deliverable-list"></div>
             </div>
-            <details class="panel client-detail-section">
+            <details class="panel client-detail-section" id="clientWorkspaceMessages">
               <summary>Messages and files</summary>
               <div class="panel-heading">
                 <div>
@@ -1775,8 +1776,8 @@
       <span id="toastText"></span>
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
-    <script src="./content.js?v=5"></script>
-    <script src="./app.js?v=5"></script>
+    <script src="./content.js?v=7"></script>
+    <script src="./app.js?v=7"></script>
   </body>
 </html>
 

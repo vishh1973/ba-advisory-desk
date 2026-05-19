@@ -14,6 +14,10 @@ function normalizeText(value, fallback = "") {
   return String(value || fallback).trim();
 }
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ""));
+}
+
 function readHeader(req, name) {
   const headers = req.headers || {};
   return headers[name] || headers[name.toLowerCase()];
@@ -99,8 +103,16 @@ module.exports = async function handler(req, res) {
       requestSummary: normalizeText(body.requestSummary),
     };
 
-    if (!payload.workEmail || !payload.requestSummary) {
-      res.status(400).json({ error: "Work email and request summary are required." });
+    const companyTypeIsOther = payload.companyType.toLowerCase() === "other";
+    if (
+      !isValidEmail(payload.workEmail) ||
+      !payload.companyType ||
+      (companyTypeIsOther && !payload.otherCompanyType) ||
+      !payload.headOfficeCountry ||
+      !payload.estimatedBudget ||
+      payload.requestSummary.length < 25
+    ) {
+      res.status(400).json({ error: "Please complete company type, country, work email, budget range, and a clear request summary." });
       return;
     }
 

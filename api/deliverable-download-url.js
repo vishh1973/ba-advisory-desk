@@ -83,6 +83,30 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    const { data: deliverable, error: deliverableError } = await supabase
+      .from("deliverables")
+      .select("id,organization_id,latest_version_id,current_version_number,archived_at")
+      .eq("id", version.deliverable_id)
+      .single();
+
+    if (deliverableError || !deliverable) {
+      res.status(404).json({ error: "Deliverable was not found." });
+      return;
+    }
+
+    const expectedBucket = "private-deliverables";
+    const validFileRelationship =
+      file.deliverable_id === version.deliverable_id &&
+      file.organization_id === version.organization_id &&
+      deliverable.organization_id === version.organization_id &&
+      (file.storage_bucket || expectedBucket) === expectedBucket &&
+      String(file.storage_path || "").startsWith(`clients/${file.organization_id}/deliverables/${file.deliverable_id}/`);
+
+    if (!validFileRelationship || deliverable.archived_at) {
+      res.status(403).json({ error: "This file is not available for your workspace." });
+      return;
+    }
+
     const admin = await requireAdmin(req);
     if (!admin) {
       const { data: profiles, error: profileError } = await supabase
@@ -99,7 +123,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const bucket = file.storage_bucket || "private-deliverables";
+    const bucket = file.storage_bucket || expectedBucket;
     const { data: signed, error: signedError } = await supabase.storage
       .from(bucket)
       .createSignedUrl(file.storage_path, expiresIn, {

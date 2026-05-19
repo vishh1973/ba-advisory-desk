@@ -1,6 +1,6 @@
 const config = {
   domain: "baadvisorydesk.com",
-  adminEmail: "vishh1973@gmail.com",
+  adminEmail: "",
   supportEmail: "support@baadvisorydesk.com",
   maxFileSizeMb: 50,
   allowedFileTypes: ["PDF", "Word", "Excel", "PowerPoint", "PNG", "JPG"],
@@ -65,6 +65,7 @@ const state = {
   quoteCount: 0,
   passwordRecovery: false,
   profileOrganizationId: "",
+  workspaceLoadIssue: "",
 };
 
 const views = {
@@ -211,21 +212,7 @@ function addPaymentHistory(item, amount, status) {
 
 function isPaidPaymentStatus(status) {
   const normalized = String(status || "").toLowerCase();
-  const paidStatus =
-    normalized.includes("paid") ||
-    normalized.includes("succeeded") ||
-    normalized.includes("complete") ||
-    normalized.includes("active") ||
-    normalized.includes("trialing");
-  const pendingStatus =
-    normalized.includes("started") ||
-    normalized.includes("created") ||
-    normalized.includes("open") ||
-    normalized.includes("pending") ||
-    normalized.includes("failed") ||
-    normalized.includes("cancel") ||
-    normalized.includes("expired");
-  return paidStatus && !pendingStatus;
+  return new Set(["paid", "succeeded", "complete", "completed", "active", "trialing", "payment_succeeded"]).has(normalized);
 }
 
 function hasRecordedPayment(labelFragment) {
@@ -799,6 +786,25 @@ function scrollPageToStart() {
   });
 }
 
+function openClientWorkspaceSection(routeKey) {
+  const sectionMap = {
+    deliverables: "#clientDeliverablesList",
+    messages: "#clientWorkspaceMessages",
+    files: "#clientWorkspaceFiles",
+  };
+  const targetSelector = sectionMap[routeKey];
+  if (!targetSelector) return;
+
+  if (routeKey === "messages" || routeKey === "files") {
+    const detail = document.querySelector(targetSelector);
+    if (detail) detail.open = true;
+  }
+
+  window.requestAnimationFrame(() => {
+    document.querySelector(targetSelector)?.scrollIntoView({ block: "start", behavior: "auto" });
+  });
+}
+
 async function routeAfterAuth(defaultRoute = "dashboard") {
   if (!state.session?.user) return;
   if (!isEmailVerified()) {
@@ -1291,6 +1297,7 @@ async function loadClientWorkspaceData() {
   if (!organizationId) return;
 
   try {
+    state.workspaceLoadIssue = "";
     const [creditResult, ledgerResult, paymentResult, requestResult, deliverableResult, requestFileResult] = await Promise.all([
       supabaseClient
         .from("credit_balance_summary")
@@ -1328,6 +1335,11 @@ async function loadClientWorkspaceData() {
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
+
+    const firstDataError = [creditResult, ledgerResult, paymentResult, requestResult, deliverableResult, requestFileResult].find((result) => result?.error);
+    if (firstDataError?.error) {
+      state.workspaceLoadIssue = firstDataError.error.message || "Some workspace information could not be loaded.";
+    }
 
     if (creditResult.data) {
       state.creditsLeft = Number(creditResult.data.balance ?? state.creditsLeft);
@@ -1388,6 +1400,11 @@ async function loadClientWorkspaceData() {
         .limit(20),
     ]);
 
+    const firstActivityError = [messageResult, uploadResult].find((result) => result?.error);
+    if (!state.workspaceLoadIssue && firstActivityError?.error) {
+      state.workspaceLoadIssue = firstActivityError.error.message || "Some workspace activity could not be loaded.";
+    }
+
     if (!messageResult.error && Array.isArray(messageResult.data)) {
       state.clientMessages = messageResult.data.map(normalizeClientMessage);
     }
@@ -1397,8 +1414,8 @@ async function loadClientWorkspaceData() {
     }
 
     saveState();
-  } catch (_error) {
-    // The local browser state remains usable if the hosted data read is not available.
+  } catch (error) {
+    state.workspaceLoadIssue = error.message || "Workspace information could not be loaded.";
   }
 }
 
@@ -2005,10 +2022,6 @@ function setView() {
   }
   let key = state.passwordRecovery ? "login" : views[canonicalKey] ? canonicalKey : rawKey.startsWith("error=") ? "login" : "home";
 
-  if (routeAliases[rawKey]) {
-    window.history.replaceState(null, "", `${window.location.pathname}#${key}`);
-  }
-
   if (key === "admin" && !state.session?.user) {
     setPendingPostAuthRoute("admin");
     key = "login";
@@ -2054,11 +2067,14 @@ function setView() {
     setAuthStatus("Sign in could not be completed. Please choose a sign in option and try again.");
   }
   render();
+  openClientWorkspaceSection(rawKey);
   if (key === "admin") {
     loadAdminQueue();
   }
   closeNavigationMenus();
-  scrollPageToStart();
+  if (!routeAliases[rawKey]) {
+    scrollPageToStart();
+  }
 }
 
 function renderRequests() {
@@ -2736,7 +2752,15 @@ function renderClientWorkspaceSummary() {
   }
   if (fileCount) fileCount.textContent = getClientFileEntries().length;
   if (releasedCount) releasedCount.textContent = getReleasedFileCount();
-  if (latestActivity) latestActivity.textContent = getLatestClientActivityLabel();
+  if (latestActivity) latestActivity.textContent = state.workspaceLoadIssue ? "Needs refresh" : getLatestClientActivityLabel();
+  if (state.workspaceLoadIssue && title && body && nextStep.title === "Workspace is current") {
+    title.textContent = "Refresh workspace information";
+    body.textContent = "Some account details could not be loaded. Refresh the page or contact support if this continues.";
+    if (cta) {
+      cta.href = "#dashboard";
+      cta.textContent = "Refresh Workspace";
+    }
+  }
 }
 
 function renderClientFileRoom() {
@@ -3365,6 +3389,7 @@ function populateCountries() {
 
 function setupOAuthButtons() {
   const enabledProviders = config.authProviders || {};
+  const enabledProviderCount = ["google", "apple"].filter((provider) => enabledProviders[provider] !== false).length;
   document.querySelectorAll("[data-provider]").forEach((button) => {
     button.type = "button";
     const label = button.querySelector(".sso-label");
@@ -3373,6 +3398,8 @@ function setupOAuthButtons() {
     }
     button.classList.toggle("hidden", enabledProviders[button.dataset.provider] === false);
   });
+  document.querySelector(".sso-actions")?.classList.toggle("hidden", enabledProviderCount === 0);
+  document.querySelector(".auth-divider")?.classList.toggle("hidden", enabledProviderCount === 0);
 }
 
 function rememberClientLoginFields() {
@@ -4014,7 +4041,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
 
-    if (state.creditsLeft <= 0 || creditsUsed > state.creditsLeft) {
+    if (creditsUsed > state.creditsLeft) {
       const pausedStatus = "Paused, awaiting credits";
       if (supabaseClient && adminItem?.requestId && adminItem?.organizationId) {
         await supabaseClient

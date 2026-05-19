@@ -1,7 +1,7 @@
 window.BAAD_CONFIG = {
   supabaseUrl: "https://ydkehgqitnxmvqoicxwu.supabase.co",
   supabaseAnonKey: "sb_publishable_uPALQNXCxAUarwj9lCSnpg_WtJifDRe",
-  adminEmail: "vishh1973@gmail.com",
+  adminEmail: "",
   supportEmail: "support@baadvisorydesk.com",
   siteDomain: "baadvisorydesk.com",
   stripePrices: {
@@ -11,7 +11,7 @@ window.BAAD_CONFIG = {
   },
   stripePaymentLinks: {},
   authProviders: {
-    google: false,
+    google: true,
     apple: false,
     emailPassword: true,
   },

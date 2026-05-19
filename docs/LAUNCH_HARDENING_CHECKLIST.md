@@ -4,7 +4,7 @@ Last updated: May 19, 2026
 
 ## Current Status
 
-The app has a working public site, client account flow, email and password account flow, Stripe checkout links, Supabase storage, client request intake, admin queue, credit ledger, admin deliverable upload, client deliverable downloads, and client messages. Google and Apple sign in remain hidden until provider setup is fully verified.
+The app has a working public site, client account flow, email and password account flow, Google sign in visibility, Stripe checkout links, Supabase storage, client request intake, admin queue, credit ledger, admin deliverable upload, client deliverable downloads, and client messages. Apple sign in remains hidden until Apple Developer setup is fully verified.
 
 This checklist tracks what must be tightened before a confident public launch.
 
@@ -13,7 +13,7 @@ This checklist tracks what must be tightened before a confident public launch.
 - Public site uses production-facing language.
 - Public site avoids internal build language.
 - Client login menu option exists.
-- Google and Apple sign in are hidden until provider setup is fully verified.
+- Google sign in is visible after provider setup. Apple sign in remains hidden until Apple Developer setup is complete.
 - Email and password account creation exists.
 - Password reset flow exists.
 - Client profile captures company, role, country, timezone, industry, phone, and primary need.
@@ -28,6 +28,11 @@ This checklist tracks what must be tightened before a confident public launch.
 - Request files, client uploads, and deliverables are stored in private Supabase buckets.
 - Dashboard redesign started with client workspace summary, admin command center, client portfolio, and client dossier.
 - Source file and client upload downloads now use signed links.
+- Mobile notices are readable and dismissible on phone width.
+- Custom quote validation is enforced in both the browser and API.
+- Signed file download routes verify related record ownership before creating URLs.
+- The daily low credit job expires stale credit grants before checking reminder thresholds.
+- Checkout success returns to a clear checkout complete view before moving the client into the workspace.
 
 ## In Progress
 
@@ -52,6 +57,7 @@ This checklist tracks what must be tightened before a confident public launch.
 - Confirm low credit and depleted credit emails are sent.
 - Confirm client messages trigger admin visibility and email notification.
 - Confirm storage usage remains within the current plan before any paid client launch.
+- Confirm wrong-client file access remains blocked after the related record RLS hardening script applied on May 19, 2026.
 
 ## Credit Architecture Hardening
 

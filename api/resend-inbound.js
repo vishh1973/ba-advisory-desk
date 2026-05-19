@@ -19,19 +19,20 @@ module.exports = async function handler(req, res) {
     const payload = await readRawBody(req);
     let event;
 
-    if (process.env.RESEND_WEBHOOK_SECRET) {
-      event = await resend.webhooks.verify({
-        payload,
-        headers: {
-          id: req.headers["svix-id"],
-          timestamp: req.headers["svix-timestamp"],
-          signature: req.headers["svix-signature"],
-        },
-        webhookSecret: process.env.RESEND_WEBHOOK_SECRET,
-      });
-    } else {
-      event = JSON.parse(payload || "{}");
+    if (!process.env.RESEND_WEBHOOK_SECRET) {
+      res.status(500).json({ error: "Inbound email webhook is not configured." });
+      return;
     }
+
+    event = await resend.webhooks.verify({
+      payload,
+      headers: {
+        id: req.headers["svix-id"],
+        timestamp: req.headers["svix-timestamp"],
+        signature: req.headers["svix-signature"],
+      },
+      webhookSecret: process.env.RESEND_WEBHOOK_SECRET,
+    });
 
     if (event.type === "email.received" && event.data?.email_id) {
       await resend.emails.receiving.forward({
