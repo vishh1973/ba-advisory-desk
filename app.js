@@ -1077,7 +1077,7 @@ async function notifyAdvisorEvent(payload) {
     return { ok: false, skipped: true, error: "Client workspace is not signed in." };
   }
 
-  return fetchClientApi("/api/workspace-event-notification", {
+  return fetchClientApi("/api/notify", {
     method: "POST",
     body: payload,
   });
