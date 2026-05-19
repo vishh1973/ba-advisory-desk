@@ -332,9 +332,11 @@ h2 {
 .price-card,
 .auth-card,
 .panel,
+.account-panel,
 .form-card,
 .billing-grid article,
 .admin-grid article,
+.admin-alert-panel,
 .right-rail,
 .comparison {
   background: var(--white);
@@ -367,6 +369,7 @@ h2 {
 .pricing-grid,
 .billing-grid,
 .admin-grid,
+.status-board,
 .proof-grid {
   display: grid;
   gap: 16px;
@@ -415,6 +418,97 @@ h2 {
 
 .request-card small {
   color: var(--slate);
+}
+
+.empty-cell {
+  color: var(--slate);
+  font-size: 13px;
+}
+
+.panel-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panel-heading h3,
+.panel-heading p,
+.account-panel h3,
+.account-panel p {
+  margin: 0;
+}
+
+.panel-heading p,
+.account-panel p {
+  color: var(--slate);
+  line-height: 1.55;
+}
+
+.account-panel {
+  align-items: center;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  padding: 22px;
+}
+
+.account-panel h3 {
+  font-size: 28px;
+}
+
+.account-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.status-board {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.status-board article {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.status-board span {
+  color: var(--slate);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.status-board strong {
+  font-size: 30px;
+}
+
+.status-board ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.status-board li {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+}
+
+.status-board li strong {
+  font-size: 13px;
+}
+
+.status-board li span,
+.empty-status {
+  color: var(--slate);
+  font-size: 13px;
 }
 
 .proof-grid {
@@ -771,6 +865,78 @@ th {
   padding: 28px;
 }
 
+.auth-intro,
+.auth-helper {
+  color: var(--slate);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.auth-intro {
+  color: var(--navy);
+  font-weight: 800;
+}
+
+.sso-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.sso-button {
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--line);
+  color: var(--navy);
+  gap: 12px;
+  min-height: 52px;
+  width: 100%;
+}
+
+.sso-button:hover {
+  background: #f5f8fb;
+}
+
+.sso-button.apple {
+  background: #111827;
+  border-color: #111827;
+  color: var(--white);
+}
+
+.sso-button.apple:hover {
+  background: #000;
+}
+
+.sso-mark {
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: #111827;
+  display: inline-flex;
+  flex: 0 0 26px;
+  font-size: 15px;
+  font-weight: 900;
+  height: 26px;
+  justify-content: center;
+  line-height: 1;
+  width: 26px;
+}
+
+.sso-button.apple .sso-mark {
+  border-color: var(--white);
+}
+
+.sso-mark svg {
+  display: block;
+  fill: currentColor;
+  height: 17px;
+  width: 17px;
+}
+
+.legacy-auth-controls {
+  display: none;
+}
+
 label {
   color: var(--ink);
   display: grid;
@@ -823,6 +989,267 @@ label small {
 
 .file-list strong {
   color: var(--ink);
+}
+
+input[type="file"] {
+  background: #f8fbfc;
+  cursor: pointer;
+  line-height: 1.35;
+  max-width: 100%;
+}
+
+input[type="file"]::file-selector-button {
+  background: var(--navy);
+  border: 0;
+  border-radius: 7px;
+  color: var(--white);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  margin-right: 12px;
+  padding: 9px 12px;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: var(--navy-soft);
+}
+
+.deliverable-list {
+  display: grid;
+  gap: 14px;
+}
+
+.deliverable-list:empty::before {
+  background: var(--panel);
+  border: 1px dashed #adc0ce;
+  border-radius: 8px;
+  color: var(--slate);
+  content: "No delivered files are available yet.";
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 16px;
+}
+
+.deliverable-card,
+.deliverable-item,
+.client-deliverable,
+.admin-upload-panel {
+  background: #fbfdfe;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.deliverable-card header,
+.deliverable-item header,
+.client-deliverable header,
+.deliverable-card-head,
+.deliverable-head,
+.deliverable-summary-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.deliverable-card h4,
+.deliverable-item h4,
+.client-deliverable h4,
+.deliverable-title {
+  color: var(--navy);
+  font-size: 18px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.deliverable-card p,
+.deliverable-item p,
+.client-deliverable p,
+.deliverable-summary,
+.release-note {
+  color: var(--slate);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.deliverable-meta,
+.version-meta,
+.file-meta {
+  align-items: center;
+  color: var(--slate);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 8px;
+}
+
+.deliverable-meta span,
+.version-meta span,
+.file-meta span,
+.version-badge,
+.status-pill {
+  background: #eef4f8;
+  border-radius: 999px;
+  color: #344255;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 6px 9px;
+}
+
+.status-pill.ready,
+.status-pill.delivered,
+.version-badge.current {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+}
+
+.deliverable-actions,
+.version-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.deliverable-actions a,
+.version-actions a,
+.download-link {
+  background: var(--teal);
+  border-radius: 8px;
+  color: var(--white);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  justify-content: center;
+  line-height: 1.2;
+  padding: 10px 12px;
+}
+
+.deliverable-actions a:hover,
+.version-actions a:hover,
+.download-link:hover {
+  background: var(--teal-dark);
+}
+
+.version-list,
+.deliverable-versions {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.version-row,
+.deliverable-version,
+.deliverable-file-row {
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.version-row strong,
+.deliverable-version strong,
+.deliverable-file-row strong {
+  color: var(--navy);
+  display: block;
+  line-height: 1.3;
+}
+
+.version-row small,
+.deliverable-version small,
+.deliverable-file-row small {
+  color: var(--slate);
+  display: block;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.deliverable-files {
+  display: grid;
+  gap: 10px;
+}
+
+.deliverable-file-row span {
+  color: var(--slate);
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.deliverable-file-row.compact {
+  background: #f8fbfd;
+}
+
+.version-history {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.version-history summary {
+  color: var(--navy);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.muted {
+  color: var(--slate);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.check-row {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.check-row input {
+  width: auto;
+}
+
+#adminDeliverableFileList,
+#fileList {
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+#adminDeliverableFileList div,
+#fileList div {
+  align-items: center;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+#adminDeliverableFileList span,
+#fileList span {
+  color: var(--slate);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .dashboard-shell {
@@ -891,6 +1318,12 @@ label small {
   color: #9a3412;
 }
 
+.credit-alert a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .progress {
   background: #e8eef5;
   border-radius: 999px;
@@ -932,9 +1365,61 @@ label small {
   max-width: 1180px;
 }
 
+.admin-alert-panel {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin: 18px auto 0;
+  max-width: 1180px;
+  padding: 16px 20px;
+}
+
+.admin-alert-panel span {
+  color: var(--slate);
+  font-weight: 800;
+  text-align: right;
+}
+
+.admin-alert-panel.warning {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.admin-alert-panel.danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
 .admin-controls {
   display: grid;
   gap: 14px;
+}
+
+.admin-controls small {
+  color: var(--slate);
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 6px;
+}
+
+.admin-inline-status {
+  background: #eef8f6;
+  border: 1px solid #bce7df;
+  border-radius: 8px;
+  color: var(--teal-dark);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 0;
+  padding: 10px;
+}
+
+.admin-inline-status.warning {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
 }
 
 .billing-grid article,
@@ -998,6 +1483,8 @@ label small {
   .billing-grid,
   .admin-grid,
   .admin-workbench,
+  .account-panel,
+  .status-board,
   .proof-grid.premium,
   .testimonial-strip,
   .sample-grid {
@@ -1109,12 +1596,23 @@ label small {
   .price-card,
   .auth-card,
   .panel,
+  .account-panel,
   .form-card,
   .right-rail,
   .comparison,
   .billing-grid article,
-  .admin-grid article {
+  .admin-grid article,
+  .admin-alert-panel {
     padding: 18px;
+  }
+
+  .admin-alert-panel {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-alert-panel span {
+    text-align: left;
   }
 
   .dashboard-header {
@@ -1123,6 +1621,42 @@ label small {
   }
 
   .dashboard-header .primary {
+    width: 100%;
+  }
+
+  .deliverable-card header,
+  .deliverable-item header,
+  .client-deliverable header,
+  .deliverable-head,
+  .deliverable-summary-row {
+    flex-direction: column;
+  }
+
+  .deliverable-actions,
+  .version-actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .deliverable-actions a,
+  .version-actions a,
+  .download-link {
+    width: 100%;
+  }
+
+  .version-row,
+  .deliverable-version {
+    grid-template-columns: 1fr;
+  }
+
+  input[type="file"] {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  input[type="file"]::file-selector-button {
+    display: block;
+    margin: 0 0 8px;
     width: 100%;
   }
 

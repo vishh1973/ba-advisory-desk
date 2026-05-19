@@ -1,5 +1,6 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { requireAdmin } = require("./_lib/adminAuth");
+const { detectAndNotifyCreditStatus } = require("./_lib/paymentAndCredit");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -19,6 +20,8 @@ module.exports = async function handler(req, res) {
     const credits = Number(body.credits || 0);
     const reason = body.reason || "Admin adjustment";
     const requestId = body.requestId || null;
+    const recipientEmail = body.email || body.clientEmail || body.recipientEmail || null;
+    const requestedThreshold = Number(body.lowCreditThreshold);
 
     if (!organizationId || !["grant", "reserve", "consume", "release", "adjust"].includes(type)) {
       res.status(400).json({ error: "Missing or invalid ledger request." });
@@ -28,25 +31,34 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const { data: account } = await supabase
       .from("credit_accounts")
-      .select("id,balance")
+      .select("id,balance,low_credit_threshold")
       .eq("organization_id", organizationId)
       .maybeSingle();
 
     const currentBalance = account?.balance || 0;
-    const signedCredits = ["grant", "release", "adjust"].includes(type) ? Math.abs(credits) : -Math.abs(credits);
+    const signedCredits =
+      type === "adjust" ? credits : ["grant", "release"].includes(type) ? Math.abs(credits) : -Math.abs(credits);
     const balanceAfter = Math.max(0, currentBalance + signedCredits);
+    const lowCreditThreshold = Number.isFinite(requestedThreshold)
+      ? Math.max(0, requestedThreshold)
+      : account?.low_credit_threshold || 2;
 
     if (account?.id) {
       await supabase
         .from("credit_accounts")
-        .update({ balance: balanceAfter, updated_at: new Date().toISOString() })
+        .update({
+          balance: balanceAfter,
+          low_credit_threshold: lowCreditThreshold,
+          status: balanceAfter <= 0 ? "depleted" : "active",
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", account.id);
     } else {
       await supabase.from("credit_accounts").insert({
         organization_id: organizationId,
         balance: balanceAfter,
-        low_credit_threshold: 2,
-        status: "active",
+        low_credit_threshold: lowCreditThreshold,
+        status: balanceAfter <= 0 ? "depleted" : "active",
       });
     }
 
@@ -66,8 +78,18 @@ module.exports = async function handler(req, res) {
       event_detail: { reason, credits: signedCredits, balance_after: balanceAfter, request_id: requestId },
     });
 
-    res.status(200).json({ balance: balanceAfter });
+    if (["reserve", "consume", "adjust"].includes(type)) {
+      await detectAndNotifyCreditStatus(supabase, {
+        organizationId,
+        balance: balanceAfter,
+        threshold: lowCreditThreshold,
+        recipientEmail,
+        relatedEntityId: requestId,
+      });
+    }
+
+    res.status(200).json({ balance: balanceAfter, lowCreditThreshold });
   } catch (error) {
-    res.status(500).json({ error: error.message || "Ledger update failed." });
+    res.status(500).json({ error: "Ledger update failed." });
   }
 };

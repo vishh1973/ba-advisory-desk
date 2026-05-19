@@ -353,7 +353,7 @@
               <li>UAT strategies, validation scenarios, acceptance criteria, and signoff support</li>
               <li>Decision logs, risk registers, issue views, and dependency tracking</li>
               <li>Stakeholder synthesis, workshop readouts, and executive summaries</li>
-              <li>Vendor readiness, RFP support, evaluation criteria, and implementation handoff packages</li>
+              <li>Vendor readiness, RFP support, evaluation criteria, and transition handoff packages</li>
               <li>Operating models, RACI, role clarity, and governance packs</li>
               <li>AI readiness assessments, AI governance models, and AI planning frameworks</li>
             </ul>
@@ -398,7 +398,7 @@
           <article>
             <span>Vendor readiness</span>
             <strong>Vendor scope and evaluation support</strong>
-            <small>Vendor questions, evaluation criteria, scope cleanup, readiness checklists, and implementation handoff material.</small>
+            <small>Vendor questions, evaluation criteria, scope cleanup, readiness checklists, and transition handoff material.</small>
           </article>
           <article>
             <span>AI readiness</span>
@@ -616,7 +616,7 @@
               <tr><td>Advisory call</td><td>30 minute triage call</td><td>30 minute monthly advisory sync</td><td>45 minute discovery call</td></tr>
               <tr><td>Extra credits</td><td>Not applicable</td><td>3 additional Advisory Credits for $1,000</td><td>Secure invoice</td></tr>
               <tr><td>Typical timing</td><td>Target confirmed at intake, often 3 to 5 business days after complete inputs</td><td>Target confirmed at intake, often 2 to 4 business days for standard requests</td><td>Set in the proposal</td></tr>
-              <tr><td>Not included</td><td>Full requirements ownership, live meeting facilitation, implementation delivery, or unlimited revisions</td><td>Full time BA coverage, meeting ownership, system configuration, legal review, or unlimited revisions</td><td>Anything outside the approved written scope</td></tr>
+              <tr><td>Not included</td><td>Full requirements ownership, live meeting facilitation, delivery execution, or unlimited revisions</td><td>Full time BA coverage, meeting ownership, system configuration, legal review, or unlimited revisions</td><td>Anything outside the approved written scope</td></tr>
             </tbody>
           </table>
         </div>
@@ -630,16 +630,28 @@
             Starter subscriptions and credit top ups use a private workspace so payments, credits, files, and deliverables connect to the right client account.
             Rescue Sprint can be purchased directly from Pricing.
           </p>
-          <p id="authStatus">Enter your work email. We will send a secure access link.</p>
-          <label>
-            Work email
-            <input id="loginEmail" type="email" placeholder="name@company.com" />
-          </label>
-          <label>
-            Company or organization, needed for first access
-            <input id="loginCompany" type="text" placeholder="Your company or organization" />
-          </label>
-          <button id="loginButton">Send Secure Access Link</button>
+          <p id="authStatus" class="hidden">Choose Google or Apple to continue.</p>
+          <p class="auth-intro">Sign in with Google or Apple to create or open your client workspace.</p>
+          <div class="sso-actions" aria-label="Client sign in options">
+            <button class="sso-button google" type="button" data-provider="google">
+              <span class="sso-mark" aria-hidden="true">G</span>
+              Continue with Google
+            </button>
+            <button class="sso-button apple" type="button" data-provider="apple">
+              <span class="sso-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" role="img" aria-label="Apple">
+                  <path d="M16.6 12.5c0-2 1.6-3 1.7-3.1-1-1.4-2.4-1.6-2.9-1.6-1.2-.1-2.4.7-3 0-.6-.7-1.6-1-2.6-1-1.3 0-2.6.8-3.2 2-1.4 2.4-.4 5.9 1 7.9.7 1 1.5 2.1 2.5 2.1 1 0 1.4-.7 2.6-.7s1.5.7 2.6.7 1.8-1 2.5-2c.8-1.1 1.1-2.2 1.1-2.3-.1 0-2.3-.9-2.3-3zm-2-6c.6-.7 1-1.6.9-2.5-.9 0-1.9.6-2.5 1.3-.6.6-1 1.6-.9 2.5.9.1 1.9-.5 2.5-1.3z" />
+                </svg>
+              </span>
+              Continue with Apple
+            </button>
+          </div>
+          <p class="auth-helper">Use the same account for payments, files, request history, and deliverable updates.</p>
+          <div class="legacy-auth-controls hidden" aria-hidden="true">
+            <input id="loginEmail" type="hidden" />
+            <input id="loginCompany" type="hidden" />
+            <button id="loginButton" type="button">Continue</button>
+          </div>
           <button class="secondary full hidden" id="signOutButton" type="button">Sign Out</button>
         </div>
       </section>
@@ -652,6 +664,7 @@
             <a href="#profile">Client Profile</a>
             <a href="#request">New Request</a>
             <a href="#billing">Billing</a>
+            <a href="#dashboard">Deliverables</a>
           </aside>
           <div class="dashboard-main">
             <div class="dashboard-header">
@@ -666,8 +679,33 @@
               <article><span>Active requests</span><strong id="activeCount">1</strong></article>
               <article><span>Next renewal</span><strong>Jun 18</strong></article>
             </div>
+            <div class="account-panel">
+              <div>
+                <p class="eyebrow">Account credit balance</p>
+                <h3><span id="accountCreditBalance">5</span> Advisory Credits available</h3>
+                <p>Starter credits and Credit Top Ups attach to this workspace. They are used only for deliverables requested from this account.</p>
+              </div>
+              <div class="account-actions">
+                <p id="accountCreditPrompt" class="credit-alert"></p>
+                <a class="primary" href="#billing" data-action="buy-topup">Credit Top Up</a>
+              </div>
+            </div>
             <div class="panel">
-              <h3>Requests</h3>
+              <div class="panel-heading">
+                <div>
+                  <h3>Deliverable status</h3>
+                  <p>Track work from intake through review, pause, and completion.</p>
+                </div>
+              </div>
+              <div class="status-board" aria-label="Deliverable status summary">
+                <article><span>Pending</span><strong id="pendingCount">0</strong><ul id="pendingDeliverables"></ul></article>
+                <article><span>In review</span><strong id="inReviewCount">0</strong><ul id="inReviewDeliverables"></ul></article>
+                <article><span>Paused</span><strong id="pausedCount">0</strong><ul id="pausedDeliverables"></ul></article>
+                <article><span>Completed</span><strong id="completedCount">0</strong><ul id="completedDeliverables"></ul></article>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Deliverable detail</h3>
               <table id="requestTable">
                 <thead>
                   <tr><th>Request</th><th>Type</th><th>Status</th><th>Due</th></tr>
@@ -676,7 +714,21 @@
               </table>
             </div>
             <div class="panel">
-              <h3>Credit usage history</h3>
+              <div class="panel-heading">
+                <div>
+                  <h3>Ready deliverables</h3>
+                  <p>Download current files and review previous versions released to your workspace.</p>
+                </div>
+              </div>
+              <div id="clientDeliverablesList" class="deliverable-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Credit usage history</h3>
+                  <p>Credits are reserved when a deliverable is accepted for work, then adjusted if the confirmed scope changes.</p>
+                </div>
+              </div>
               <table id="creditHistoryTable">
                 <thead>
                   <tr><th>Date</th><th>Deliverable</th><th>Credits</th><th>Balance</th></tr>
@@ -685,7 +737,12 @@
               </table>
             </div>
             <div class="panel">
-              <h3>Invoice and payment history</h3>
+              <div class="panel-heading">
+                <div>
+                  <h3>Payment history</h3>
+                  <p>Starter subscription payments and Credit Top Ups stay connected to this workspace.</p>
+                </div>
+              </div>
               <table id="paymentHistoryTable">
                 <thead>
                   <tr><th>Date</th><th>Item</th><th>Amount</th><th>Status</th></tr>
@@ -700,7 +757,12 @@
               <span id="creditUsageSummary">0 of 5 used this cycle</span>
               <div class="progress"><span id="creditUsageBar" style="width:0%"></span></div>
               <p id="creditAlert" class="credit-alert"></p>
-              <button data-action="buy-topup">Buy Credit Top Up</button>
+              <a class="primary full" href="#billing" data-action="buy-topup">Credit Top Up</a>
+            </article>
+            <article class="rail-card">
+              <strong>Workspace account</strong>
+              <span>Starter credits and added credits are linked to this client workspace.</span>
+              <span>Use the same workspace for requests, payments, files, and delivery history.</span>
             </article>
             <article class="rail-card">
               <strong>Support</strong>
@@ -715,8 +777,8 @@
         <div class="form-layout">
           <div>
             <p class="eyebrow">Client profile</p>
-            <h2>Build a useful client record from day one.</h2>
-            <p>This profile captures the details we need for delivery, scheduling, billing context, and future relationship management.</p>
+            <h2>Complete your client workspace profile.</h2>
+            <p>Complete this once so we can confirm billing, scheduling, delivery context, and file access for your workspace.</p>
           </div>
           <form id="profileForm" class="form-card">
             <div class="form-grid two">
@@ -913,9 +975,9 @@
         <div class="form-layout">
           <div>
             <p class="eyebrow">Checkout complete</p>
-            <h2>Your BA Advisory Desk workspace is ready.</h2>
+            <h2>Your payment has been received.</h2>
             <p>
-              Use the same email address used at checkout so we can align your account, Advisory Credits, and delivery history.
+              Use the same email address used at checkout so we can align your account, payment, and delivery history.
               After sign in, complete your client profile and submit the first request with any supporting files.
             </p>
             <div class="action-row">
@@ -926,7 +988,7 @@
           <div class="panel">
             <h3>What happens next</h3>
             <ul class="check-list">
-              <li>Secure account access is sent to your work email.</li>
+              <li>Sign in with Google or Apple to open your client workspace.</li>
               <li>Your profile captures company, role, timezone, and delivery context.</li>
               <li>Your first request can include multiple supporting files.</li>
               <li>Delivery updates appear inside the client workspace.</li>
@@ -947,7 +1009,7 @@
           <article>
             <span>Access</span>
             <strong>Client login</strong>
-            <small>Email based access supports controlled workspace access without shared passwords.</small>
+            <small>Google and Apple sign in support controlled workspace access without shared passwords.</small>
           </article>
           <article>
             <span>Files</span>
@@ -996,9 +1058,13 @@
           </article>
           <article>
             <h3>Operations alerts</h3>
-            <strong>Administrator workspace</strong>
-            <span>Configured for secure operational review</span>
+            <strong id="adminAlertCount">0</strong>
+            <span id="adminAlertSummary">No credit alerts</span>
           </article>
+        </div>
+        <div id="adminCreditAlertPanel" class="admin-alert-panel">
+          <strong>Credit account status</strong>
+          <span id="adminCreditAlertText">Credit balance is healthy.</span>
         </div>
         <div class="admin-workbench">
           <article class="panel">
@@ -1018,7 +1084,16 @@
                 Low credit alert threshold
                 <input id="adminLowCreditThreshold" type="number" min="0" step="1" value="2" />
               </label>
-              <button type="button" data-admin-action="save-credit-settings">Save Credit Settings</button>
+              <label>
+                Manual credit adjustment
+                <input id="adminCreditAdjustment" type="number" step="1" value="0" />
+                <small>Use a positive number to add credits or a negative number to remove credits.</small>
+              </label>
+              <label>
+                Adjustment reason
+                <input id="adminCreditAdjustmentReason" placeholder="Renewal, top up, courtesy credit, correction, or expiry" />
+              </label>
+              <button type="button" data-admin-action="save-credit-settings">Save Credit Update</button>
             </div>
           </article>
           <article class="panel">
@@ -1036,6 +1111,7 @@
                   <option>In progress</option>
                   <option>Delivered</option>
                   <option>Completed</option>
+                  <option>Completed and shipped</option>
                   <option>Paused, awaiting credits</option>
                 </select>
               </label>
@@ -1043,7 +1119,65 @@
                 Credits used
                 <input id="adminCreditsUsed" type="number" min="0" step="1" value="1" />
               </label>
+              <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a deliverable and confirm credits before shipping.</p>
               <button type="button" data-admin-action="ship-deliverable">Save Deliverable Update</button>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>Upload client deliverable</h3>
+            <div class="admin-controls">
+              <label>
+                Client
+                <select id="adminUploadClientSelect"></select>
+              </label>
+              <label>
+                Linked request
+                <select id="adminUploadRequestSelect"></select>
+              </label>
+              <label>
+                Existing deliverable
+                <select id="adminExistingDeliverableSelect"></select>
+                <small>Choose an existing deliverable to upload a new version, or create a new deliverable.</small>
+              </label>
+              <label>
+                Deliverable title
+                <input id="adminDeliverableTitle" placeholder="Requirements clarity package" />
+              </label>
+              <label>
+                Deliverable type
+                <select id="adminDeliverableType">
+                  <option>Requirements clarity package</option>
+                  <option>Functional and non functional requirements</option>
+                  <option>Business case</option>
+                  <option>Board presentation</option>
+                  <option>SOP or process package</option>
+                  <option>UAT scenario package</option>
+                  <option>AI assessment and governance framework</option>
+                  <option>Vendor readiness package</option>
+                  <option>Decision and dependency log</option>
+                  <option>Other Business Analysis deliverable</option>
+                </select>
+              </label>
+              <label>
+                Release summary
+                <textarea id="adminDeliverableSummary" rows="3" placeholder="Summarize what the client will receive."></textarea>
+              </label>
+              <label>
+                Version note
+                <textarea id="adminDeliverableReleaseNote" rows="3" placeholder="Describe what changed in this version."></textarea>
+              </label>
+              <label>
+                Upload deliverable files
+                <input id="adminDeliverableFiles" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg" />
+                <small>Upload one or more files. Each upload creates a controlled version for the selected deliverable.</small>
+              </label>
+              <div class="file-list" id="adminDeliverableFileList">No deliverable files selected yet.</div>
+              <label class="check-row">
+                <input id="adminNotifyClient" type="checkbox" checked />
+                Email the client when the deliverable is ready
+              </label>
+              <p id="adminDeliverableUploadStatus" class="admin-inline-status">Select a client and upload files when the deliverable is ready.</p>
+              <button type="button" data-admin-action="upload-deliverable">Upload Deliverable</button>
             </div>
           </article>
         </div>
@@ -1058,7 +1192,25 @@
           </table>
         </div>
         <div class="panel">
-          <h3>Credit and audit log</h3>
+          <h3>Payment history</h3>
+          <table id="adminPaymentHistoryTable">
+            <thead>
+              <tr><th>Date</th><th>Item</th><th>Amount</th><th>Status</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3>Credit ledger</h3>
+          <table id="adminCreditLedgerTable">
+            <thead>
+              <tr><th>Date</th><th>Deliverable or action</th><th>Credits</th><th>Balance</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h3>Audit log</h3>
           <table id="auditTable">
             <thead>
               <tr><th>Date</th><th>Event</th><th>Client</th><th>Details</th></tr>

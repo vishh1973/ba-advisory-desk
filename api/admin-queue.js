@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
     const [requests, quoteRequests, creditAccounts, paymentOrders, notifications] = await Promise.all([
       supabase
         .from("requests")
-        .select("id,organization_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at")
+        .select("id,organization_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at,client_organizations(name,billing_email)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
@@ -35,7 +35,7 @@ module.exports = async function handler(req, res) {
         .limit(limit),
       supabase
         .from("credit_accounts")
-        .select("id,organization_id,balance,low_credit_threshold,status,last_low_credit_reminder_at,created_at,updated_at")
+        .select("id,organization_id,balance,low_credit_threshold,status,last_low_credit_reminder_at,created_at,updated_at,client_organizations(name,billing_email)")
         .order("updated_at", { ascending: false })
         .limit(limit),
       supabase
@@ -53,12 +53,21 @@ module.exports = async function handler(req, res) {
     const firstError = [requests, quoteRequests, creditAccounts, paymentOrders, notifications].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
 
+    const { data: deliverables, error: deliverablesError } = await supabase
+      .from("deliverables")
+      .select("id,request_id,organization_id,title,deliverable_type,status,current_version_number,latest_version_id,created_at,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+
+    if (deliverablesError) throw deliverablesError;
+
     res.status(200).json({
       requests: requests.data || [],
       customQuoteRequests: quoteRequests.data || [],
       creditAccounts: creditAccounts.data || [],
       paymentOrders: paymentOrders.data || [],
       notifications: notifications.data || [],
+      deliverables: deliverables || [],
     });
   } catch (error) {
     res.status(500).json({ error: error.message || "Admin queue could not be loaded." });

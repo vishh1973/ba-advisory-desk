@@ -1,6 +1,6 @@
 # BA Advisory Desk Deployment Guide
 
-This app is prepared for Vercel hosting, GitHub based deployment, Stripe checkout, Supabase data storage, and automated credit reminders.
+This app is prepared for Vercel hosting, GitHub based deployment, Stripe checkout, Supabase data storage, Google and Apple sign in, private deliverable storage, and automated credit reminders.
 
 ## How future changes will work
 
@@ -45,7 +45,9 @@ Add these in Vercel Project Settings, Environment Variables:
 ```text
 PUBLIC_BASE_URL=https://baadvisorydesk.com
 ADMIN_EMAIL=vishh1973@gmail.com
+ADMIN_NOTIFICATION_EMAIL=vishh1973@gmail.com
 NOTIFICATION_FROM_EMAIL=BA Advisory Desk <support@baadvisorydesk.com>
+ADMIN_API_SECRET=
 
 SUPABASE_URL=https://ydkehgqitnxmvqoicxwu.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
@@ -57,6 +59,8 @@ STRIPE_STARTER_PRICE_ID=price_1TYXCtAPPPI08UZDJVWzzJhv
 STRIPE_TOPUP_PRICE_ID=price_1TYXDQAPPPI08UZDPKSUXUQv
 
 RESEND_API_KEY=
+RESEND_WEBHOOK_SECRET=
+RESEND_FORWARD_TO_EMAIL=vishh1973@gmail.com
 ```
 
 ## Supabase setup
@@ -64,10 +68,26 @@ RESEND_API_KEY=
 Run this SQL next in Supabase SQL Editor:
 
 ```text
-../Private Build Assets/credit_management_schema_v1.sql
+supabase/credit_payment_schema_v1.sql
+supabase/20260519_sso_admin_deliverable_storage_hardening.sql
 ```
 
-This adds credit accounts, payment orders, webhook events, credit reservations, status history, notifications, and the low-credit reminder function.
+This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, and the low-credit reminder function.
+
+## Supabase sign in setup
+
+In Supabase Authentication, enable Google as the first social provider. Add Apple after the Apple developer settings are ready.
+
+Add these redirect URLs in Supabase Authentication settings:
+
+```text
+https://baadvisorydesk.com/index.html
+https://baadvisorydesk.com/
+http://127.0.0.1:4281/index.html
+http://localhost:4281/index.html
+```
+
+Admin access is restricted to the allowlisted administrator email in the database and the Vercel `ADMIN_EMAIL` value.
 
 ## Stripe setup
 
@@ -99,4 +119,3 @@ STRIPE_WEBHOOK_SECRET=
 6. Vercel updates Supabase payment records.
 7. Vercel grants Advisory Credits in the Supabase credit ledger.
 8. Low-credit reminders are queued by `/api/low-credit-reminders`.
-
