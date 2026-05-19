@@ -35,6 +35,17 @@ Last updated: 2026-05-19
 - [x] Final Supabase hardening script added to restrict profile organization, role, trusted email, and verification changes.
 - [x] SQL tables and RLS added for client revision uploads and client deliverable messages.
 
+## Addressed In Hosted Configuration
+
+- [x] Supabase Site URL set to `https://baadvisorydesk.com/`.
+- [x] Supabase redirect URLs include production, localhost 4273, and localhost 4281 paths.
+- [x] Supabase schema and hardening SQL sequence applied to the hosted database.
+- [x] Supabase email password rules set to 12 characters with lower case, upper case, number, and symbol requirements.
+- [x] Supabase secure password change and current password requirements enabled.
+- [x] Supabase custom SMTP configured through Resend using `support@baadvisorydesk.com`.
+- [x] Supabase account confirmation email template branded as BA Advisory Desk.
+- [x] Supabase password reset email template branded as BA Advisory Desk.
+
 ## In Progress
 
 - [x] Admin queue safety: prevent wrong-client upload and credit actions.
@@ -47,11 +58,8 @@ Last updated: 2026-05-19
 
 ## Pending External Configuration
 
-- [ ] Configure Supabase custom SMTP using Resend so authentication emails come from BA Advisory Desk.
-- [ ] Configure Supabase authentication email templates with BA Advisory Desk branding.
 - [ ] Configure Google sign-in in Google Cloud and Supabase.
 - [ ] Configure Apple sign-in after Apple Developer credentials are available.
-- [ ] Confirm Supabase password policy matches the app rule of at least 12 characters with upper and lower case letters, a number, and a symbol.
 
 ## Pending Architecture Work
 

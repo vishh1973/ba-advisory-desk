@@ -65,7 +65,7 @@ RESEND_FORWARD_TO_EMAIL=vishh1973@gmail.com
 
 ## Supabase setup
 
-Run this SQL next in Supabase SQL Editor:
+The hosted Supabase database has been configured with this SQL sequence:
 
 ```text
 supabase/credit_payment_schema_v1.sql
@@ -95,10 +95,17 @@ Google and Apple are hidden in the app until each provider is fully configured. 
 Add these redirect URLs in Supabase Authentication settings:
 
 ```text
-https://baadvisorydesk.com/index.html
+https://baadvisorydesk.com/**
+http://127.0.0.1:4273/**
+http://localhost:4273/**
+http://127.0.0.1:4281/**
+http://localhost:4281/**
+```
+
+Set the Supabase Site URL to:
+
+```text
 https://baadvisorydesk.com/
-http://127.0.0.1:4281/index.html
-http://localhost:4281/index.html
 ```
 
 Admin access is restricted to the allowlisted administrator email in the database and the Vercel `ADMIN_EMAIL` value.
@@ -121,7 +128,7 @@ SMTP password: Resend API key
 Security: SSL or TLS
 ```
 
-Then update Supabase Auth email templates so confirmation and password reset emails use BA Advisory Desk wording and buttons. Do not leave platform default sender names or default template wording in place.
+Confirmation and password reset templates have been updated with BA Advisory Desk wording. Keep all future authentication templates aligned with the same sender name, support address, and professional tone.
 
 ## Google sign-in setup
 
