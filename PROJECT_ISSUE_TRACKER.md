@@ -46,6 +46,8 @@ Last updated: 2026-05-19
 - [x] Supabase account confirmation email template branded as BA Advisory Desk.
 - [x] Supabase password reset email template branded as BA Advisory Desk.
 - [x] Google OAuth client created in Google Cloud and Google sign-in enabled in Supabase.
+- [x] Live Google sign-in verified to reach the Google account chooser without provider errors.
+- [x] Live custom advisory request route verified with Supabase insert and Resend email delivery.
 
 ## In Progress
 
