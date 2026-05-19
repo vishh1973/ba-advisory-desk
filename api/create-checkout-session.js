@@ -17,6 +17,11 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const stripe = getStripe();
 
+    if ((productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
+      res.status(400).json({ error: "Please sign in and complete the client profile before purchasing this package." });
+      return;
+    }
+
     const { data: order, error: orderError } = await supabase
       .from("payment_orders")
       .insert({
