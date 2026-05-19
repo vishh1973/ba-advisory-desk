@@ -27,7 +27,7 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk</title>
-    <link rel="stylesheet" href="./styles.css?v=1" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js"></script>
     <script type="application/ld+json">
@@ -153,12 +153,18 @@
       <nav>
         <a href="#home">Home</a>
         <a href="#services">Services</a>
-        <a href="#about">About Us</a>
         <a href="#samples">Sample Work</a>
         <a href="#pricing">Pricing</a>
-        <a href="#security">Security</a>
+        <a href="#faq">FAQ</a>
+        <details class="nav-group">
+          <summary>About Us</summary>
+          <div class="nav-dropdown">
+            <a href="#about">Who We Are</a>
+            <a href="#security">Security</a>
+            <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support" data-mailto="support">Contact Support</a>
+          </div>
+        </details>
         <a href="#login">Client Login</a>
-        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support" data-mailto="support">Support</a>
       </nav>
       <a class="primary small" href="#pricing">View Advisory Plans</a>
     </header>
@@ -609,6 +615,26 @@
           <a class="primary" href="#pricing">View Advisory Plans</a>
           <a class="secondary" href="#login">Client Login</a>
         </div>
+      </section>
+
+      <section class="view" id="view-faq">
+        <div class="faq-hero">
+          <div>
+            <p class="eyebrow" data-content="faq-eyebrow">Frequently Asked Questions</p>
+            <h2 data-content="faq-headline">Clear answers before you start.</h2>
+            <p data-content="faq-body">
+              These questions explain how BA Advisory Desk works, what clients can request, how credits are handled, how deliverables are managed, and how client information is protected.
+            </p>
+            <div class="faq-quick-links" data-render="faq-featured"></div>
+          </div>
+          <aside class="faq-support-card">
+            <span>Need a direct answer?</span>
+            <strong>Send the question before you buy.</strong>
+            <p>We can help you choose between a Rescue Sprint, Starter plan, Credit Top Up, or custom advisory request.</p>
+            <a class="primary full" href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Question" data-mailto="support">Contact Support</a>
+          </aside>
+        </div>
+        <div class="faq-board" data-render="faq-categories"></div>
       </section>
 
       <section class="view" id="view-pricing">
@@ -1589,8 +1615,8 @@
       <span id="toastText"></span>
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
-    <script src="./content.js?v=1"></script>
-    <script src="./app.js?v=1"></script>
+    <script src="./content.js?v=2"></script>
+    <script src="./app.js?v=2"></script>
   </body>
 </html>
 

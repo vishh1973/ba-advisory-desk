@@ -65,6 +65,7 @@ const views = {
   about: document.querySelector("#view-about"),
   services: document.querySelector("#view-services"),
   samples: document.querySelector("#view-samples"),
+  faq: document.querySelector("#view-faq"),
   pricing: document.querySelector("#view-pricing"),
   security: document.querySelector("#view-security"),
   login: document.querySelector("#view-login"),
@@ -331,6 +332,18 @@ function cardHtml(item) {
   `;
 }
 
+function faqDetailsHtml(item) {
+  return `
+    <details class="capability-card faq-card">
+      <summary>
+        <span>Question</span>
+        <strong>${escapeHtml(item.question || "")}</strong>
+      </summary>
+      <p>${escapeHtml(item.answer || "")}</p>
+    </details>
+  `;
+}
+
 function renderContentDrivenSections() {
   const hero = siteContent.hero || {};
   setTextContent('[data-content="hero-eyebrow"]', hero.eyebrow);
@@ -403,6 +416,44 @@ function renderContentDrivenSections() {
   const servicesGrid = document.querySelector('[data-render="services-grid"]');
   if (servicesGrid && Array.isArray(services.items)) {
     servicesGrid.innerHTML = services.items.map(cardHtml).join("");
+  }
+
+  const faq = siteContent.faq || {};
+  setTextContent('[data-content="faq-eyebrow"]', faq.eyebrow);
+  setTextContent('[data-content="faq-headline"]', faq.headline);
+  setTextContent('[data-content="faq-body"]', faq.body);
+
+  const faqFeatured = document.querySelector('[data-render="faq-featured"]');
+  if (faqFeatured && Array.isArray(faq.featured)) {
+    faqFeatured.innerHTML = faq.featured
+      .map(
+        (item) => `
+          <article>
+            <strong>${escapeHtml(item.question || "")}</strong>
+            <p>${escapeHtml(item.answer || "")}</p>
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  const faqBoard = document.querySelector('[data-render="faq-categories"]');
+  if (faqBoard && Array.isArray(faq.categories)) {
+    faqBoard.innerHTML = faq.categories
+      .map(
+        (category) => `
+          <section class="faq-category">
+            <div>
+              <span>${escapeHtml(category.title || "")}</span>
+              <p>${escapeHtml(category.description || "")}</p>
+            </div>
+            <div class="capability-board">
+              ${(category.questions || []).map(faqDetailsHtml).join("")}
+            </div>
+          </section>
+        `
+      )
+      .join("");
   }
 }
 

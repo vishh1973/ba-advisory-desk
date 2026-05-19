@@ -318,6 +318,183 @@ button:hover {
   --accent: #334155;
 }
 
+.nav-group {
+  position: relative;
+}
+
+.nav-group summary {
+  color: #344255;
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.nav-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-group summary::after {
+  content: " v";
+  font-size: 11px;
+}
+
+.nav-dropdown {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: 28px;
+  z-index: 20;
+}
+
+.nav-dropdown a {
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+
+.nav-dropdown a:hover {
+  background: #eef8f6;
+}
+
+.faq-hero {
+  display: grid;
+  gap: 26px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.55fr);
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.faq-hero > div,
+.faq-support-card,
+.faq-category {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.faq-hero > div {
+  padding: 34px;
+}
+
+.faq-hero p {
+  color: var(--slate);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.faq-support-card {
+  align-content: center;
+  background:
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.18), transparent 38%),
+    linear-gradient(145deg, #ffffff, #eef8f6);
+  display: grid;
+  gap: 14px;
+  padding: 28px;
+}
+
+.faq-support-card span {
+  color: var(--teal-dark);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.faq-support-card strong {
+  color: var(--navy);
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.faq-support-card p {
+  color: var(--slate);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.faq-quick-links {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.faq-quick-links article {
+  background: #f7fafc;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--teal);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.faq-quick-links article:nth-child(2) {
+  border-left-color: #f59e0b;
+}
+
+.faq-quick-links article:nth-child(3) {
+  border-left-color: #2563eb;
+}
+
+.faq-quick-links article:nth-child(4) {
+  border-left-color: #334155;
+}
+
+.faq-quick-links strong {
+  color: var(--navy);
+  display: block;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.faq-quick-links p {
+  color: var(--slate);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.faq-board {
+  display: grid;
+  gap: 18px;
+  margin: 28px auto 0;
+  max-width: 1180px;
+}
+
+.faq-category {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: minmax(220px, 0.35fr) minmax(0, 1fr);
+  padding: 26px;
+}
+
+.faq-category > div:first-child span {
+  color: var(--teal-dark);
+  display: block;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.faq-category > div:first-child p {
+  color: var(--slate);
+  line-height: 1.5;
+}
+
+.faq-card summary span {
+  color: var(--teal-dark);
+}
+
+.faq-card p {
+  font-size: 15px;
+}
+
 .site-footer {
   background: #0b1f33;
   color: var(--white);
@@ -350,6 +527,7 @@ button:hover {
   font-size: 14px;
   line-height: 1.5;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .site-footer a {
@@ -2021,6 +2199,8 @@ input[type="file"]::file-selector-button:hover {
 
 @media (max-width: 980px) {
   .about-hero,
+  .faq-hero,
+  .faq-category,
   .hero,
   .hero-proof-grid,
   .sso-actions,
@@ -2038,6 +2218,7 @@ input[type="file"]::file-selector-button:hover {
   .delivery-summary-grid,
   .client-action-grid,
   .testimonial-strip,
+  .faq-quick-links,
   .sample-grid {
     grid-template-columns: 1fr;
   }
@@ -2124,6 +2305,11 @@ input[type="file"]::file-selector-button:hover {
     justify-content: flex-start;
     overflow: visible;
     padding-bottom: 0;
+  }
+
+  .nav-dropdown {
+    left: 0;
+    right: auto;
   }
 
   nav::-webkit-scrollbar {
@@ -2278,8 +2464,7 @@ input[type="file"]::file-selector-button:hover {
   }
 
   nav a:nth-child(3),
-  nav a:nth-child(4),
-  nav a:nth-child(6) {
+  nav a:nth-child(4) {
     display: none;
   }
 }
