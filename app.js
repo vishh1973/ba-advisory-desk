@@ -80,6 +80,8 @@ const state = {
   ],
   session: null,
   adminQueue: [],
+  adminClients: [],
+  adminNewCount: 0,
   quoteCount: 0,
 };
 
@@ -150,6 +152,15 @@ function addPaymentHistory(item, amount, status) {
   state.paymentHistory = state.paymentHistory.slice(0, 20);
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function getLowCreditMessage() {
   if (state.creditsLeft <= 0) {
     return "No Advisory Credits remain. New deliverables are paused until credits are added.";
@@ -162,6 +173,14 @@ function getLowCreditMessage() {
 
 function getAuthRedirectUrl() {
   return `${window.location.origin}${window.location.pathname}#dashboard`;
+}
+
+function isAdminUser() {
+  return Boolean(
+    state.session?.user?.email &&
+      config.adminEmail &&
+      state.session.user.email.toLowerCase() === config.adminEmail.toLowerCase()
+  );
 }
 
 function setAuthStatus(message) {
@@ -209,6 +228,54 @@ async function initAuth() {
 
 function getUserId() {
   return state.session?.user?.id || null;
+}
+
+async function getSessionAccessToken() {
+  if (state.session?.access_token) {
+    return state.session.access_token;
+  }
+
+  if (!supabaseClient) {
+    return null;
+  }
+
+  const { data } = await supabaseClient.auth.getSession();
+  state.session = data.session;
+  updateAuthUi();
+  return data.session?.access_token || null;
+}
+
+async function fetchAdminApi(path, options = {}) {
+  const token = await getSessionAccessToken();
+  if (!token) {
+    return { ok: false, error: "Please sign in with the administrator email before using the operations workspace." };
+  }
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {}),
+  };
+
+  try {
+    const response = await fetch(path, {
+      ...options,
+      headers,
+      body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
+    });
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (_error) {
+        data = { error: "The admin service returned an unexpected response." };
+      }
+    }
+    return response.ok ? { ok: true, data } : { ok: false, error: data.error || "The admin request could not be completed." };
+  } catch (error) {
+    return { ok: false, error: error.message || "The admin request could not be completed." };
+  }
 }
 
 async function getProfileOrganizationId() {
@@ -331,6 +398,16 @@ function setView() {
   const protectedViews = ["dashboard", "profile", "request", "billing"];
   let key = views[rawKey] ? rawKey : rawKey.startsWith("error=") ? "login" : "home";
 
+  if (key === "admin" && !state.session?.user) {
+    key = "login";
+    setAuthStatus("Please sign in with the administrator email to open the admin workspace.");
+  }
+
+  if (key === "admin" && state.session?.user && !isAdminUser()) {
+    key = "dashboard";
+    showToast("Admin access is restricted to the administrator email.");
+  }
+
   if (supabaseClient && protectedViews.includes(key) && !state.session?.user) {
     key = "login";
     setAuthStatus("Please sign in before opening the client workspace.");
@@ -353,10 +430,10 @@ function renderRequests() {
     .map(
       (request) => `
         <tr>
-          <td>${request.id}</td>
-          <td>${request.type}</td>
-          <td>${request.status}</td>
-          <td>${request.due}</td>
+          <td>${escapeHtml(request.id)}</td>
+          <td>${escapeHtml(request.type)}</td>
+          <td>${escapeHtml(request.status)}</td>
+          <td>${escapeHtml(request.due)}</td>
         </tr>
       `
     )
@@ -375,10 +452,10 @@ function renderRequests() {
     .map(
       (item) => `
         <tr>
-          <td>${item.client}</td>
-          <td>${item.type}</td>
-          <td>${item.action}</td>
-          <td>${item.status}</td>
+          <td>${escapeHtml(item.client)}</td>
+          <td>${escapeHtml(item.type)}</td>
+          <td>${escapeHtml(item.action)}</td>
+          <td>${escapeHtml(item.status)}</td>
         </tr>
       `
     )
@@ -392,10 +469,10 @@ function renderCreditHistory() {
     .map(
       (item) => `
         <tr>
-          <td>${item.date}</td>
-          <td>${item.deliverable}</td>
-          <td>${item.credits}</td>
-          <td>${item.balance}</td>
+          <td>${escapeHtml(item.date)}</td>
+          <td>${escapeHtml(item.deliverable)}</td>
+          <td>${escapeHtml(item.credits)}</td>
+          <td>${escapeHtml(item.balance)}</td>
         </tr>
       `
     )
@@ -405,10 +482,10 @@ function renderCreditHistory() {
     .map(
       (item) => `
         <tr>
-          <td>${item.date}</td>
-          <td>${item.item}</td>
-          <td>${item.amount}</td>
-          <td>${item.status}</td>
+          <td>${escapeHtml(item.date)}</td>
+          <td>${escapeHtml(item.item)}</td>
+          <td>${escapeHtml(item.amount)}</td>
+          <td>${escapeHtml(item.status)}</td>
         </tr>
       `
     )
@@ -418,10 +495,10 @@ function renderCreditHistory() {
     .map(
       (item) => `
         <tr>
-          <td>${item.date}</td>
-          <td>${item.event}</td>
-          <td>${item.client}</td>
-          <td>${item.details}</td>
+          <td>${escapeHtml(item.date)}</td>
+          <td>${escapeHtml(item.event)}</td>
+          <td>${escapeHtml(item.client)}</td>
+          <td>${escapeHtml(item.details)}</td>
         </tr>
       `
     )
@@ -445,6 +522,7 @@ function renderCreditControls() {
   const adminBalance = document.querySelector("#adminCreditBalance");
   const adminThreshold = document.querySelector("#adminLowCreditThreshold");
   const deliverableSelect = document.querySelector("#adminDeliverableSelect");
+  const clientSelect = document.querySelector("#adminClientSelect");
 
   if (summary) summary.textContent = usageText;
   if (bar) bar.style.width = `${usagePercent}%`;
@@ -454,9 +532,30 @@ function renderCreditControls() {
   }
   if (adminBalance) adminBalance.value = state.creditsLeft;
   if (adminThreshold) adminThreshold.value = state.creditThreshold;
+  if (clientSelect) {
+    const clients = state.adminClients.length
+      ? state.adminClients
+      : state.adminQueue.length
+      ? state.adminQueue.reduce((list, item) => {
+          if (!list.some((client) => client.id === item.organizationId && client.name === item.client)) {
+            list.push({ id: item.organizationId || "", name: item.client || "Client workspace" });
+          }
+          return list;
+        }, [])
+      : [{ id: "", name: state.client.company }];
+    clientSelect.innerHTML = clients
+      .map((client) => `<option value="${escapeHtml(client.id)}">${escapeHtml(client.name)}</option>`)
+      .join("");
+  }
   if (deliverableSelect) {
-    deliverableSelect.innerHTML = state.requests
-      .map((request) => `<option value="${request.id}">${request.id} - ${request.type}</option>`)
+    const deliverables = state.adminQueue.filter((item) => item.requestId || item.id);
+    const source = deliverables.length ? deliverables : state.requests;
+    deliverableSelect.innerHTML = source
+      .map((request) => {
+        const value = request.requestId || request.id;
+        const label = `${request.id || request.requestCode || value} - ${request.type || "Client request"}`;
+        return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+      })
       .join("");
   }
 }
@@ -465,44 +564,142 @@ function render() {
   document.querySelector("#clientName").textContent = state.client.company;
   document.querySelector("#creditsLeft").textContent = state.creditsLeft;
   document.querySelector("#activeCount").textContent = state.requests.filter((request) => request.status !== "Complete").length;
-  document.querySelector("#adminNewCount").textContent = state.adminQueue.length || state.requests.filter((request) => request.status === "New").length;
+  document.querySelector("#adminNewCount").textContent = state.adminNewCount || state.requests.filter((request) => request.status === "New").length;
   document.querySelector("#adminQuoteCount").textContent = state.quoteCount;
   renderRequests();
   renderCreditHistory();
   renderCreditControls();
 }
 
-async function loadAdminQueue() {
-  if (!supabaseClient) return;
+function setAdminStatus(message) {
+  const status = document.querySelector("#adminQueueStatus");
+  if (status) status.textContent = message;
+}
 
-  const { data: requests } = await supabaseClient
-    .from("requests")
-    .select("request_code, request_type, status, created_at")
-    .order("created_at", { ascending: false })
-    .limit(10);
+function normalizeAdminQueueItem(item) {
+  const organization = item.organization || item.organizations || item.account || {};
+  const client =
+    item.client ||
+    item.client_name ||
+    item.company ||
+    item.organization_name ||
+    organization.name ||
+    item.work_email ||
+    "Client workspace";
+  const requestId = item.requestId || item.request_id || item.id || item.related_request_id || null;
+  const requestCode = item.requestCode || item.request_code || item.code || requestId || "Request";
+  const type = item.type || item.request_type || item.title || item.company_type || item.queue_type || "Client request";
+  const action = item.action || item.next_action || item.nextAction || "Review intake";
+  const status = item.status || item.current_status || "New";
 
-  const { data: quotes } = await supabaseClient
-    .from("custom_quote_requests")
-    .select("company_type, estimated_budget, status, created_at")
-    .order("created_at", { ascending: false })
-    .limit(10);
+  return {
+    id: requestCode,
+    requestId,
+    organizationId: item.organizationId || item.organization_id || organization.id || null,
+    client,
+    type,
+    action,
+    status,
+  };
+}
 
-  const requestRows = (requests || []).map((request) => ({
-    client: "Client request",
-    type: request.request_type || request.request_code || "BA request",
-    action: "Review intake",
-    status: request.status || "new",
-  }));
+function normalizeAdminRequest(request) {
+  return {
+    id: request.request_code || request.id || "Request",
+    requestId: request.id || null,
+    organizationId: request.organization_id || null,
+    client: request.organization_id ? `Workspace ${String(request.organization_id).slice(0, 8)}` : "Client workspace",
+    type: request.request_type || request.request_code || "Client request",
+    action: request.status === "new" ? "Scope request" : "Review intake",
+    status: request.status || "New",
+  };
+}
 
-  const quoteRows = (quotes || []).map((quote) => ({
-    client: quote.company_type || "Custom inquiry",
-    type: `Custom quote ${quote.estimated_budget ? `(${quote.estimated_budget})` : ""}`,
+function normalizeCustomQuoteRequest(quote) {
+  return {
+    id: quote.id || "Custom quote",
+    requestId: quote.id || null,
+    organizationId: quote.organization_id || null,
+    client: quote.work_email || "Custom inquiry",
+    type: `Custom quote${quote.company_type ? `: ${quote.company_type}` : ""}`,
     action: "Schedule discovery",
-    status: quote.status || "new",
+    status: quote.status || "New",
+  };
+}
+
+function normalizePaymentOrder(order) {
+  return {
+    id: order.id || "Payment",
+    requestId: order.id || null,
+    organizationId: order.organization_id || null,
+    client: order.organization_id ? `Workspace ${String(order.organization_id).slice(0, 8)}` : "Client workspace",
+    type: order.product_type || "Payment order",
+    action: "Review payment",
+    status: order.status || "Pending",
+  };
+}
+
+function normalizeNotification(notification) {
+  return {
+    id: notification.id || "Notification",
+    requestId: notification.related_entity_id || notification.id || null,
+    organizationId: notification.organization_id || null,
+    client: notification.recipient_email || "Client workspace",
+    type: notification.subject || notification.template_key || "Notification",
+    action: "Check notification",
+    status: notification.status || "Queued",
+  };
+}
+
+function applyAdminQueueData(data) {
+  const requests = data.requests || [];
+  const quoteItems = data.quotes || data.customQuoteRequests || [];
+  const paymentOrders = data.paymentOrders || [];
+  const notifications = data.notifications || [];
+  const fallbackItems = data.items || data.queue || data.adminQueue || [];
+  const normalizedItems = [
+    ...requests.map(normalizeAdminRequest),
+    ...quoteItems.map(normalizeCustomQuoteRequest),
+    ...paymentOrders.map(normalizePaymentOrder),
+    ...notifications.map(normalizeNotification),
+    ...fallbackItems.map(normalizeAdminQueueItem),
+  ].slice(0, 25);
+  state.adminQueue = normalizedItems;
+  state.adminNewCount = Number(data.requestCount ?? data.request_count ?? requests.length ?? 0);
+  state.quoteCount = Number(data.quoteCount ?? data.quote_count ?? quoteItems.length ?? 0);
+
+  const creditAccounts = data.creditAccounts || [];
+  state.adminClients = creditAccounts.map((account) => ({
+    id: account.organization_id || "",
+    name: account.organization_id ? `Workspace ${String(account.organization_id).slice(0, 8)}` : "Client workspace",
   }));
 
-  state.adminQueue = [...requestRows, ...quoteRows].slice(0, 12);
-  state.quoteCount = quoteRows.length;
+  if (creditAccounts.length || data.creditAccount || data.credit_account) {
+    const creditAccount = creditAccounts[0] || data.creditAccount || data.credit_account;
+    state.creditsLeft = Number(creditAccount.balance ?? state.creditsLeft);
+    state.creditThreshold = Number(creditAccount.low_credit_threshold ?? creditAccount.lowCreditThreshold ?? state.creditThreshold);
+  }
+
+  if (data.client) {
+    state.client.company = data.client.company || data.client.name || state.client.company;
+    state.client.email = data.client.email || state.client.email;
+  }
+}
+
+async function loadAdminQueue() {
+  if (!supabaseClient || !isAdminUser()) return;
+
+  setAdminStatus("Loading admin queue.");
+  const result = await fetchAdminApi("/api/admin-queue");
+
+  if (!result.ok) {
+    setAdminStatus(result.error || "Admin queue could not be loaded.");
+    showToast("Admin queue could not be loaded. Please try again.");
+    return;
+  }
+
+  applyAdminQueueData(result.data || {});
+  setAdminStatus(state.adminQueue.length ? "Admin queue is current." : "No admin items need review.");
   render();
 }
 
@@ -633,13 +830,20 @@ document.addEventListener("click", (event) => {
   beginCheckout(target.dataset.action);
 });
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-admin-action]");
   if (!target) return;
 
   if (target.dataset.adminAction === "save-credit-settings") {
-    state.creditsLeft = Math.max(0, Number(document.querySelector("#adminCreditBalance").value || 0));
-    state.creditThreshold = Math.max(0, Number(document.querySelector("#adminLowCreditThreshold").value || 0));
+    if (!isAdminUser()) {
+      showToast("Please sign in with the administrator email before saving.");
+      return;
+    }
+
+    const balance = Math.max(0, Number(document.querySelector("#adminCreditBalance").value || 0));
+    const lowCreditThreshold = Math.max(0, Number(document.querySelector("#adminLowCreditThreshold").value || 0));
+    state.creditsLeft = balance;
+    state.creditThreshold = lowCreditThreshold;
     addCreditHistory("Admin credit balance update", "Manual update", state.creditsLeft);
     addAuditEvent("Credit settings updated", `Balance set to ${state.creditsLeft}. Low credit threshold set to ${state.creditThreshold}.`);
     saveState();
@@ -651,27 +855,29 @@ document.addEventListener("click", (event) => {
     const requestId = document.querySelector("#adminDeliverableSelect").value;
     const status = document.querySelector("#adminDeliverableStatus").value;
     const creditsUsed = Math.max(0, Number(document.querySelector("#adminCreditsUsed").value || 0));
+    const adminItem = state.adminQueue.find((item) => item.requestId === requestId || item.id === requestId);
     const request = state.requests.find((item) => item.id === requestId);
-    if (!request) {
+    if (!request && !adminItem) {
       showToast("Select a deliverable before saving.");
       return;
     }
 
-    if (creditsUsed > state.creditsLeft && status !== "Paused, awaiting credits") {
-      request.status = "Paused";
-      addAuditEvent("Deliverable paused", `${request.id} paused because available credits are below the requested usage.`);
-      saveState();
-      render();
-      showToast("Deliverable paused because the client does not have enough credits.");
+    if (!isAdminUser()) {
+      showToast("Please sign in with the administrator email before saving.");
       return;
     }
 
-    request.status = status === "Delivered" || status === "Completed" ? "Complete" : status;
+    if (request) {
+      request.status = status === "Delivered" || status === "Completed" ? "Complete" : status;
+    }
+    if (adminItem) {
+      adminItem.status = status === "Delivered" || status === "Completed" ? "Complete" : status;
+    }
     if (creditsUsed > 0) {
       state.creditsLeft = Math.max(0, state.creditsLeft - creditsUsed);
-      addCreditHistory(request.type, `-${creditsUsed} consumed`, state.creditsLeft);
+      addCreditHistory(request?.type || adminItem.type, `-${creditsUsed} consumed`, state.creditsLeft);
     }
-    addAuditEvent("Deliverable status updated", `${request.id} set to ${status}. Credits used: ${creditsUsed}.`);
+    addAuditEvent("Deliverable status updated", `${request?.id || adminItem.id} set to ${status}. Credits used: ${creditsUsed}.`);
     saveState();
     render();
     showToast("Deliverable status and credit usage updated.");

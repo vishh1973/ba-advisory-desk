@@ -1,9 +1,15 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
+const { requireAdmin } = require("./_lib/adminAuth");
 
 module.exports = async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) {
     res.status(405).json({ error: "Method not allowed." });
+    return;
+  }
+
+  if (!(await requireAdmin(req, { allowSecret: true }))) {
+    res.status(401).json({ error: "Unauthorized." });
     return;
   }
 

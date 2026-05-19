@@ -1,10 +1,5 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
-
-function requireAdmin(req) {
-  const expected = process.env.ADMIN_API_SECRET;
-  if (!expected) return false;
-  return req.headers["x-admin-secret"] === expected;
-}
+const { requireAdmin } = require("./_lib/adminAuth");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -12,7 +7,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  if (!requireAdmin(req)) {
+  if (!(await requireAdmin(req, { allowSecret: true }))) {
     res.status(401).json({ error: "Unauthorized." });
     return;
   }
