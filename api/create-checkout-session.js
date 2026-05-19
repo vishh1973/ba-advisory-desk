@@ -1,5 +1,13 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { getStripe, getPriceConfig } = require("./_lib/stripeClient");
+const {
+  getCreditBalance,
+  grantPurchaseCredits,
+  markOrderPaid,
+  notifyPaymentConfirmed,
+  recordPaymentHistory,
+  recordAuditEvent,
+} = require("./_lib/paymentAndCredit");
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase() || null;
@@ -69,6 +77,181 @@ async function findStripeCustomerId(supabase, organizationId) {
   return order?.stripe_customer_id || null;
 }
 
+function isoFromUnixSeconds(value) {
+  return Number.isFinite(Number(value)) ? new Date(Number(value) * 1000).toISOString() : null;
+}
+
+function stripeCustomerIdFrom(value) {
+  return typeof value === "string" ? value : value?.id || null;
+}
+
+function subscriptionIdFrom(value) {
+  return typeof value === "string" ? value : value?.id || null;
+}
+
+function customerEmailFromSession(session) {
+  return session.customer_details?.email || session.customer_email || session.metadata?.client_email || null;
+}
+
+function periodFromSubscription(subscription) {
+  return {
+    start: isoFromUnixSeconds(subscription?.current_period_start),
+    end: isoFromUnixSeconds(subscription?.current_period_end),
+  };
+}
+
+async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata = {}) {
+  if (!subscription?.id) return null;
+  const metadata = subscription.metadata || fallbackMetadata || {};
+  const organizationId = metadata.organization_id || metadata.workspace_id || null;
+  if (!organizationId) return null;
+
+  const stripeCustomerId = stripeCustomerIdFrom(subscription.customer);
+  const period = periodFromSubscription(subscription);
+  const { error } = await supabase
+    .from("subscriptions")
+    .upsert(
+      {
+        organization_id: organizationId,
+        stripe_customer_id: stripeCustomerId,
+        stripe_subscription_id: subscription.id,
+        plan_name: "Starter",
+        status: subscription.status || "active",
+        monthly_credit_allowance: Number(metadata.credits || getPriceConfig("starter_monthly").credits),
+        current_period_start: period.start,
+        current_period_end: period.end,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "stripe_subscription_id" }
+    );
+
+  if (error) throw error;
+
+  if (stripeCustomerId) {
+    await supabase
+      .from("client_organizations")
+      .update({ stripe_customer_id: stripeCustomerId, updated_at: new Date().toISOString() })
+      .eq("id", organizationId)
+      .then(() => null, () => null);
+  }
+  return { period, stripeCustomerId };
+}
+
+async function reconcileCheckoutSession({ supabase, stripe, bearerToken, sessionId }) {
+  if (!sessionId) {
+    return { status: 400, body: { error: "Checkout session was not provided." } };
+  }
+
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const metadata = session.metadata || {};
+  const paymentOrderId = metadata.payment_order_id || null;
+  let orderQuery = supabase.from("payment_orders").select("*");
+  orderQuery = paymentOrderId
+    ? orderQuery.eq("id", paymentOrderId)
+    : orderQuery.eq("stripe_checkout_session_id", session.id);
+
+  const { data: order, error: orderError } = await orderQuery.maybeSingle();
+  if (orderError) throw orderError;
+  if (!order) {
+    return { status: 404, body: { error: "Payment record could not be found for this checkout session." } };
+  }
+
+  const organizationId = order.organization_id || metadata.organization_id || metadata.workspace_id || null;
+  const workspace = await getAuthenticatedWorkspace({ supabase, bearerToken, organizationId });
+  if (workspace.error) {
+    return { status: workspace.status, body: { error: workspace.error } };
+  }
+
+  if (session.payment_status !== "paid" && session.status !== "complete") {
+    return {
+      status: 409,
+      body: {
+        error: "Payment is still being confirmed. Please wait a moment and refresh billing.",
+        paymentStatus: session.payment_status || session.status || "pending",
+      },
+    };
+  }
+
+  const stripeCustomerId = stripeCustomerIdFrom(session.customer);
+  let subscription = null;
+  const subscriptionId = subscriptionIdFrom(session.subscription);
+  if (subscriptionId) {
+    subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    await upsertSubscriptionRecord(supabase, subscription, metadata);
+  }
+
+  const paidAt = isoFromUnixSeconds(session.created) || new Date().toISOString();
+  const paidOrder = {
+    ...order,
+    stripe_payment_intent_id: session.payment_intent || null,
+    stripe_invoice_id: session.invoice || null,
+    stripe_checkout_session_id: session.id,
+    stripe_customer_id: stripeCustomerId,
+  };
+
+  await markOrderPaid(supabase, paidOrder, {
+    paidAt,
+    stripePaymentIntentId: session.payment_intent || null,
+    stripeInvoiceId: session.invoice || null,
+    stripeCheckoutSessionId: session.id,
+    stripeCustomerId,
+  });
+
+  await recordPaymentHistory(supabase, {
+    order: paidOrder,
+    session,
+    eventType: "checkout.session.reconciled",
+  });
+
+  const period = periodFromSubscription(subscription);
+  const creditGrant = await grantPurchaseCredits(supabase, {
+    order: paidOrder,
+    stripeSourceId: `session-${session.id}`,
+    stripePaymentIntentId: session.payment_intent,
+    stripeInvoiceId: session.invoice,
+    stripeCheckoutSessionId: session.id,
+    paidAt,
+    billingPeriodStart: period.start,
+    billingPeriodEnd: period.end,
+  });
+
+  let emailResult = { attempted: true, sent: false, skipped: false };
+  try {
+    const sent = await notifyPaymentConfirmed(supabase, {
+      order: paidOrder,
+      customerEmail: customerEmailFromSession(session) || workspace.clientEmail,
+      balanceAfter: creditGrant.balanceAfter,
+      source: "checkout.session.reconciled",
+    });
+    emailResult = { attempted: true, sent: !sent?.skipped, skipped: Boolean(sent?.skipped) };
+  } catch (emailError) {
+    emailResult = { attempted: true, sent: false, skipped: false, error: emailError.message || "Email could not be sent." };
+    await recordAuditEvent(supabase, {
+      organizationId,
+      eventType: "payment_email_failed",
+      eventDetail: {
+        payment_order_id: order.id,
+        stripe_checkout_session_id: session.id,
+        error: emailResult.error,
+      },
+    });
+  }
+
+  const balance = await getCreditBalance(supabase, organizationId);
+  return {
+    status: 200,
+    body: {
+      confirmed: true,
+      productType: order.product_type,
+      credits: Number(order.credits || 0),
+      balance: balance.balance,
+      lowCreditThreshold: balance.lowCreditThreshold,
+      creditGranted: Boolean(creditGrant.granted),
+      email: emailResult,
+    },
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed." });
@@ -85,6 +268,17 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const stripe = getStripe();
     const bearerToken = getBearerToken(req);
+
+    if (action === "reconcile_checkout") {
+      const result = await reconcileCheckoutSession({
+        supabase,
+        stripe,
+        bearerToken,
+        sessionId: body.sessionId || body.session_id,
+      });
+      res.status(result.status).json(result.body);
+      return;
+    }
 
     if (action === "customer_portal") {
       if (!organizationId) {
@@ -190,8 +384,14 @@ module.exports = async function handler(req, res) {
         return "checkout";
       }
     })();
+    const errorMessage =
+      action === "customer_portal"
+        ? "Subscription management could not be opened."
+        : action === "reconcile_checkout"
+          ? "Payment could not be confirmed. Please open billing or contact support if the balance does not update."
+          : "Checkout could not be created.";
     res.status(500).json({
-      error: action === "customer_portal" ? "Subscription management could not be opened." : "Checkout could not be created.",
+      error: errorMessage,
     });
   }
 };

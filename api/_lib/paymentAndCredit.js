@@ -4,7 +4,16 @@ const templates = require("./emailTemplates");
 const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
 
 function shouldIgnoreOptionalSchemaError(error) {
-  return ["42P01", "42703", "PGRST204"].includes(error?.code);
+  return ["42P01", "42703", "42883", "PGRST202", "PGRST204"].includes(error?.code);
+}
+
+function isMissingStripeGrantRpc(error) {
+  const message = String(error?.message || "");
+  return (
+    error?.code === "42883" ||
+    error?.code === "PGRST202" ||
+    (message.includes("record_stripe_credit_grant") && (message.includes("Could not find") || message.includes("function")))
+  );
 }
 
 async function safeInsert(supabase, table, payload) {
@@ -38,6 +47,16 @@ async function sendAndRecordEmail(supabase, payload) {
 
   const queued = await queueNotification(supabase, payload);
   const sent = await sendEmail({ to: payload.to, subject: payload.subject, html: payload.html });
+
+  if (sent.skipped && queued?.data?.id) {
+    const { error } = await supabase
+      .from("notifications")
+      .update({ status: "skipped", failure_reason: sent.reason || "Email provider is not configured." })
+      .eq("id", queued.data.id);
+    if (error && !shouldIgnoreOptionalSchemaError(error)) {
+      await supabase.from("notifications").update({ status: "skipped" }).eq("id", queued.data.id).then(() => null, () => null);
+    }
+  }
 
   if (!sent.skipped && queued?.data?.id) {
     const { error } = await supabase
@@ -76,6 +95,34 @@ async function recordPaymentHistory(supabase, { order, session, invoice, eventTy
   });
 }
 
+async function markOrderPaid(supabase, order, fields = {}) {
+  const { error } = await supabase
+    .from("payment_orders")
+    .update({
+      status: "paid",
+      paid_at: fields.paidAt || new Date().toISOString(),
+      stripe_payment_intent_id: fields.stripePaymentIntentId || null,
+      stripe_invoice_id: fields.stripeInvoiceId || null,
+      stripe_checkout_session_id: fields.stripeCheckoutSessionId || order.stripe_checkout_session_id || null,
+      stripe_customer_id: fields.stripeCustomerId || order.stripe_customer_id || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.id);
+
+  if (error) throw error;
+
+  if (fields.stripeCustomerId && order.organization_id) {
+    await supabase
+      .from("client_organizations")
+      .update({
+        stripe_customer_id: fields.stripeCustomerId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.organization_id)
+      .then(() => null, () => null);
+  }
+}
+
 async function recordAuditEvent(supabase, { organizationId, eventType, eventDetail }) {
   await safeInsert(supabase, "audit_events", {
     organization_id: organizationId || null,
@@ -103,6 +150,7 @@ async function grantPurchaseCredits(supabase, {
     return { granted: false, balanceAfter: null, reason: "No eligible workspace or credit amount." };
   }
 
+  const stripeIdempotencyKey = `stripe-${stripeSourceId}-credits`;
   const { data, error } = await supabase
     .rpc("record_stripe_credit_grant", {
       p_payment_order_id: order.id || null,
@@ -119,7 +167,42 @@ async function grantPurchaseCredits(supabase, {
     })
     .single();
 
-  if (error) throw error;
+  if (error && !isMissingStripeGrantRpc(error)) throw error;
+
+  if (error && isMissingStripeGrantRpc(error)) {
+    await markOrderPaid(supabase, order, {
+      paidAt,
+      stripePaymentIntentId,
+      stripeInvoiceId,
+      stripeCheckoutSessionId,
+      stripeCustomerId: order.stripe_customer_id || null,
+    });
+
+    const entryType = order.product_type === "starter_monthly" ? "monthly_grant" : "top_up";
+    const fallbackResult = await supabase
+      .rpc("apply_credit_change", {
+        p_organization_id: order.organization_id,
+        p_entry_type: entryType,
+        p_credits: credits,
+        p_entry_reason: order.product_type,
+        p_related_request_id: null,
+        p_related_deliverable_id: null,
+        p_related_payment_id: order.id || null,
+        p_source: "stripe",
+        p_idempotency_key: stripeIdempotencyKey,
+        p_actor_id: null,
+      })
+      .single();
+
+    if (fallbackResult.error) throw fallbackResult.error;
+
+    return {
+      granted: true,
+      balanceAfter: fallbackResult.data?.balance ?? null,
+      expiresAt: null,
+      reason: "Credit grant recorded through standard credit ledger.",
+    };
+  }
 
   return {
     granted: !data?.duplicate,
@@ -131,7 +214,7 @@ async function grantPurchaseCredits(supabase, {
 
 async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceAfter, source }) {
   const email = templates.paymentConfirmed({ order, balanceAfter });
-  await sendAndRecordEmail(supabase, {
+  const clientEmailResult = await sendAndRecordEmail(supabase, {
     to: customerEmail,
     organizationId: order.organization_id,
     relatedEntityType: "payment_order",
@@ -139,10 +222,11 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
     ...email,
   });
 
+  let adminEmailResult = { skipped: true, reason: "No admin email configured." };
   const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
   if (adminEmail) {
     const admin = templates.adminPaymentNotification({ order, customerEmail, source });
-    await sendAndRecordEmail(supabase, {
+    adminEmailResult = await sendAndRecordEmail(supabase, {
       to: adminEmail,
       organizationId: order.organization_id,
       relatedEntityType: "payment_order",
@@ -150,6 +234,12 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
       ...admin,
     });
   }
+
+  return {
+    client: clientEmailResult,
+    admin: adminEmailResult,
+    skipped: Boolean(clientEmailResult?.skipped && adminEmailResult?.skipped),
+  };
 }
 
 async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, threshold, recipientEmail, relatedEntityId }) {
@@ -219,9 +309,28 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
   return { status };
 }
 
+async function getCreditBalance(supabase, organizationId) {
+  if (!organizationId) return { balance: 0, lowCreditThreshold: 2 };
+  const { data, error } = await supabase
+    .from("credit_balance_summary")
+    .select("balance,low_credit_threshold,status,reserved_balance,updated_at")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+  return {
+    balance: Number(data?.balance ?? 0),
+    lowCreditThreshold: Number(data?.low_credit_threshold ?? 2),
+    status: data?.status || "",
+    updatedAt: data?.updated_at || null,
+  };
+}
+
 module.exports = {
   detectAndNotifyCreditStatus,
+  getCreditBalance,
   grantPurchaseCredits,
+  markOrderPaid,
   notifyPaymentConfirmed,
   recordAuditEvent,
   recordPaymentHistory,

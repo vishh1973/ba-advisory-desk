@@ -144,7 +144,9 @@ function setInlineStatus(selector, message, level = "") {
 function setButtonBusy(button, busy, labelWhenBusy = "Working") {
   if (!button) return;
   if (busy) {
-    button.dataset.originalLabel = button.textContent;
+    if (!button.dataset.originalLabel) {
+      button.dataset.originalLabel = button.textContent;
+    }
     button.textContent = labelWhenBusy;
     button.disabled = true;
     button.dataset.busy = "true";
@@ -564,6 +566,84 @@ function getCreditPromptHtml() {
   return "Your workspace has enough Advisory Credits for the current delivery cycle.";
 }
 
+function getRequestCreditScope() {
+  const estimateValue = document.querySelector("#requestCreditEstimate")?.value || "1";
+  const requestedCredits = estimateValue === "custom" || estimateValue === "rescue" ? 0 : Number(estimateValue || 1);
+  return {
+    estimateValue,
+    requestedCredits: Number.isFinite(requestedCredits) ? requestedCredits : 1,
+  };
+}
+
+function getInsufficientCreditMessage(requestedCredits, balance = state.creditsLeft) {
+  const safeBalance = Math.max(0, Number(balance || 0));
+  return `This request needs ${requestedCredits} Advisory Credit${requestedCredits === 1 ? "" : "s"}, but your workspace has ${safeBalance}. Please add credits or choose a paid Rescue Sprint before submitting source files.`;
+}
+
+function updateRequestReadinessStatus(files = []) {
+  const statusSelector = "#requestStatus";
+  const { estimateValue, requestedCredits } = getRequestCreditScope();
+  const selectedFiles = Array.from(files || document.querySelector("#fileUpload")?.files || []);
+  const validationError = selectedFiles.length ? validateWorkspaceFiles(selectedFiles) : "";
+
+  if (validationError) {
+    setInlineStatus(statusSelector, validationError, "warning");
+    return;
+  }
+
+  if (!selectedFiles.length) {
+    setInlineStatus(statusSelector, "Requests are checked against your profile, credit balance, and selected files before submission.");
+    return;
+  }
+
+  if (estimateValue === "custom") {
+    setInlineStatus(statusSelector, "Files selected. Custom advisory work is reviewed through the custom scope form.", "success");
+    return;
+  }
+
+  if (estimateValue === "rescue") {
+    setInlineStatus(statusSelector, "Files selected. Submit once your Rescue Sprint purchase is connected to this workspace.", "success");
+    return;
+  }
+
+  if (requestedCredits > 0 && Number(state.creditsLeft || 0) < requestedCredits) {
+    setInlineStatus(statusSelector, getInsufficientCreditMessage(requestedCredits), "warning");
+    return;
+  }
+
+  setInlineStatus(statusSelector, `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"} selected. Complete the request details and submit when ready.`, "success");
+}
+
+function withClientTimeout(promise, timeoutMs, message) {
+  let timerId;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timerId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]).finally(() => window.clearTimeout(timerId));
+}
+
+async function refreshCreditBalanceForSubmit(organizationId) {
+  if (!supabaseClient || !organizationId) {
+    return { ok: true, balance: Number(state.creditsLeft || 0) };
+  }
+
+  const { data, error } = await supabaseClient
+    .from("credit_balance_summary")
+    .select("balance,low_credit_threshold,status,reserved_balance,updated_at")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+
+  state.creditsLeft = Number(data?.balance ?? 0);
+  state.creditThreshold = Number(data?.low_credit_threshold ?? config.lowCreditThreshold);
+  saveState();
+  render();
+  return { ok: true, balance: state.creditsLeft };
+}
+
 function getStatusGroup(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete") || normalized.includes("delivered")) return "completed";
@@ -840,6 +920,7 @@ function openClientWorkspaceSection(routeKey) {
 
 async function routeAfterAuth(defaultRoute = "dashboard") {
   if (!state.session?.user) return;
+  const currentRoute = routeAliases[window.location.hash.replace("#", "")] || window.location.hash.replace("#", "");
   if (!isEmailVerified()) {
     localStorage.removeItem("baad-post-auth-route");
     window.location.hash = "login";
@@ -859,7 +940,7 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
     await resumePendingCheckout();
     return;
   }
-  const pendingRoute = getPendingPostAuthRoute() || defaultRoute;
+  const pendingRoute = currentRoute === "checkout-success" ? "checkout-success" : getPendingPostAuthRoute() || defaultRoute;
   localStorage.removeItem("baad-post-auth-route");
   window.location.hash = organizationId ? pendingRoute : "profile";
 }
@@ -991,15 +1072,25 @@ function updateAuthUi() {
   }
 }
 
-async function signOutCurrentUser() {
-  if (supabaseClient) {
-    await supabaseClient.auth.signOut();
-  }
+async function signOutCurrentUser(event) {
+  event?.preventDefault();
   resetClientWorkspaceState();
   updateAuthUi();
-  window.location.hash = "login";
+  window.history.replaceState(null, "", `${window.location.pathname}#login`);
   setView();
-  showToast("Signed out.");
+  try {
+    if (supabaseClient) {
+      await withClientTimeout(
+        supabaseClient.auth.signOut(),
+        8000,
+        "Remote sign out took longer than expected. Your local session has been cleared."
+      );
+    }
+  } catch (_error) {
+    // Local session has already been cleared so the client is not left trapped in the workspace.
+  } finally {
+    showToast("Signed out.");
+  }
 }
 
 async function initAuth() {
@@ -1140,6 +1231,113 @@ async function fetchClientApi(path, options = {}) {
   } catch (error) {
     return { ok: false, error: error.message || "The secure workspace request could not be completed." };
   }
+}
+
+let checkoutReconcileSessionId = "";
+
+function getCheckoutSessionId() {
+  return new URLSearchParams(window.location.search).get("session_id") || "";
+}
+
+function setCheckoutStatus({ title, body, status, level = "", panelHtml = "" }) {
+  const titleNode = document.querySelector("#checkoutStatusTitle");
+  const bodyNode = document.querySelector("#checkoutStatusBody");
+  const statusNode = document.querySelector("#checkoutStatusMessage");
+  const panelNode = document.querySelector("#checkoutStatusPanel");
+  if (titleNode && title) titleNode.textContent = title;
+  if (bodyNode && body) bodyNode.textContent = body;
+  if (statusNode && status) setInlineStatus("#checkoutStatusMessage", status, level);
+  if (panelNode && panelHtml) panelNode.innerHTML = panelHtml;
+}
+
+function getCheckoutEmailText(emailResult) {
+  if (!emailResult?.attempted) return "Confirmation email will be sent when notification service is available.";
+  if (emailResult.sent) return "A payment confirmation email has been sent.";
+  if (emailResult.skipped) return "Payment is recorded. Email notification is being configured and may not send from this transaction.";
+  if (emailResult.error) return "Payment is recorded. Email notification could not be sent automatically.";
+  return "Payment is recorded. Email notification status is being finalized.";
+}
+
+async function handleCheckoutSuccessView() {
+  const sessionId = getCheckoutSessionId();
+  if (!sessionId) {
+    setCheckoutStatus({
+      title: "Checkout is complete.",
+      body: "Open your client workspace to continue. If your credit balance does not update, contact support and include the email used at checkout.",
+      status: "No checkout reference was found on this page. Your workspace can still be reviewed from billing.",
+      level: "warning",
+    });
+    return;
+  }
+
+  if (!state.session?.user) {
+    setPendingPostAuthRoute("checkout-success");
+    setCheckoutStatus({
+      title: "Sign in to finish connecting your payment.",
+      body: "Use the same email address used at checkout so the payment can be attached to your client workspace.",
+      status: "Please sign in, then return to this confirmation page.",
+      level: "warning",
+    });
+    return;
+  }
+
+  if (checkoutReconcileSessionId === sessionId) return;
+  checkoutReconcileSessionId = sessionId;
+  setCheckoutStatus({
+    title: "Checkout complete. Confirming your workspace now.",
+    body: "Please stay on this page while we confirm the payment, update the credit balance, and refresh your billing history.",
+    status: "Confirming payment and updating your Advisory Credit balance.",
+  });
+
+  const result = await fetchClientApi("/api/create-checkout-session", {
+    method: "POST",
+    body: {
+      action: "reconcile_checkout",
+      sessionId,
+    },
+  });
+
+  if (!result.ok) {
+    checkoutReconcileSessionId = "";
+    setCheckoutStatus({
+      title: "Payment is still being confirmed.",
+      body: "Your payment may be processing. Please wait a moment, then use View Billing. If the balance does not update, contact support.",
+      status: result.error || "Payment confirmation is still pending.",
+      level: "warning",
+    });
+    return;
+  }
+
+  const data = result.data || {};
+  state.creditsLeft = Number(data.balance ?? state.creditsLeft);
+  state.creditThreshold = Number(data.lowCreditThreshold ?? state.creditThreshold);
+  addPaymentHistory(productLabel(data.productType), data.credits ? `${data.credits} Advisory Credit${Number(data.credits) === 1 ? "" : "s"}` : "Paid", "Paid");
+  if (Number(data.credits || 0) > 0) {
+    addCreditHistory(productLabel(data.productType), `+${data.credits}`, state.creditsLeft);
+  }
+  clearPendingCheckoutType();
+  saveState();
+  await withClientTimeout(loadClientWorkspaceData(), 10000, "Workspace refresh is taking longer than expected.").catch(() => null);
+  render();
+
+  const creditLine = Number(data.credits || 0) > 0
+    ? `${data.credits} Advisory Credit${Number(data.credits) === 1 ? "" : "s"} were connected to this workspace.`
+    : "Your payment was connected to this workspace.";
+  setCheckoutStatus({
+    title: "Payment confirmed.",
+    body: `${creditLine} Your current credit balance is ${state.creditsLeft}.`,
+    status: `${getCheckoutEmailText(data.email)} Use the button below when you are ready to return to the workspace.`,
+    level: "success",
+    panelHtml: `
+      <h3>Payment confirmation</h3>
+      <ul class="check-list">
+        <li>Payment has been matched to this client workspace.</li>
+        <li>Billing history has been refreshed.</li>
+        <li>Current Advisory Credit balance: ${escapeHtml(state.creditsLeft)}</li>
+        <li>${escapeHtml(getCheckoutEmailText(data.email))}</li>
+      </ul>
+    `,
+  });
 }
 
 async function notifyAdvisorEvent(payload) {
@@ -2142,6 +2340,9 @@ function setView() {
   openClientWorkspaceSection(rawKey);
   if (key === "admin") {
     loadAdminQueue();
+  }
+  if (key === "checkout-success") {
+    handleCheckoutSuccessView();
   }
   closeNavigationMenus();
   if (!routeAliases[rawKey]) {
@@ -3921,6 +4122,12 @@ async function beginCheckout(type, options = {}) {
 }
 
 document.addEventListener("click", (event) => {
+  const signOutTarget = event.target.closest("[data-sign-out]");
+  if (signOutTarget) {
+    signOutCurrentUser(event);
+    return;
+  }
+
   const navToggle = event.target.closest("[data-nav-toggle]");
   if (navToggle) {
     event.preventDefault();
@@ -4566,10 +4773,6 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   showToast("Client upload added to the workspace.");
 });
 
-document.querySelectorAll("[data-sign-out]").forEach((button) => {
-  button.addEventListener("click", signOutCurrentUser);
-});
-
 document.querySelector("#requestForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const submitButton = document.querySelector("#requestSubmitButton") || event.submitter;
@@ -4596,12 +4799,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       return;
     }
 
-    if (supabaseClient && getUserId()) {
-      await loadClientWorkspaceData();
-    }
-
-    const estimateValue = document.querySelector("#requestCreditEstimate").value;
-    const requestedCredits = estimateValue === "custom" || estimateValue === "rescue" ? 0 : Number(estimateValue || 1);
+    const { estimateValue, requestedCredits } = getRequestCreditScope();
     if (estimateValue === "custom") {
       window.location.hash = "quote";
       setInlineStatus(statusSelector, "Custom scope selected. Please complete the custom advisory request form.", "success");
@@ -4613,36 +4811,6 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     }
 
     const userId = getUserId();
-    const organizationId = await getProfileOrganizationId();
-    if (supabaseClient && !organizationId) {
-      window.location.hash = "profile";
-      warn("Please complete your client profile before submitting a request. This keeps your files, payment, and deliverables connected.");
-      return;
-    }
-
-    if (supabaseClient && state.workspaceLoadIssue && requestedCredits > 0) {
-      warn("We could not verify your current Advisory Credit balance. Refresh the page and try again, or contact support if this continues.");
-      return;
-    }
-
-    if (estimateValue === "rescue" && !hasRescueSprintAccess()) {
-      window.location.hash = "billing";
-      warn("Please start or confirm the BA Rescue Sprint before submitting a Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
-      addAuditEvent("Rescue Sprint request paused", "Client selected Rescue Sprint scope without a recorded Rescue Sprint payment.");
-      saveState();
-      render();
-      return;
-    }
-
-    if (requestedCredits > 0 && Number(state.creditsLeft || 0) < requestedCredits) {
-      window.location.hash = "billing";
-      warn(`This request needs ${requestedCredits} Advisory Credit${requestedCredits === 1 ? "" : "s"}, but your workspace has ${state.creditsLeft}. Please add credits before submitting.`);
-      addAuditEvent("Request paused", `Client attempted to submit a ${requestedCredits} credit request with insufficient balance.`);
-      saveState();
-      render();
-      return;
-    }
-
     const selectedType = document.querySelector("#requestType").value;
     const otherType = document.querySelector("#requestOther").value.trim();
     const businessGoal = document.querySelector("#businessGoal").value.trim();
@@ -4667,6 +4835,51 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     const requestFileValidationError = validateWorkspaceFiles(requestFiles);
     if (requestFileValidationError) {
       warn(requestFileValidationError);
+      return;
+    }
+
+    const organizationId = await withClientTimeout(
+      getProfileOrganizationId(),
+      8000,
+      "We could not verify your client profile quickly enough. Please refresh the page and try again."
+    );
+    if (supabaseClient && !organizationId) {
+      window.location.hash = "profile";
+      warn("Please complete your client profile before submitting a request. This keeps your files, payment, and deliverables connected.");
+      return;
+    }
+
+    if (requestedCredits > 0) {
+      const creditResult = await withClientTimeout(
+        refreshCreditBalanceForSubmit(organizationId),
+        10000,
+        "We could not verify your current Advisory Credit balance quickly enough. Please refresh the page and try again."
+      );
+      if (!creditResult.ok) {
+        warn("We could not verify your current Advisory Credit balance. Refresh the page and try again, or contact support if this continues.");
+        return;
+      }
+      if (Number(creditResult.balance || 0) < requestedCredits) {
+        window.location.hash = "billing";
+        warn(getInsufficientCreditMessage(requestedCredits, creditResult.balance));
+        addAuditEvent("Request paused", `Client attempted to submit a ${requestedCredits} credit request with insufficient balance.`);
+        saveState();
+        render();
+        return;
+      }
+    }
+
+    if (supabaseClient && state.workspaceLoadIssue && requestedCredits > 0) {
+      warn("We could not verify all workspace records. Refresh the page and try again, or contact support if this continues.");
+      return;
+    }
+
+    if (estimateValue === "rescue" && !hasRescueSprintAccess()) {
+      window.location.hash = "billing";
+      warn("Please start or confirm the BA Rescue Sprint before submitting a Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
+      addAuditEvent("Rescue Sprint request paused", "Client selected Rescue Sprint scope without a recorded Rescue Sprint payment.");
+      saveState();
+      render();
       return;
     }
 
@@ -4848,6 +5061,10 @@ document.querySelector("#requestType").addEventListener("change", () => {
   toggleOther("#requestType", "#requestOtherWrap");
 });
 
+document.querySelector("#requestCreditEstimate")?.addEventListener("change", () => {
+  updateRequestReadinessStatus();
+});
+
 document.querySelector("#quoteCompanyType").addEventListener("change", () => {
   toggleOther("#quoteCompanyType", "#quoteOtherWrap");
 });
@@ -4864,6 +5081,7 @@ document.querySelector("#fileUpload").addEventListener("change", (event) => {
     .map((file) => `<div><strong>${escapeHtml(file.name)}</strong> <span>${escapeHtml(formatFileSize(file.size))}</span></div>`)
     .join("");
   list.innerHTML = validationError ? `<div class="file-warning">${escapeHtml(validationError)}</div>${fileItems}` : fileItems;
+  updateRequestReadinessStatus(files);
 });
 
 document.querySelector("#clientUploadFiles")?.addEventListener("change", (event) => {

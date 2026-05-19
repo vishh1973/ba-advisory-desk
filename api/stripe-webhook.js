@@ -242,12 +242,24 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
     billingPeriodEnd: period.end,
   });
 
-  await notifyPaymentConfirmed(supabase, {
-    order: paidOrder,
-    customerEmail,
-    balanceAfter: creditGrant.balanceAfter,
-    source: "checkout.session.completed",
-  });
+  try {
+    await notifyPaymentConfirmed(supabase, {
+      order: paidOrder,
+      customerEmail,
+      balanceAfter: creditGrant.balanceAfter,
+      source: "checkout.session.completed",
+    });
+  } catch (emailError) {
+    await recordAuditEvent(supabase, {
+      organizationId: order.organization_id,
+      eventType: "payment_email_failed",
+      eventDetail: {
+        payment_order_id: order.id,
+        stripe_checkout_session_id: session.id,
+        error: emailError.message || "Payment email could not be sent.",
+      },
+    });
+  }
 }
 
 async function createPaidOrderFromInvoice(supabase, invoice, subscription) {
@@ -316,12 +328,24 @@ async function handleInvoicePaid(supabase, stripe, invoice, eventType) {
     billingPeriodEnd: periodFromInvoice(invoice, subscription).end,
   });
 
-  await notifyPaymentConfirmed(supabase, {
-    order,
-    customerEmail: invoice.customer_email || subscription?.metadata?.client_email || null,
-    balanceAfter: creditGrant.balanceAfter,
-    source: "invoice.paid",
-  });
+  try {
+    await notifyPaymentConfirmed(supabase, {
+      order,
+      customerEmail: invoice.customer_email || subscription?.metadata?.client_email || null,
+      balanceAfter: creditGrant.balanceAfter,
+      source: "invoice.paid",
+    });
+  } catch (emailError) {
+    await recordAuditEvent(supabase, {
+      organizationId: order.organization_id,
+      eventType: "payment_email_failed",
+      eventDetail: {
+        payment_order_id: order.id,
+        stripe_invoice_id: invoice.id,
+        error: emailError.message || "Payment email could not be sent.",
+      },
+    });
+  }
 }
 
 async function handleSubscriptionDeleted(supabase, subscription) {

@@ -1314,17 +1314,18 @@
         <div class="form-layout">
           <div>
             <p class="eyebrow">Checkout complete</p>
-            <h2>Checkout is complete. We are confirming your payment.</h2>
-            <p>
+            <h2 id="checkoutStatusTitle">Checkout is complete. We are confirming your payment.</h2>
+            <p id="checkoutStatusBody">
               Your next step is the client workspace. Use the same email address used at checkout so your payment,
               profile, source files, messages, requests, and deliverables stay connected to one account.
             </p>
+            <p id="checkoutStatusMessage" class="admin-inline-status">Please stay on this page while we update your client workspace.</p>
             <div class="action-row">
-              <a class="primary" href="#dashboard">Open Client Workspace</a>
-              <a class="secondary" href="#billing">View Billing</a>
+              <a id="checkoutWorkspaceLink" class="primary" href="#dashboard">Open Client Workspace</a>
+              <a id="checkoutBillingLink" class="secondary" href="#billing">View Billing</a>
             </div>
           </div>
-          <div class="panel">
+          <div id="checkoutStatusPanel" class="panel">
             <h3>What happens next</h3>
             <ul class="check-list">
               <li>Use your workspace account to open the client workspace.</li>
