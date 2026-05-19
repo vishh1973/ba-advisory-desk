@@ -76,6 +76,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
     return {
       id: data.id,
       organizationId: data.organization_id,
+      uploadedBy: data.uploaded_by,
       bucket: "client-files",
       path: data.storage_path,
       fileName: data.original_file_name,
@@ -107,6 +108,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
   return {
     id: data.id,
     organizationId: data.organization_id,
+    uploadedBy: data.uploaded_by,
     bucket: "client-files",
     path: data.storage_path,
     fileName: data.file_name,
@@ -138,6 +140,7 @@ module.exports = async function handler(req, res) {
     const body = parseBody(req);
     const fileId = body.fileId || body.file_id;
     const fileKind = body.fileKind || body.file_kind || "request_file";
+    const action = String(body.action || "download").toLowerCase();
     const expiresIn = readExpirySeconds(body.expiresIn || body.expires_in);
 
     if (!fileId) {
@@ -153,6 +156,43 @@ module.exports = async function handler(req, res) {
         res.status(403).json({ error: "This file is not available for your workspace." });
         return;
       }
+    }
+
+    if (action === "delete") {
+      if (!admin && file.uploadedBy !== userData.user.id) {
+        res.status(403).json({ error: "You can delete only files uploaded from your own workspace account." });
+        return;
+      }
+
+      const { error: storageError } = await supabase.storage.from(file.bucket).remove([file.path]);
+      if (storageError) throw storageError;
+
+      const table = file.sourceType === "client_upload" ? "client_uploads" : "request_files";
+      const { error: deleteError } = await supabase.from(table).delete().eq("id", file.id);
+      if (deleteError) throw deleteError;
+
+      await supabase
+        .from("audit_events")
+        .insert({
+          organization_id: file.organizationId,
+          event_type: "source_file_deleted",
+          related_entity_type: file.sourceType,
+          related_entity_id: file.id,
+          event_detail: {
+            file_name: file.fileName,
+            file_size_bytes: file.fileSize,
+          },
+          source: admin ? "admin_workspace" : "client_workspace",
+        })
+        .then(() => null, () => null);
+
+      res.status(200).json({
+        deleted: true,
+        fileId: file.id,
+        fileKind: file.sourceType,
+        fileName: file.fileName,
+      });
+      return;
     }
 
     const { data: signed, error: signedError } = await supabase.storage

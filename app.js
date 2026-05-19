@@ -4463,9 +4463,9 @@ document.addEventListener("click", async (event) => {
   if (!confirmed) return;
 
   setButtonBusy(target, true, "Deleting");
-  const result = await fetchClientApi("/api/source-file-delete", {
+  const result = await fetchClientApi("/api/source-file-download-url", {
     method: "POST",
-    body: { fileId, fileKind },
+    body: { fileId, fileKind, action: "delete" },
   });
   setButtonBusy(target, false);
 
