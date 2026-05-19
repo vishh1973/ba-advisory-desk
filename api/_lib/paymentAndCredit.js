@@ -12,6 +12,9 @@ async function safeInsert(supabase, table, payload) {
   if (error && shouldIgnoreOptionalSchemaError(error)) {
     return { skipped: true, reason: "Optional schema is not available." };
   }
+  if (error?.code === "23505") {
+    return { skipped: true, duplicate: true, reason: "Record already exists." };
+  }
   if (error) throw error;
   return { data };
 }
@@ -81,7 +84,16 @@ async function recordAuditEvent(supabase, { organizationId, eventType, eventDeta
   });
 }
 
-async function grantPurchaseCredits(supabase, { order, stripeSourceId, stripePaymentIntentId }) {
+async function grantPurchaseCredits(supabase, {
+  order,
+  stripeSourceId,
+  stripePaymentIntentId,
+  stripeInvoiceId,
+  stripeCheckoutSessionId,
+  paidAt,
+  billingPeriodStart,
+  billingPeriodEnd,
+}) {
   if (!CREDIT_PRODUCTS.has(order?.product_type)) {
     return { granted: false, balanceAfter: null, reason: "Product does not grant credits." };
   }
@@ -91,76 +103,30 @@ async function grantPurchaseCredits(supabase, { order, stripeSourceId, stripePay
     return { granted: false, balanceAfter: null, reason: "No eligible workspace or credit amount." };
   }
 
-  const idempotencyKey = `stripe-${stripeSourceId}-credits`;
-  const { data: existingLedger, error: existingError } = await supabase
-    .from("credit_ledger")
-    .select("id,balance_after")
-    .eq("idempotency_key", idempotencyKey)
-    .maybeSingle();
+  const { data, error } = await supabase
+    .rpc("record_stripe_credit_grant", {
+      p_payment_order_id: order.id || null,
+      p_organization_id: order.organization_id,
+      p_product_type: order.product_type,
+      p_credits: credits,
+      p_stripe_source_id: stripeSourceId,
+      p_stripe_payment_intent_id: stripePaymentIntentId || null,
+      p_stripe_invoice_id: stripeInvoiceId || null,
+      p_stripe_checkout_session_id: stripeCheckoutSessionId || null,
+      p_paid_at: paidAt || new Date().toISOString(),
+      p_period_start: billingPeriodStart || null,
+      p_period_end: billingPeriodEnd || null,
+    })
+    .single();
 
-  if (existingError && !shouldIgnoreOptionalSchemaError(existingError)) throw existingError;
-  if (existingLedger) {
-    return { granted: false, balanceAfter: existingLedger.balance_after, reason: "Credit grant already recorded." };
-  }
+  if (error) throw error;
 
-  const { data: existingAccount, error: accountError } = await supabase
-    .from("credit_accounts")
-    .select("id,balance,low_credit_threshold")
-    .eq("organization_id", order.organization_id)
-    .maybeSingle();
-
-  if (accountError) throw accountError;
-
-  const startingBalance = Number(existingAccount?.balance || 0);
-  const balanceAfter = startingBalance + credits;
-  const now = new Date().toISOString();
-
-  if (existingAccount?.id) {
-    const { error } = await supabase
-      .from("credit_accounts")
-      .update({ balance: balanceAfter, status: "active", updated_at: now })
-      .eq("id", existingAccount.id);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase.from("credit_accounts").insert({
-      organization_id: order.organization_id,
-      balance: balanceAfter,
-      low_credit_threshold: 2,
-      status: "active",
-    });
-    if (error) throw error;
-  }
-
-  const { error: ledgerError } = await supabase.from("credit_ledger").insert({
-    organization_id: order.organization_id,
-    entry_type: "grant",
-    entry_reason: order.product_type,
-    credits,
-    balance_after: balanceAfter,
-    source: "stripe",
-    stripe_payment_intent_id: stripePaymentIntentId || null,
-    related_payment_id: order.id || null,
-    idempotency_key: idempotencyKey,
-  });
-
-  if (ledgerError && ledgerError.code === "23505") {
-    return { granted: false, balanceAfter, reason: "Credit grant already recorded." };
-  }
-  if (ledgerError) throw ledgerError;
-
-  await recordAuditEvent(supabase, {
-    organizationId: order.organization_id,
-    eventType: "credits_granted",
-    eventDetail: {
-      payment_order_id: order.id || null,
-      product_type: order.product_type,
-      credits,
-      balance_after: balanceAfter,
-      stripe_source_id: stripeSourceId,
-    },
-  });
-
-  return { granted: true, balanceAfter };
+  return {
+    granted: !data?.duplicate,
+    balanceAfter: data?.balance ?? null,
+    expiresAt: data?.expires_at || null,
+    reason: data?.duplicate ? "Credit grant already recorded." : undefined,
+  };
 }
 
 async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceAfter, source }) {
@@ -257,6 +223,7 @@ module.exports = {
   detectAndNotifyCreditStatus,
   grantPurchaseCredits,
   notifyPaymentConfirmed,
+  recordAuditEvent,
   recordPaymentHistory,
   shouldIgnoreOptionalSchemaError,
 };

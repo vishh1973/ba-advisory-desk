@@ -27,7 +27,7 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=1" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js"></script>
     <script type="application/ld+json">
@@ -158,6 +158,7 @@
         <a href="#pricing">Pricing</a>
         <a href="#security">Security</a>
         <a href="#login">Client Login</a>
+        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support" data-mailto="support">Support</a>
       </nav>
       <a class="primary small" href="#pricing">View Advisory Plans</a>
     </header>
@@ -166,10 +167,10 @@
       <section class="view active" id="view-home">
         <div class="hero">
           <div>
-            <p class="eyebrow">On demand Business Analysis support without hiring overhead</p>
-            <h1>Big consulting clarity without big consulting overhead.</h1>
-            <div class="benefit">Why add headcount when you can access senior Business Analysis capability on demand for clarity, structure, and delivery momentum?</div>
-            <p class="hero-text">
+            <p class="eyebrow" data-content="hero-eyebrow">On demand Business Analysis support without hiring overhead</p>
+            <h1 data-content="hero-headline">Big consulting clarity without big consulting overhead.</h1>
+            <div class="benefit" data-content="hero-benefit">Why add headcount when you can access senior Business Analysis capability on demand for clarity, structure, and delivery momentum?</div>
+            <p class="hero-text" data-content="hero-body">
               We help teams turn unclear project inputs, stakeholder notes, and draft materials into requirements, business cases, SOPs,
               process maps, UAT support, decision logs, and executive ready presentations.
             </p>
@@ -177,7 +178,7 @@
               <a class="primary" href="#pricing">View Plans</a>
               <a class="secondary" href="#pricing">Start With $1,500 Sprint</a>
             </div>
-            <div class="hero-proof-grid" aria-label="Business Analysis advisory proof points">
+            <div class="hero-proof-grid" data-render="hero-proof" aria-label="Business Analysis advisory proof points">
               <article>
                 <strong>Scope becomes usable.</strong>
                 <span>Scattered notes become requirements, decisions, and delivery ready documents.</span>
@@ -192,39 +193,60 @@
               </article>
             </div>
           </div>
-          <aside class="proof-panel">
+          <aside class="proof-panel" data-render="advisory-offer">
             <div class="card-head">
-              <span>Advisory Standard</span>
-              <strong>What clients are buying</strong>
+              <span>Advisory Offer</span>
+              <strong>Messy inputs, clear decisions, ready deliverables.</strong>
             </div>
-            <div class="advisory-scorecard">
+            <p class="offer-intro">
+              We convert rough notes, draft decks, transcripts, and stakeholder asks into advisory work your team can use immediately.
+            </p>
+            <div class="offer-flow" aria-label="Business Analysis offer flow">
+              <span>Input</span>
+              <span>Synthesis</span>
+              <span>Output</span>
+            </div>
+            <div class="advisory-scorecard offer-stack">
               <article>
                 <span>01</span>
-                <strong>Clarity from incomplete inputs</strong>
-                <small>We turn notes, drafts, transcripts, decks, and rough ideas into a clear problem statement, scope, assumptions, and decision needs.</small>
+                <div>
+                  <em>Client brings</em>
+                  <strong>Rough project material</strong>
+                  <small>Notes, decks, transcripts, screenshots, workflows, policies, vendor notes, or open stakeholder asks.</small>
+                </div>
               </article>
               <article>
                 <span>02</span>
-                <strong>Client ready advisory documents</strong>
-                <small>Clients receive polished requirements, business cases, SOPs, UAT packs, governance material, presentations, and delivery support artifacts.</small>
+                <div>
+                  <em>We create</em>
+                  <strong>Structured client ready work</strong>
+                  <small>Requirements, business cases, SOPs, UAT packs, governance models, AI assessment material, board presentations, and decision material.</small>
+                </div>
               </article>
               <article>
                 <span>03</span>
-                <strong>Practical next steps</strong>
-                <small>Each engagement closes with risks, open questions, recommendations, and the next actions needed for approval, build, vendor alignment, or rollout.</small>
+                <div>
+                  <em>Client receives</em>
+                  <strong>A practical decision path</strong>
+                  <small>Risks, assumptions, open questions, recommendations, and next actions are made clear.</small>
+                </div>
               </article>
+            </div>
+            <div class="offer-result">
+              <strong>Bottom line</strong>
+              <span>Senior Business Analysis support without new headcount, long onboarding, or large firm overhead.</span>
             </div>
           </aside>
         </div>
         <section class="home-proof">
           <div class="section-heading left">
-            <p class="eyebrow">Representative outcomes</p>
-            <h2>Seasoned advisory work, structured for focused business outcomes.</h2>
-            <p>
+            <p class="eyebrow" data-content="outcomes-eyebrow">Representative outcomes</p>
+            <h2 data-content="outcomes-headline">Seasoned advisory work, structured for focused business outcomes.</h2>
+            <p data-content="outcomes-body">
               We position the service like a premium consulting desk, while reducing unnecessary setup and starting with a clear, scoped engagement.
             </p>
           </div>
-          <div class="proof-grid premium">
+          <div class="proof-grid premium" data-render="representative-outcomes">
             <article>
               <span>Requirements clarity</span>
               <strong>Detailed business requirements and service workflows</strong>
@@ -436,13 +458,13 @@
 
       <section class="view" id="view-services">
         <div class="section-heading">
-          <p class="eyebrow">Services</p>
-          <h2>Senior Business Analysis support for complex delivery work.</h2>
-          <p>
+          <p class="eyebrow" data-content="services-eyebrow">Services</p>
+          <h2 data-content="services-headline">Senior Business Analysis support for complex delivery work.</h2>
+          <p data-content="services-body">
             We focus on the Business Analysis outputs that help teams make decisions, align delivery, and move work forward without adding full time headcount.
           </p>
         </div>
-        <div class="proof-grid premium service-grid">
+        <div class="proof-grid premium service-grid" data-render="services-grid">
           <article>
             <span>Requirements and scope</span>
             <strong>Requirements clarity packs</strong>
@@ -613,6 +635,7 @@
             <p class="scope-note">Up to 60 pages or 10 source files for our analysis, such as notes, drafts, transcripts, spreadsheets, slides, or process material.</p>
             <p class="scope-note">Target turnaround: 3 to 5 business days after the triage call and complete inputs.</p>
             <button data-action="buy-sprint">Buy Rescue Sprint</button>
+            <p class="scope-note">After checkout, use the client workspace to complete your profile, upload files, submit the Rescue Sprint request, and track delivery.</p>
           </article>
           <article class="price-card recommended">
             <div class="badge">Best for recurring support</div>
@@ -700,11 +723,10 @@
           <p class="eyebrow">Client login</p>
           <h2>Sign in to create or access your client workspace.</h2>
           <p class="form-note">
-            Starter subscriptions and credit top ups use a private workspace so payments, credits, files, and deliverables connect to the right client account.
-            Rescue Sprint can be purchased directly from Pricing.
+            Rescue Sprint purchases, Starter subscriptions, and credit top ups use a private workspace so payments, files, requests, and deliverables connect to the right client account.
           </p>
-          <p id="authStatus" class="hidden">Choose Google or Apple to continue.</p>
-          <p class="auth-intro">Sign in with Google or Apple to create or open your client workspace.</p>
+          <p id="authStatus" class="auth-status">Choose the sign in option you prefer.</p>
+          <p class="auth-intro">Use Google, Apple, or a secure email and password account.</p>
           <div class="sso-actions" aria-label="Client sign in options">
             <button class="sso-button google" type="button" data-provider="google">
               <span class="sso-mark" aria-hidden="true">G</span>
@@ -719,7 +741,66 @@
               Continue with Apple
             </button>
           </div>
-          <p class="auth-helper">Use the same account for payments, files, request history, and deliverable updates.</p>
+          <div class="auth-divider"><span>or use email and password</span></div>
+          <div class="email-auth-grid">
+            <form id="passwordSignInForm" class="email-auth-panel">
+              <h3>Sign in</h3>
+              <label>
+                Work email
+                <input id="passwordLoginEmail" type="email" autocomplete="email" placeholder="name@company.com" required />
+              </label>
+              <label>
+                Password
+                <input id="passwordLoginPassword" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+              </label>
+              <button type="submit" class="primary full">Sign In</button>
+              <button type="button" class="link-button" id="showResetPassword">Forgot password?</button>
+            </form>
+            <form id="passwordSignUpForm" class="email-auth-panel">
+              <h3>Create account</h3>
+              <label>
+                Work email
+                <input id="passwordSignupEmail" type="email" autocomplete="email" placeholder="name@company.com" required />
+              </label>
+              <label>
+                Company or agency
+                <input id="passwordSignupCompany" placeholder="Company or agency name" required />
+              </label>
+              <label>
+                Password
+                <input id="passwordSignupPassword" type="password" autocomplete="new-password" placeholder="Create a secure password" required />
+                <small>Use at least 12 characters with a mix of letters and numbers.</small>
+              </label>
+              <label>
+                Confirm password
+                <input id="passwordSignupConfirm" type="password" autocomplete="new-password" placeholder="Confirm password" required />
+              </label>
+              <button type="submit" class="primary full">Create Secure Account</button>
+            </form>
+          </div>
+          <form id="passwordResetForm" class="email-auth-panel reset-panel hidden">
+            <h3>Reset password</h3>
+            <p>Enter your work email and we will send secure reset instructions.</p>
+            <label>
+              Work email
+              <input id="passwordResetEmail" type="email" autocomplete="email" placeholder="name@company.com" required />
+            </label>
+            <button type="submit" class="primary full">Send Reset Instructions</button>
+          </form>
+          <form id="passwordRecoveryForm" class="email-auth-panel reset-panel hidden">
+            <h3>Create a new password</h3>
+            <p>Enter a new password for your client workspace account.</p>
+            <label>
+              New password
+              <input id="passwordRecoveryNew" type="password" autocomplete="new-password" placeholder="New password" required />
+            </label>
+            <label>
+              Confirm new password
+              <input id="passwordRecoveryConfirm" type="password" autocomplete="new-password" placeholder="Confirm new password" required />
+            </label>
+            <button type="submit" class="primary full">Update Password</button>
+          </form>
+          <p class="auth-helper">Use the same account for payments, files, request history, messages, and deliverable updates.</p>
           <div class="legacy-auth-controls hidden" aria-hidden="true">
             <input id="loginEmail" type="hidden" />
             <input id="loginCompany" type="hidden" />
@@ -750,6 +831,7 @@
             <div class="tile-row">
               <article><span>Advisory Credits left</span><strong id="creditsLeft">5</strong></article>
               <article><span>Active requests</span><strong id="activeCount">1</strong></article>
+              <article><span>New deliverables</span><strong id="newDeliverableCount">0</strong></article>
               <article><span>Next renewal</span><strong>Jun 18</strong></article>
             </div>
             <div class="account-panel">
@@ -790,10 +872,73 @@
               <div class="panel-heading">
                 <div>
                   <h3>Ready deliverables</h3>
-                  <p>Download current files and review previous versions released to your workspace.</p>
+                  <p>Download the latest files, review version history, and confirm whether the current version is ready.</p>
                 </div>
               </div>
+              <div class="delivery-summary-grid" aria-label="Delivery summary">
+                <article>
+                  <span>Latest release</span>
+                  <strong id="latestDeliverableTitle">No release yet</strong>
+                  <small id="latestDeliverableMeta">New deliverables will appear here.</small>
+                </article>
+                <article>
+                  <span>Verification status</span>
+                  <strong id="verificationSummary">No review pending</strong>
+                  <small>Use messages or uploads below when a revision is needed.</small>
+                </article>
+              </div>
               <div id="clientDeliverablesList" class="deliverable-list"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-heading">
+                <div>
+                  <h3>Messages and uploads</h3>
+                  <p>Send a quick note or add client files to a deliverable or request.</p>
+                </div>
+              </div>
+              <div class="client-action-grid">
+                <form id="clientMessageForm" class="client-action-card">
+                  <h4>Quick message</h4>
+                  <label>
+                    Related item
+                    <select id="clientMessageContext"></select>
+                  </label>
+                  <label>
+                    Message
+                    <textarea id="clientMessageBody" rows="4" placeholder="Add a revision note, approval comment, or delivery question."></textarea>
+                  </label>
+                  <p id="clientMessageStatus" class="admin-inline-status">Messages are attached to the selected workspace item.</p>
+                  <button type="submit" class="primary">Send Message</button>
+                </form>
+                <form id="clientUploadForm" class="client-action-card">
+                  <h4>Revision or document upload</h4>
+                  <label>
+                    Related item
+                    <select id="clientUploadContext"></select>
+                  </label>
+                  <label>
+                    Upload purpose
+                    <select id="clientUploadPurpose">
+                      <option>Revision notes</option>
+                      <option>Source document</option>
+                      <option>Approval evidence</option>
+                      <option>Supporting file</option>
+                    </select>
+                  </label>
+                  <label>
+                    Files
+                    <input id="clientUploadFiles" type="file" multiple />
+                  </label>
+                  <label>
+                    Notes
+                    <textarea id="clientUploadNotes" rows="3" placeholder="Add context for the uploaded files."></textarea>
+                  </label>
+                  <div class="file-list" id="clientUploadFileList">No files selected yet.</div>
+                  <p id="clientUploadStatus" class="admin-inline-status">Files are linked to the selected workspace item.</p>
+                  <button type="submit" class="primary">Upload Files</button>
+                </form>
+              </div>
+              <div class="communication-log" id="clientCommunicationLog"></div>
             </div>
             <div class="panel">
               <div class="panel-heading">
@@ -944,6 +1089,20 @@
             </label>
             <button type="submit">Save Client Profile</button>
           </form>
+          <form id="accountSecurityForm" class="form-card">
+            <p class="eyebrow">Account security</p>
+            <h3>Update your password.</h3>
+            <p class="scope-note">Use this only for email and password accounts. Google and Apple passwords are managed by those providers.</p>
+            <label>
+              New password
+              <input id="accountNewPassword" type="password" autocomplete="new-password" placeholder="New password" />
+            </label>
+            <label>
+              Confirm new password
+              <input id="accountConfirmPassword" type="password" autocomplete="new-password" placeholder="Confirm new password" />
+            </label>
+            <button type="submit" class="secondary">Update Password</button>
+          </form>
         </div>
       </section>
 
@@ -989,6 +1148,7 @@
                 <option value="1">1 credit, focused deliverable outcome</option>
                 <option value="2">2 credits, larger deliverable outcome</option>
                 <option value="3">3 credits, complex deliverable outcome</option>
+                <option value="rescue">Rescue Sprint included scope</option>
                 <option value="custom">Custom scope review needed</option>
               </select>
               <small>Final credit use is confirmed before work starts. If credits are not available, the request is paused until credits are added or a custom scope is approved.</small>
@@ -1024,6 +1184,12 @@
         </div>
         <div class="billing-grid">
           <article>
+            <h3>BA Rescue Sprint</h3>
+            <strong>$1,500</strong>
+            <p>One focused Business Analysis delivery package. Use this workspace for profile details, source files, request intake, messages, and delivery history.</p>
+            <button data-action="buy-sprint">Buy Rescue Sprint</button>
+          </article>
+          <article>
             <h3>Starter Subscription</h3>
             <strong>$2,500/month</strong>
             <p>5 Advisory Credits per month. A client workspace is required so credits, files, payments, and deliverables stay linked to your account.</p>
@@ -1050,21 +1216,22 @@
             <p class="eyebrow">Checkout complete</p>
             <h2>Your payment has been received.</h2>
             <p>
-              Use the same email address used at checkout so we can align your account, payment, and delivery history.
-              After sign in, complete your client profile and submit the first request with any supporting files.
+              Your next step is the client workspace. Use the same email address used at checkout so your payment,
+              profile, source files, messages, requests, and deliverables stay connected to one account.
             </p>
             <div class="action-row">
               <a class="primary" href="#login">Client Login</a>
-              <a class="secondary" href="#pricing">View Advisory Plans</a>
+              <a class="secondary" href="#request">Submit First Request</a>
             </div>
           </div>
           <div class="panel">
             <h3>What happens next</h3>
             <ul class="check-list">
-              <li>Sign in with Google or Apple to open your client workspace.</li>
+              <li>Sign in with Google, Apple, or email and password to open your client workspace.</li>
               <li>Your profile captures company, role, timezone, and delivery context.</li>
+              <li>Rescue Sprint and monthly clients use the same intake, file upload, messages, and delivery tracking flow.</li>
               <li>Your first request can include multiple supporting files.</li>
-              <li>Delivery updates appear inside the client workspace.</li>
+              <li>Delivery updates, released files, revision notes, and prior versions appear inside the client workspace.</li>
             </ul>
           </div>
         </div>
@@ -1082,7 +1249,7 @@
           <article>
             <span>Access</span>
             <strong>Client login</strong>
-            <small>Google and Apple sign in support controlled workspace access without shared passwords.</small>
+            <small>Clients can use Google, Apple, or email and password account access for a controlled private workspace.</small>
           </article>
           <article>
             <span>Files</span>
@@ -1138,6 +1305,44 @@
         <div id="adminCreditAlertPanel" class="admin-alert-panel">
           <strong>Credit account status</strong>
           <span id="adminCreditAlertText">Credit balance is healthy.</span>
+        </div>
+        <div class="admin-client-summary panel">
+          <div>
+            <p class="eyebrow">Selected client</p>
+            <h3 id="adminSelectedClientName">Client workspace</h3>
+            <p id="adminSelectedClientEmail">No billing email recorded.</p>
+          </div>
+          <div class="admin-client-metrics">
+            <article>
+              <span>Credits</span>
+              <strong id="adminSelectedClientCredits">5</strong>
+              <small id="adminSelectedClientStatus">Healthy</small>
+            </article>
+            <article>
+              <span>Due deliverables</span>
+              <strong id="adminDueDeliverables">0</strong>
+              <small>Need date attention</small>
+            </article>
+            <article>
+              <span>Pending requests</span>
+              <strong id="adminPendingCount">0</strong>
+              <small>Awaiting scope or work</small>
+            </article>
+            <article>
+              <span>Shipped</span>
+              <strong id="adminShippedCount">0</strong>
+              <small>Released to client</small>
+            </article>
+            <article>
+              <span>Paused</span>
+              <strong id="adminPausedCount">0</strong>
+              <small>No credits or blocked</small>
+            </article>
+          </div>
+          <div class="admin-action-row">
+            <a id="adminMessageClient" class="secondary small" href="mailto:support@baadvisorydesk.com" data-mailto="admin-client">Message Client</a>
+            <button class="small" type="button" data-admin-action="focus-upload">Upload Deliverable</button>
+          </div>
         </div>
         <div class="admin-workbench">
           <article class="panel">
@@ -1255,11 +1460,17 @@
           </article>
         </div>
         <div class="panel">
-          <h3>Admin queue</h3>
+          <div class="admin-panel-head">
+            <div>
+              <h3>Admin queue</h3>
+              <p>Requests, quote follow up, payment checks, notifications, and paused work for the selected client.</p>
+            </div>
+            <a id="adminQueueMessageClient" class="secondary small" href="mailto:support@baadvisorydesk.com" data-mailto="admin-client-queue">Message Client</a>
+          </div>
           <p id="adminQueueStatus">Admin queue loads after administrator sign in.</p>
           <table id="adminTable">
             <thead>
-              <tr><th>Client</th><th>Request</th><th>Action</th><th>Status</th></tr>
+              <tr><th>Client</th><th>Due</th><th>Request</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -1328,6 +1539,10 @@
               <select id="quoteCountry" data-country-select></select>
             </label>
             <label>
+              Work email
+              <input id="quoteEmail" type="email" placeholder="name@company.com" />
+            </label>
+            <label>
               Estimated budget
               <select id="quoteBudget">
                 <option>$7,500 to $15,000</option>
@@ -1337,16 +1552,45 @@
             </label>
             <label>
               What needs help?
-              <textarea rows="5">We need a senior Business Analysis review of our current delivery documentation and a roadmap for what to fix first.</textarea>
+              <textarea id="quoteSummary" rows="5">We need a senior Business Analysis review of our current delivery documentation and a roadmap for what to fix first.</textarea>
             </label>
+            <p id="quoteStatus" class="admin-inline-status">Send the request and we will follow up with discovery next steps.</p>
             <button type="submit">Send Custom Request</button>
           </form>
         </div>
       </section>
     </main>
 
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="./app.js"></script>
+    <footer class="site-footer">
+      <div>
+        <strong>BA Advisory Desk</strong>
+        <p>Business Analysis advisory support for teams that need clear scope, requirements, delivery documentation, and executive ready material.</p>
+      </div>
+      <div>
+        <span>Start</span>
+        <a href="#pricing">View Advisory Plans</a>
+        <a href="#samples">Sample Work</a>
+        <a href="#quote">Request Custom Scope</a>
+      </div>
+      <div>
+        <span>Client Workspace</span>
+        <a href="#login">Client Login</a>
+        <a href="#security">Security</a>
+        <a href="#about">About Us</a>
+      </div>
+      <div>
+        <span>Support</span>
+        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support" data-mailto="support">support@baadvisorydesk.com</a>
+        <p>Contact us for package questions, billing support, file access, or delivery coordination.</p>
+      </div>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+      <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
+    </div>
+    <script src="./content.js?v=1"></script>
+    <script src="./app.js?v=1"></script>
   </body>
 </html>
 

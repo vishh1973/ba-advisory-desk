@@ -22,7 +22,7 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const limit = readLimit(req);
 
-    const [requests, quoteRequests, creditAccounts, paymentOrders, notifications] = await Promise.all([
+    const [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents] = await Promise.all([
       supabase
         .from("requests")
         .select("id,organization_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at,client_organizations(name,billing_email)")
@@ -40,7 +40,7 @@ module.exports = async function handler(req, res) {
         .limit(limit),
       supabase
         .from("payment_orders")
-        .select("id,organization_id,user_id,product_type,amount_cents,currency,credits,status,stripe_checkout_session_id,stripe_payment_intent_id,stripe_invoice_id,created_at,updated_at")
+        .select("id,organization_id,user_id,product_type,amount_cents,currency,credits,status,stripe_checkout_session_id,stripe_payment_intent_id,stripe_invoice_id,created_at,updated_at,client_organizations(name,billing_email)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
@@ -48,9 +48,19 @@ module.exports = async function handler(req, res) {
         .select("id,organization_id,recipient_email,channel,template_key,subject,status,related_entity_type,related_entity_id,sent_at,created_at")
         .order("created_at", { ascending: false })
         .limit(limit),
+      supabase
+        .from("credit_ledger")
+        .select("id,organization_id,related_request_id,related_deliverable_id,related_payment_id,entry_type,entry_reason,credits,balance_after,source,created_at,client_organizations(name,billing_email)")
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("audit_events")
+        .select("id,organization_id,event_type,event_detail,related_entity_type,related_entity_id,source,created_at,client_organizations(name,billing_email)")
+        .order("created_at", { ascending: false })
+        .limit(limit),
     ]);
 
-    const firstError = [requests, quoteRequests, creditAccounts, paymentOrders, notifications].find((result) => result.error);
+    const firstError = [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
 
     const { data: deliverables, error: deliverablesError } = await supabase
@@ -67,6 +77,8 @@ module.exports = async function handler(req, res) {
       creditAccounts: creditAccounts.data || [],
       paymentOrders: paymentOrders.data || [],
       notifications: notifications.data || [],
+      creditLedger: creditLedger.data || [],
+      auditEvents: auditEvents.data || [],
       deliverables: deliverables || [],
     });
   } catch (error) {

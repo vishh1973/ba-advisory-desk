@@ -22,8 +22,8 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const stripe = getStripe();
 
-    if ((productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
-      res.status(400).json({ error: "Please create or access your client workspace before purchasing this package." });
+    if ((productType === "rescue_sprint" || productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
+      res.status(400).json({ error: "Please create or access your client workspace before purchasing this service." });
       return;
     }
 
@@ -53,7 +53,7 @@ module.exports = async function handler(req, res) {
       workspace_id: workspaceId || "",
       client_email: clientEmail || "",
       credits: String(priceConfig.credits),
-      credit_grant_type: priceConfig.credits > 0 ? "purchase" : "none",
+      credit_grant_type: priceConfig.creditGrantType || (priceConfig.credits > 0 ? "purchase" : "none"),
     };
 
     const session = await stripe.checkout.sessions.create({

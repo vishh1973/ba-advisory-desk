@@ -28,55 +28,56 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if ((type === "adjust" && credits === 0) || (type !== "adjust" && credits <= 0)) {
+      res.status(400).json({ error: "Credit amount must be greater than zero." });
+      return;
+    }
+
     const supabase = getSupabaseAdmin();
-    const { data: account } = await supabase
+    const rpcCredits = type === "adjust" ? credits : Math.abs(credits);
+    const { data: ledgerResult, error: ledgerError } = await supabase
+      .rpc("apply_credit_change", {
+        p_organization_id: organizationId,
+        p_entry_type: type,
+        p_credits: rpcCredits,
+        p_entry_reason: reason,
+        p_related_request_id: requestId,
+        p_related_deliverable_id: null,
+        p_related_payment_id: null,
+        p_source: "admin",
+        p_idempotency_key: body.idempotencyKey || null,
+        p_actor_id: body.actorId || null,
+      })
+      .single();
+
+    if (ledgerError) throw ledgerError;
+
+    let balanceAfter = Number(ledgerResult?.balance || 0);
+    let lowCreditThreshold = 2;
+
+    const { data: account, error: accountError } = await supabase
       .from("credit_accounts")
       .select("id,balance,low_credit_threshold")
       .eq("organization_id", organizationId)
       .maybeSingle();
 
-    const currentBalance = account?.balance || 0;
-    const signedCredits =
-      type === "adjust" ? credits : ["grant", "release"].includes(type) ? Math.abs(credits) : -Math.abs(credits);
-    const balanceAfter = Math.max(0, currentBalance + signedCredits);
-    const lowCreditThreshold = Number.isFinite(requestedThreshold)
-      ? Math.max(0, requestedThreshold)
-      : account?.low_credit_threshold || 2;
+    if (accountError) throw accountError;
 
-    if (account?.id) {
-      await supabase
+    balanceAfter = Number(account?.balance ?? balanceAfter);
+    lowCreditThreshold = Number(account?.low_credit_threshold || 2);
+
+    if (Number.isFinite(requestedThreshold) && account?.id) {
+      lowCreditThreshold = Math.max(0, requestedThreshold);
+      const { error: thresholdError } = await supabase
         .from("credit_accounts")
         .update({
-          balance: balanceAfter,
           low_credit_threshold: lowCreditThreshold,
-          status: balanceAfter <= 0 ? "depleted" : "active",
           updated_at: new Date().toISOString(),
         })
         .eq("id", account.id);
-    } else {
-      await supabase.from("credit_accounts").insert({
-        organization_id: organizationId,
-        balance: balanceAfter,
-        low_credit_threshold: lowCreditThreshold,
-        status: balanceAfter <= 0 ? "depleted" : "active",
-      });
+
+      if (thresholdError) throw thresholdError;
     }
-
-    await supabase.from("credit_ledger").insert({
-      organization_id: organizationId,
-      related_request_id: requestId,
-      entry_type: type,
-      entry_reason: reason,
-      credits: signedCredits,
-      balance_after: balanceAfter,
-      source: "admin",
-    });
-
-    await supabase.from("audit_events").insert({
-      organization_id: organizationId,
-      event_type: `credit_${type}`,
-      event_detail: { reason, credits: signedCredits, balance_after: balanceAfter, request_id: requestId },
-    });
 
     if (["reserve", "consume", "adjust"].includes(type)) {
       await detectAndNotifyCreditStatus(supabase, {
