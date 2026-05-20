@@ -3029,9 +3029,10 @@ function renderCreditControls() {
   if (state.adminClients.length && state.selectedAdminClientId) {
     syncSelectedAdminClientToState();
   }
-  const used = Math.max(0, config.starterCredits - state.creditsLeft);
-  const usageText = `${used} of ${config.starterCredits} used this cycle`;
-  const usagePercent = Math.min(100, Math.round((used / config.starterCredits) * 100));
+  const availableCredits = Math.max(0, Number(state.creditsLeft || 0));
+  const usageText = `${availableCredits} Advisory Credit${availableCredits === 1 ? "" : "s"} available. Low credit threshold: ${state.creditThreshold}.`;
+  const usageBase = Math.max(config.starterCredits, availableCredits, Number(state.creditThreshold || 0), 1);
+  const usagePercent = Math.min(100, Math.round((availableCredits / usageBase) * 100));
   const creditAlertState = getCreditAlertState();
   const summary = document.querySelector("#creditUsageSummary");
   const bar = document.querySelector("#creditUsageBar");
@@ -5211,31 +5212,38 @@ document.addEventListener("click", (event) => {
 
 document.querySelector("#clientMessageForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = event.submitter || document.querySelector("#clientMessageForm button[type='submit']");
+  if (submitButton?.dataset.busy === "true") return;
   const status = document.querySelector("#clientMessageStatus");
   if (status) {
     status.textContent = "Sending your message.";
     status.classList.remove("warning", "success");
   }
-  const result = await saveClientMessage();
-  if (!result.ok) {
-    if (status) {
-      status.textContent = result.error || "Message could not be sent.";
-      status.classList.add("warning");
+  setButtonBusy(submitButton, true, "Sending Message");
+  try {
+    const result = await saveClientMessage();
+    if (!result.ok) {
+      if (status) {
+        status.textContent = result.error || "Message could not be sent.";
+        status.classList.add("warning");
+      }
+      showToast(result.error || "Message could not be sent.");
+      return;
     }
-    showToast(result.error || "Message could not be sent.");
-    return;
+    document.querySelector("#clientMessageBody").value = "";
+    if (status) {
+      status.textContent = result.advisorNotified
+        ? "Message sent, attached, and shared with the advisory team."
+        : result.storedOnline
+          ? "Message sent and attached to the selected item. The advisory team will review it in the workspace."
+          : "Message saved in this workspace.";
+      status.classList.add("success");
+    }
+    render();
+    showToast("Message added to the client workspace.");
+  } finally {
+    setButtonBusy(submitButton, false);
   }
-  document.querySelector("#clientMessageBody").value = "";
-  if (status) {
-    status.textContent = result.advisorNotified
-      ? "Message sent, attached, and shared with the advisory team."
-      : result.storedOnline
-        ? "Message sent and attached to the selected item. The advisory team will review it in the workspace."
-        : "Message saved in this workspace.";
-    status.classList.add("success");
-  }
-  render();
-  showToast("Message added to the client workspace.");
 });
 
 document.querySelector("#clientUploadForm")?.addEventListener("submit", async (event) => {
@@ -5561,23 +5569,30 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
 
 document.querySelector("#profileForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  state.client = {
-    email: document.querySelector("#profileEmail").value,
-    company: document.querySelector("#profileCompany").value,
-  };
-  syncAuthEmailFields(state.client.email);
-  saveState();
-  const orgResult = await saveClientProfileToSupabase();
-  render();
-  if (orgResult.ok) {
-    const checkoutResumed = await resumePendingCheckout();
-    if (!checkoutResumed) {
-      await loadClientWorkspaceData();
-      window.location.hash = "dashboard";
-      showToast("Client profile saved. Your workspace is ready.");
+  const submitButton = event.submitter || document.querySelector("#profileForm button[type='submit']");
+  if (submitButton?.dataset.busy === "true") return;
+  setButtonBusy(submitButton, true, "Saving Profile");
+  try {
+    state.client = {
+      email: document.querySelector("#profileEmail").value,
+      company: document.querySelector("#profileCompany").value,
+    };
+    syncAuthEmailFields(state.client.email);
+    saveState();
+    const orgResult = await saveClientProfileToSupabase();
+    render();
+    if (orgResult.ok) {
+      const checkoutResumed = await resumePendingCheckout();
+      if (!checkoutResumed) {
+        await loadClientWorkspaceData();
+        window.location.hash = "dashboard";
+        showToast("Client profile saved. Your workspace is ready.");
+      }
+    } else {
+      showPersistentNotice(orgResult.reason || `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`);
     }
-  } else {
-    showPersistentNotice(orgResult.reason || `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`);
+  } finally {
+    setButtonBusy(submitButton, false);
   }
 });
 

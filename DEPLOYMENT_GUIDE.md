@@ -73,6 +73,9 @@ supabase/20260519_sso_admin_deliverable_storage_hardening.sql
 supabase/20260519_auth_admin_hardening.sql
 supabase/20260519_credit_expiry_hardening.sql
 supabase/20260519_final_auth_workspace_hardening.sql
+supabase/20260520_client_project_workspaces.sql
+supabase/20260520_admin_deliverable_release_repair.sql
+supabase/20260520_security_qa_hardening.sql
 ```
 
 This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, low-credit reminders, and final profile or workspace access hardening.

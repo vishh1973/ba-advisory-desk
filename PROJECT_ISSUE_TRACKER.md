@@ -47,6 +47,12 @@ Last updated: 2026-05-20
 - [x] Admin deliverable release now uses a protected server-side prepare, upload, finalize, and abort flow.
 - [x] Deliverable release no longer automatically consumes credits unless the admin enters credits to record for that release.
 - [x] Credit ledger project references are stored as context only. The account balance remains client-level.
+- [x] Admin API authorization now requires both an admin profile role and an active admin allowlist match.
+- [x] Client workspace notifications now validate project, request, and deliverable references before writing admin-visible notifications.
+- [x] Legacy deliverable-ready notification route no longer changes deliverable or version release status outside the controlled release flow.
+- [x] Security QA hardening SQL added for admin role checks and message related-record ownership.
+- [x] Client credit balance display now shows available credits instead of calculating cycle usage as starter credits minus balance.
+- [x] Client profile save and client message submit now use busy-state guards to reduce duplicate submissions.
 
 ## Addressed In Hosted Configuration
 
@@ -71,6 +77,7 @@ Last updated: 2026-05-20
 - [x] Public copy cleanup: remove any provider wording that is not client friendly.
 - [x] Supabase configuration: enable Google sign-in after Google Cloud OAuth client is created.
 - [ ] Supabase configuration: enable Apple sign-in after Apple Developer service credentials are created.
+- [ ] Supabase SQL: apply `supabase/20260520_security_qa_hardening.sql` to the hosted database.
 
 ## Pending External Configuration
 

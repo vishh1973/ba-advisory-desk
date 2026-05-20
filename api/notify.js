@@ -29,6 +29,67 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function clientError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+async function readOwnedProjectId(supabase, organizationId, projectId) {
+  if (!projectId) return null;
+  const { data, error } = await supabase
+    .from("client_projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.id) throw clientError("Selected project does not belong to this client workspace.");
+  return data.id;
+}
+
+async function readOwnedRelatedRecord(supabase, organizationId, relatedEntityType, relatedEntityId) {
+  if (!relatedEntityType || relatedEntityType === "workspace") {
+    if (relatedEntityId) throw clientError("Workspace notifications cannot reference another workspace item.");
+    return { relatedEntityType: relatedEntityType || "workspace", relatedEntityId: null, projectId: null };
+  }
+
+  const tableByType = {
+    request: "requests",
+    deliverable: "deliverables",
+  };
+  const table = tableByType[relatedEntityType];
+  if (!table) throw clientError("This workspace notification type is not supported.");
+  if (!relatedEntityId) throw clientError("Related workspace item is required.");
+
+  const { data, error } = await supabase
+    .from(table)
+    .select("id,organization_id,project_id")
+    .eq("id", relatedEntityId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.id) throw clientError("Related workspace item does not belong to this client workspace.");
+
+  return { relatedEntityType, relatedEntityId: data.id, projectId: data.project_id || null };
+}
+
+async function validateClientNotificationScope(supabase, organizationId, { projectId, relatedEntityType, relatedEntityId }) {
+  const ownedRelated = await readOwnedRelatedRecord(supabase, organizationId, relatedEntityType, relatedEntityId);
+  const requestedProjectId = await readOwnedProjectId(supabase, organizationId, projectId);
+  const resolvedProjectId = requestedProjectId || ownedRelated.projectId || null;
+
+  if (requestedProjectId && ownedRelated.projectId && requestedProjectId !== ownedRelated.projectId) {
+    throw clientError("Selected project does not match the related workspace item.");
+  }
+
+  return {
+    projectId: resolvedProjectId,
+    relatedEntityType: ownedRelated.relatedEntityType,
+    relatedEntityId: ownedRelated.relatedEntityId,
+  };
+}
+
 function buildAdminEmail({ eventType, title, summary, organization, profile, relatedLabel }) {
   const rows = [
     ["Event", eventType],
@@ -96,6 +157,11 @@ async function handleClientWorkspaceNotification(req, res) {
   }
 
   const organization = profile.client_organizations || {};
+  const scope = await validateClientNotificationScope(supabase, profile.organization_id, {
+    projectId,
+    relatedEntityType,
+    relatedEntityId,
+  });
   const supportEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "support@baadvisorydesk.com";
   const subject = `BA Advisory Desk client update: ${title}`;
   const emailResult = await sendEmail({
@@ -108,7 +174,7 @@ async function handleClientWorkspaceNotification(req, res) {
     .from("notifications")
     .insert({
       organization_id: profile.organization_id,
-      project_id: projectId,
+      project_id: scope.projectId,
       recipient_email: supportEmail,
       channel: "email",
       template_key: eventType,
@@ -116,8 +182,8 @@ async function handleClientWorkspaceNotification(req, res) {
       body: summary,
       status: emailResult.skipped ? "queued" : "sent",
       sent_at: emailResult.skipped ? null : new Date().toISOString(),
-      related_entity_type: relatedEntityType,
-      related_entity_id: relatedEntityId,
+      related_entity_type: scope.relatedEntityType,
+      related_entity_id: scope.relatedEntityId,
     })
     .then(() => null, () => null);
 
@@ -140,7 +206,7 @@ module.exports = async function handler(req, res) {
     try {
       await handleClientWorkspaceNotification(req, res);
     } catch (error) {
-      res.status(500).json({ error: error.message || "Workspace notification could not be sent." });
+      res.status(error.statusCode || 500).json({ error: error.message || "Workspace notification could not be sent." });
     }
     return;
   }

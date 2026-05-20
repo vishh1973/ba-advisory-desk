@@ -16,6 +16,24 @@ function readBearerToken(req) {
   return match ? match[1].trim() : "";
 }
 
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function hasAdminRole(profile) {
+  return ["admin", "owner", "ops_admin"].includes(normalize(profile?.role));
+}
+
+function allowlistMatches(row, { userEmail, userDomain, provider }) {
+  const rowEmail = normalize(row.email);
+  const rowDomain = normalize(row.domain);
+  const rowProvider = normalize(row.provider);
+  const emailAllowed = rowEmail && rowEmail === userEmail;
+  const domainAllowed = rowDomain && rowDomain === userDomain;
+  const providerAllowed = !rowProvider || rowProvider === provider;
+  return (emailAllowed || domainAllowed) && providerAllowed;
+}
+
 async function verifyAdminBearer(req) {
   const token = readBearerToken(req);
 
@@ -33,7 +51,8 @@ async function verifyAdminBearer(req) {
     return false;
   }
 
-  const userEmail = (data?.user?.email || "").trim().toLowerCase();
+  const userId = data?.user?.id;
+  const userEmail = normalize(data?.user?.email);
   const userDomain = userEmail.includes("@") ? userEmail.split("@").pop() : "";
   const provider = String(
     data?.user?.app_metadata?.provider ||
@@ -41,33 +60,37 @@ async function verifyAdminBearer(req) {
       ""
   ).toLowerCase();
 
-  if (error || !userEmail) {
+  if (error || !userId || !userEmail) {
     return false;
   }
 
+  let roleVerified = false;
   try {
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id,role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profileError || !hasAdminRole(profile)) {
+      return false;
+    }
+    roleVerified = true;
+
     const { data: allowlistRows, error: allowlistError } = await supabase
       .from("admin_sso_allowlist")
       .select("email,domain,provider,status")
       .eq("status", "active");
 
     if (!allowlistError && Array.isArray(allowlistRows)) {
-      return allowlistRows.some((row) => {
-        const rowEmail = String(row.email || "").trim().toLowerCase();
-        const rowDomain = String(row.domain || "").trim().toLowerCase();
-        const rowProvider = String(row.provider || "").trim().toLowerCase();
-        const emailAllowed = rowEmail && rowEmail === userEmail;
-        const domainAllowed = rowDomain && rowDomain === userDomain;
-        const providerAllowed = !rowProvider || rowProvider === provider;
-        return (emailAllowed || domainAllowed) && providerAllowed;
-      });
+      return allowlistRows.some((row) => allowlistMatches(row, { userEmail, userDomain, provider }));
     }
   } catch (_error) {
     // Fallback below keeps older environments usable until the allowlist migration is applied.
   }
 
   const fallbackAdminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-  return Boolean(fallbackAdminEmail && userEmail === fallbackAdminEmail);
+  return Boolean(roleVerified && fallbackAdminEmail && userEmail === fallbackAdminEmail);
 }
 
 async function requireAdmin(req, options = {}) {

@@ -89,7 +89,6 @@ module.exports = async function handler(req, res) {
     }
 
     const supabase = getSupabaseAdmin();
-    const requestedProjectId = String(body.projectId || "").trim() || null;
     let versionQuery = supabase
       .from("deliverable_versions")
       .select("id,deliverable_id,organization_id,project_id,version_number,status,summary,release_note,released_at")
@@ -117,6 +116,11 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (version.status !== "released" || deliverable.status !== "delivered") {
+      res.status(409).json({ error: "Use the controlled release flow before sending a deliverable-ready notification." });
+      return;
+    }
+
     const { data: files, error: filesError } = await supabase
       .from("deliverable_version_files")
       .select("id,file_name,file_size_bytes")
@@ -136,31 +140,12 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    await supabase
-      .from("deliverable_versions")
-      .update({
-        status: "released",
-        released_at: version.released_at || new Date().toISOString(),
-      })
-      .eq("id", version.id);
-
-    await supabase
-      .from("deliverables")
-      .update({
-        project_id: requestedProjectId || deliverable.project_id || version.project_id || null,
-        latest_version_id: version.id,
-        current_version_number: version.version_number,
-        status: "delivered",
-        shipped_at: new Date().toISOString(),
-      })
-      .eq("id", deliverable.id);
-
     const email = buildEmail({ deliverable, version, files: files || [] });
     const { data: notification, error: notificationError } = await supabase
       .from("notifications")
       .insert({
         organization_id: deliverable.organization_id,
-        project_id: requestedProjectId || deliverable.project_id || version.project_id || null,
+        project_id: deliverable.project_id || version.project_id || null,
         recipient_email: recipientEmail,
         template_key: "deliverable_ready",
         subject: email.subject,
