@@ -134,12 +134,11 @@ Current QA status:
 - Fixed: workspace data read issues now surface as a dashboard refresh prompt instead of silently showing empty state.
 - Fixed: Deliverables and Messages And Files are direct sidebar options.
 - Passed: signed out user cannot access workspace.
-- Passed: safe QA client can see a released deliverable, download it, and mark it reviewed and accepted.
+- Passed: safe QA client can see a released deliverable, download it, message about it, and mark it reviewed and accepted.
 - Fixed: Message About This and Upload Revision Files now open the Messages and Files panel before focusing the related form.
 
 Remaining QA:
 
-- Test message send as authenticated client.
 - Test revision upload as authenticated client.
 - Test wrong client signed URL access is blocked.
 
