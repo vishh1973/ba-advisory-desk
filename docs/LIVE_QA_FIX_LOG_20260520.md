@@ -218,6 +218,30 @@ Confirmed on the live site:
 - `app.js` contains the new checkout confirmation language.
 - `app.js` contains the request balance fallback language.
 - `app.js` contains the 10 file upload limit.
+
+## Authenticated QA Pass
+
+Date: 2026-05-20
+
+### Live QA Completed
+
+- Created safe QA client and admin accounts for controlled regression testing.
+- Confirmed client sign in through email and password.
+- Confirmed client profile, project, request, source file upload, credit balance, signed source file download, deliverable visibility, signed deliverable download, and deliverable acceptance.
+- Confirmed admin sign in through email and password.
+- Confirmed admin portfolio loads and the selected client dossier shows client ID, project ID, profile, source files, released deliverables, and messages.
+- Confirmed admin protected APIs reject unauthenticated use and accept the allowlisted admin account.
+
+### Issues Found
+
+- Admin sign in could show the admin login status but leave the user visually on the login page when the URL was already `#admin`.
+- Client deliverable shortcut buttons for messages and uploads set the right context but did not open the Messages and Files panel, which made the action feel broken.
+
+### Fixes Applied
+
+- Admin auth routing now rerenders the admin workspace immediately when an authenticated admin signs in on `#admin`.
+- Client message and upload shortcut buttons now open the Messages and Files panel, scroll to the correct form, and focus the right field.
+- Smoke tests now include a source check that client message shortcuts open the action panel.
 - Sample PDFs are available on the live domain.
 - `robots.txt`, `sitemap.xml`, and `llms.txt` are available on the live domain.
 

@@ -5225,8 +5225,13 @@ document.addEventListener("click", (event) => {
   const selector = action === "upload" ? "#clientUploadContext" : "#clientMessageContext";
   const field = document.querySelector(selector);
   if (field) field.value = context;
+  const messagePanel = document.querySelector("#clientWorkspaceMessages");
+  if (messagePanel) messagePanel.open = true;
   const focusTarget = action === "upload" ? document.querySelector("#clientUploadFiles") : document.querySelector("#clientMessageBody");
-  focusTarget?.focus();
+  window.requestAnimationFrame(() => {
+    focusTarget?.scrollIntoView({ block: "center", behavior: "smooth" });
+    focusTarget?.focus();
+  });
 });
 
 document.querySelector("#clientMessageForm")?.addEventListener("submit", async (event) => {

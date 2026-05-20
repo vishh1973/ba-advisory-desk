@@ -62,11 +62,10 @@ Current QA status:
 - Passed: password fields are not prefilled with a personal email.
 - Passed: protected routes send signed out visitors to login.
 - Passed: password recovery view stays available when recovery mode is detected.
+- Passed: safe QA client can sign in and reach the workspace.
 
 Remaining QA:
 
-- Sign in live as `totallyfitmbw@gmail.com`.
-- Sign in live as the administrator account.
 - Confirm Google sign in returns to the correct workspace.
 - Confirm password reset email returns to the recovery screen.
 
@@ -112,11 +111,11 @@ Current QA status:
 - Passed: multi-file controls exist.
 - Passed: client-side file validation checks extension and size.
 - Fixed: client dashboard now has direct Deliverables and Messages And Files navigation.
+- Passed: safe QA client request was created with a project and multiple source files.
+- Passed: user confirmed a three-file live request submitted and the files were visible.
 
 Remaining QA:
 
-- Submit an authenticated request with one file.
-- Submit an authenticated request with multiple files.
 - Confirm admin can see request files.
 - Confirm invalid file type and oversized file errors are clear.
 
@@ -135,12 +134,13 @@ Current QA status:
 - Fixed: workspace data read issues now surface as a dashboard refresh prompt instead of silently showing empty state.
 - Fixed: Deliverables and Messages And Files are direct sidebar options.
 - Passed: signed out user cannot access workspace.
+- Passed: safe QA client can see a released deliverable, download it, and mark it reviewed and accepted.
+- Fixed: Message About This and Upload Revision Files now open the Messages and Files panel before focusing the related form.
 
 Remaining QA:
 
 - Test message send as authenticated client.
 - Test revision upload as authenticated client.
-- Test signed deliverable download as authenticated client.
 - Test wrong client signed URL access is blocked.
 
 ## Journey 7: Administrator Manages Work
@@ -161,14 +161,12 @@ Current QA status:
 - Passed: unauthenticated admin APIs return 401.
 - Fixed: Google sign in is now enabled in the public configuration so admin Google access can be tested after deploy.
 - Fixed: zero credit Rescue Sprint status updates no longer pause only because balance is zero.
+- Passed: safe QA admin can sign in and open the operations desk.
+- Passed: safe QA admin can load the client portfolio, select the safe QA client, and review project, source file, and deliverable context.
+- Passed: safe QA admin release flow works through the protected API, and user retest confirmed the UI release update works.
 
 Remaining QA:
 
-- Sign in as admin live.
-- Load admin queue.
-- Select the test client.
-- Confirm files, messages, payments, credits, and deliverables are visible.
-- Upload a controlled test deliverable.
 - Confirm the client receives the ready notification.
 
 ## Journey 8: Credit Management

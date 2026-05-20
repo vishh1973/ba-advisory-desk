@@ -6,7 +6,7 @@ Last updated: May 20, 2026
 
 Overall status: Risk controlled, not launch cleared.
 
-The public site, checkout confirmation, client request upload safeguards, admin dossier update, source file downloads, and protected admin release endpoint are working at the automated smoke level. Several deeper risks remain around authenticated integration testing, credit reservation, credit expiry, and database policy deployment.
+The public site, checkout confirmation, client request upload safeguards, admin dossier update, source file downloads, protected admin release endpoint, and one authenticated client to admin to client delivery path are working. Several deeper risks remain around credit reservation, credit expiry, email delivery regression, mobile authenticated QA, and repeated Stripe edge case testing.
 
 ## Automated Checks Completed
 
@@ -18,6 +18,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Live protected API check | Pass | `/api/notify` and `/api/deliverable-ready-notification` return `401` without authentication. |
 | Public route browser check | Pass | Home, services, samples, pricing, FAQ, about, and login open at top of page. |
 | Banned wording check | Pass | Public visible HTML does not show prototype, MVP, test mode, or provider-specific test language. |
+| Authenticated client and admin browser check | Pass for one QA path | Safe QA client and safe QA admin accounts completed login, profile, project, request, source file, release, signed download, and acceptance checks. |
 
 ## Client Journey QA
 
@@ -26,13 +27,13 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Visitor lands on homepage | Pass | Premium public journey loads with services, samples, pricing, FAQ, about, login, and support footer. |
 | Visitor reviews deliverable samples | Pass | All sample PDFs are available locally and through the site structure. |
 | Visitor opens pricing | Pass | Packages are visible and checkout confirmation is durable after Stripe return. |
-| Visitor creates account | Risk | Flow exists, but full live email/password and Google account creation need authenticated browser regression testing. |
+| Visitor creates account | Risk | Flow exists. Safe QA accounts were created and confirmed for regression, but full public email verification and Google signup should still be tested with a fresh non-admin user. |
 | Client completes profile | Improved | Profile save now has a busy state to reduce duplicate submits. |
 | Client returns from checkout | Pass at smoke level | Reconciliation logic exists and persistent confirmation is used. Needs repeated live Stripe event regression. |
 | Client sees credit balance | Improved | UI now shows available Advisory Credits instead of calculating cycle usage as 5 minus balance. |
-| Client submits request with files | Pass at smoke level | Validation, file requirement, bounded credit check, and visible upload issue handling exist. Needs authenticated multi-file regression after each deployment. |
+| Client submits request with files | Pass | Authenticated QA request was created with a project and two source files. User also confirmed a three-file request submission and smooth source download. |
 | Client submits request with no credits | Risk | Current gate checks balance but does not reserve credits. Parallel requests can overcommit credits until server-side reservation exists. |
-| Client uploads message or revision | Improved | Message submit now has a busy state. Related request and deliverable references are validated in the notification API. |
+| Client uploads message or revision | Improved | Message submit has a busy state. Related request and deliverable references are validated. Shortcut buttons now open the Messages and Files panel instead of focusing a hidden field. |
 | Client downloads source file | Pass | Signed URL flow no longer leaves a blank helper tab. |
 | Client deletes source file | Risk | Delete works, but there is no guard against deleting the last source file on an active request. |
 | Client signs out | Pass | Local state clears before remote sign out. |
@@ -43,10 +44,10 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 |---|---:|---|
 | Admin opens admin workspace | Pass | API and UI require authenticated admin access. |
 | Non admin attempts admin route | Pass | Public admin route is not the trust boundary. API remains protected. |
-| Admin loads client portfolio | Risk | Logic exists, but authenticated admin data load still needs live browser regression. |
+| Admin loads client portfolio | Pass | Authenticated admin QA loaded the live portfolio and selected the safe QA client. |
 | Admin selects client | Pass | `View dossier` updates right-side dossier without page jump. |
 | Admin reviews client dossier | Pass | Dossier shows client ID, project ID, profile, source files, deliverables, and messages. |
-| Admin reviews projects | Risk | Project filter exists. Need an All Projects option for larger accounts. |
+| Admin reviews projects | Improved | Project filter works for the selected QA project. Need an All Projects option for larger accounts. |
 | Admin downloads source files | Improved | Admin route is protected, and download APIs now validate selected client and project context when supplied by the admin UI. |
 | Admin releases deliverable | Pass after user retest | User confirmed feature update works. Server prepare, upload, finalize, and abort flow is in place. |
 | Admin releases with zero credits | Pass by design | Release can go to client review without deducting credits. |
@@ -84,7 +85,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Multi-file source upload | Pass from user test | User confirmed three-file request submitted and files appeared. |
 | Source file download | Pass from user test | User confirmed download now works smoothly without blank tab. |
 | Admin release upload | Pass from user test | User confirmed feature update works. |
-| Deliverable versioning | Pass at flow level | Server creates controlled versions. Full authenticated regression still needed. |
+| Deliverable versioning | Pass for one QA path | Safe QA admin release created a controlled deliverable and version. Client could see and download it. |
 | Partial source upload | Risk | If one file fails after earlier files upload, request remains with partial files and attention status. |
 | Deliverable finalization atomicity | Risk | Database changes are not yet one Postgres transaction. Storage upload plus DB finalize is controlled, but not fully atomic. |
 | File pagination | Open | Current views are capped. A full file browser will be needed as clients grow. |
