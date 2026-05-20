@@ -2465,7 +2465,7 @@ async function uploadAdminDeliverable() {
 
   setAdminReleaseStatus("Creating the controlled client release record.");
   const prepareResult = await withClientTimeout(
-    fetchAdminApi("/api/admin-deliverable-release", {
+    fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
       body: {
         action: "prepare",
@@ -2497,7 +2497,7 @@ async function uploadAdminDeliverable() {
   let uploaded = 0;
 
   const abortPreparedRelease = async () => {
-    await fetchAdminApi("/api/admin-deliverable-release", {
+    await fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
       body: {
         action: "abort",
@@ -2542,7 +2542,7 @@ async function uploadAdminDeliverable() {
 
   setAdminReleaseStatus(creditsUsed > 0 ? "Publishing the deliverable and recording Advisory Credits." : "Publishing the deliverable to the client workspace.");
   const finalizeResult = await withClientTimeout(
-    fetchAdminApi("/api/admin-deliverable-release", {
+    fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
       body: {
         action: "finalize",

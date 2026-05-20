@@ -1,4 +1,5 @@
 const { requireAdmin } = require("./_lib/adminAuth");
+const { handleAdminDeliverableAction } = require("./_lib/adminDeliverableReleaseActions");
 const { sendEmail } = require("./_lib/email");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 
@@ -74,6 +75,11 @@ module.exports = async function handler(req, res) {
 
   try {
     const body = parseBody(req);
+    if (["prepare", "finalize", "abort"].includes(body.action)) {
+      await handleAdminDeliverableAction(req, res, body);
+      return;
+    }
+
     const deliverableId = body.deliverableId || body.deliverable_id;
     const versionId = body.versionId || body.version_id;
 

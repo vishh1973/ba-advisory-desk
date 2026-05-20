@@ -1,7 +1,6 @@
-const { requireAdmin } = require("./_lib/adminAuth");
-const { sendEmail } = require("./_lib/email");
-const { detectAndNotifyCreditStatus } = require("./_lib/paymentAndCredit");
-const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
+const { sendEmail } = require("./email");
+const { detectAndNotifyCreditStatus } = require("./paymentAndCredit");
+const { getSupabaseAdmin } = require("./supabaseAdmin");
 
 function parseBody(req) {
   if (typeof req.body === "string") {
@@ -443,19 +442,8 @@ async function abortRelease({ supabase, body }) {
   return { status: 200, data: { aborted: true } };
 }
 
-module.exports = async function handler(req, res) {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed." });
-    return;
-  }
-
-  if (!(await requireAdmin(req, { allowSecret: true }))) {
-    res.status(401).json({ error: "Unauthorized." });
-    return;
-  }
-
+async function handleAdminDeliverableAction(req, res, body = parseBody(req)) {
   try {
-    const body = parseBody(req);
     const action = body.action;
     const supabase = getSupabaseAdmin();
     const result =
@@ -471,4 +459,6 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: error.message || "Deliverable release could not be completed." });
   }
-};
+}
+
+module.exports = { handleAdminDeliverableAction };
