@@ -2258,26 +2258,39 @@ async function uploadAdminDeliverable() {
   for (const file of files) {
     const safeName = getSafeFileName(file.name);
     const storagePath = `clients/${organizationId}/deliverables/${deliverableId}/v${versionNumber}/${Date.now()}-${safeName}`;
-    const { error: uploadError } = await supabaseClient.storage.from("private-deliverables").upload(storagePath, file, {
-      upsert: false,
-      contentType: file.type || undefined,
-    });
+    const uploadResponse = await withClientTimeout(
+      supabaseClient.storage.from("private-deliverables").upload(storagePath, file, {
+        upsert: false,
+        contentType: getUploadContentType(file),
+      }),
+      45000,
+      `${file.name} took too long to upload. Please try again with a smaller file.`
+    );
+    const uploadError = uploadResponse?.error;
 
     if (uploadError) return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
 
-    const { error: fileError } = await supabaseClient.from("deliverable_version_files").insert({
-      deliverable_version_id: version.id,
-      deliverable_id: deliverableId,
-      organization_id: organizationId,
-      storage_bucket: "private-deliverables",
-      storage_path: storagePath,
-      file_name: file.name,
-      content_type: file.type,
-      file_size_bytes: file.size,
-      uploaded_by: getUserId(),
-    });
+    const fileRecordResponse = await withClientTimeout(
+      supabaseClient.from("deliverable_version_files").insert({
+        deliverable_version_id: version.id,
+        deliverable_id: deliverableId,
+        organization_id: organizationId,
+        storage_bucket: "private-deliverables",
+        storage_path: storagePath,
+        file_name: file.name,
+        content_type: getUploadContentType(file),
+        file_size_bytes: file.size,
+        uploaded_by: getUserId(),
+      }),
+      15000,
+      `${file.name} uploaded, but the deliverable file record took too long to save.`
+    );
+    const fileError = fileRecordResponse?.error;
 
-    if (fileError) return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, fileError.message), uploaded };
+    if (fileError) {
+      await supabaseClient.storage.from("private-deliverables").remove([storagePath]).then(() => null, () => null);
+      return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, fileError.message), uploaded };
+    }
     uploaded += 1;
   }
 

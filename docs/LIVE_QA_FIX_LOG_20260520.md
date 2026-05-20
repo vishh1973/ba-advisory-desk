@@ -272,3 +272,9 @@ Rollback-only verification:
 - Confirmed the primary administrator can insert deliverable, deliverable version, and deliverable version file rows.
 - Confirmed the primary administrator can insert into the private deliverables storage bucket.
 - Rolled back all QA test rows.
+
+Additional admin upload hardening:
+
+- Admin deliverable uploads now use bounded upload and file-record save timeouts.
+- Admin deliverable uploads now use mapped content types for PDF, Office, and image files.
+- If a deliverable file uploads but the file record fails, the storage object is removed.
