@@ -30,7 +30,7 @@ module.exports = async function handler(req, res) {
         .limit(limit),
       supabase
         .from("requests")
-        .select("id,organization_id,project_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
+        .select("id,organization_id,project_id,request_code,request_type,status,credits_estimated,credits_approved,business_goal,target_audience,attachment_description,due_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase

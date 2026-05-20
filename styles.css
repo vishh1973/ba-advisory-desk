@@ -2430,6 +2430,33 @@ input[type="file"]::file-selector-button:hover {
   text-transform: uppercase;
 }
 
+.dossier-mini-list {
+  background: #f7fbfc;
+  border: 1px solid #cbdce6;
+  border-radius: 8px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.dossier-mini-list > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.dossier-mini-list p {
+  border-top: 1px solid #dce9ee;
+  margin: 0;
+  padding: 8px 0 0;
+}
+
+.dossier-mini-list p + p {
+  margin-top: 8px;
+}
+
+.dossier-mini-list span {
+  color: var(--slate);
+}
+
 .admin-client-summary {
   align-items: start;
   display: grid;

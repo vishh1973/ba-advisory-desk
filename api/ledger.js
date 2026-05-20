@@ -37,6 +37,21 @@ module.exports = async function handler(req, res) {
     }
 
     const supabase = getSupabaseAdmin();
+    if (projectId) {
+      const { data: project, error: projectError } = await supabase
+        .from("client_projects")
+        .select("id")
+        .eq("id", projectId)
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+
+      if (projectError) throw projectError;
+      if (!project?.id) {
+        res.status(400).json({ error: "Project workspace does not belong to this client." });
+        return;
+      }
+    }
+
     if (type === "adjust" && credits === 0 && thresholdProvided) {
       const { data: account, error: accountError } = await supabase
         .from("credit_accounts")

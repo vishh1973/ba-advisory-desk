@@ -1599,10 +1599,11 @@
                 </select>
               </label>
               <label>
-                Credits used
-                <input id="adminCreditsUsed" type="number" min="0" step="1" value="1" />
+                Approved credits
+                <input id="adminCreditsUsed" type="number" min="0" step="1" value="0" />
+                <small>Use this only to record the approved estimate. Advisory Credits are consumed when files are released or adjusted from the credit account controls.</small>
               </label>
-              <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a client request and confirm credits before updating status.</p>
+              <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a client request and confirm the approved credit estimate before updating status.</p>
               <button type="button" data-admin-action="ship-deliverable">Save Status</button>
             </div>
           </details>
@@ -1657,8 +1658,8 @@
               </label>
               <label>
                 Advisory Credits to record
-                <input id="adminReleaseCreditsUsed" type="number" min="0" step="1" value="1" />
-                <small>Use 0 for a one time Rescue Sprint or a prepaid fixed scope. Use 1 or more for monthly Advisory Credit work.</small>
+                <input id="adminReleaseCreditsUsed" type="number" min="0" step="1" value="0" />
+                <small>Leave 0 while the deliverable is going to client review. Enter credits only when this release should consume credits now.</small>
               </label>
               <label>
                 Upload deliverable files

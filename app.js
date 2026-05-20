@@ -322,9 +322,25 @@ function getAdminCreditBalanceForOrganization(organizationId) {
   return organizationId === state.selectedAdminClientId ? Number(state.creditsLeft || 0) : 0;
 }
 
+function getShortEntityId(prefix, id) {
+  const compact = String(id || "").replace(/[^a-z0-9]/gi, "").toUpperCase();
+  return compact ? `${prefix}-${compact.slice(0, 8)}` : `${prefix}-PENDING`;
+}
+
+function getClientDisplayId(client) {
+  return getShortEntityId("CL", client?.id || client?.organizationId || client?.selectionId || "");
+}
+
+function getProjectDisplayId(project) {
+  const code = String(project?.projectCode || project?.project_code || "").trim();
+  if (code && code.toUpperCase() !== "GEN") return code;
+  return getShortEntityId("PRJ", project?.id || project?.projectId || project?.project_id || "");
+}
+
 function getProjectLabel(project) {
   if (!project) return "General advisory work";
-  return project.projectLabel || project.name || project.projectName || project.title || "General advisory work";
+  const name = project.name || project.projectName || project.title || "General advisory work";
+  return `${getProjectDisplayId(project)} | ${name}`;
 }
 
 function getProjectById(projectId, projects = state.clientProjects) {
@@ -332,8 +348,19 @@ function getProjectById(projectId, projects = state.clientProjects) {
   return projects.find((project) => String(project.id) === String(projectId)) || null;
 }
 
-function getClientProjectLabel(projectId) {
-  return getProjectLabel(getProjectById(projectId));
+function getClientProjectLabel(projectOrId) {
+  if (projectOrId && typeof projectOrId === "object") {
+    if (projectOrId.projectLabel) return projectOrId.projectLabel;
+    if (projectOrId.projectId || projectOrId.project_id) {
+      const project =
+        getProjectById(projectOrId.projectId || projectOrId.project_id, state.clientProjects) ||
+        getProjectById(projectOrId.projectId || projectOrId.project_id, state.adminProjects);
+      return project ? getProjectLabel(project) : getProjectLabel(projectOrId);
+    }
+    return getProjectLabel(projectOrId);
+  }
+  const project = getProjectById(projectOrId, state.clientProjects) || getProjectById(projectOrId, state.adminProjects);
+  return getProjectLabel(project);
 }
 
 function getActiveClientProjects() {
@@ -1684,7 +1711,7 @@ async function ensureClientProject(organizationId, projectName) {
       id: `project-${Date.now()}`,
       organization_id: organizationId,
       name,
-      project_code: "",
+      project_code: getShortEntityId("PRJ", `${organizationId}${Date.now()}`),
       status: "active",
       created_at: getIsoNow(),
     });
@@ -1697,6 +1724,7 @@ async function ensureClientProject(organizationId, projectName) {
     .insert({
       organization_id: organizationId,
       name,
+      project_code: getShortEntityId("PRJ", `${organizationId}${Date.now()}`),
       status: "active",
       is_default: false,
       created_by: getUserId(),
@@ -2435,70 +2463,57 @@ async function uploadAdminDeliverable() {
     return { ok: false, error: validationError };
   }
 
-  setAdminReleaseStatus("Creating the client deliverable record.");
-  let deliverableId = existingDeliverableId;
-  if (!deliverableId) {
-    const { data, error } = await supabaseClient
-      .from("deliverables")
-      .insert({
-        request_id: requestId || null,
-        organization_id: organizationId,
-        project_id: projectId,
+  setAdminReleaseStatus("Creating the controlled client release record.");
+  const prepareResult = await withClientTimeout(
+    fetchAdminApi("/api/admin-deliverable-release", {
+      method: "POST",
+      body: {
+        action: "prepare",
+        organizationId,
+        projectId,
+        requestId: requestId || null,
+        existingDeliverableId: existingDeliverableId || null,
         title,
-        deliverable_type: deliverableType,
+        deliverableType,
         summary,
-        status: "draft",
-        created_by: getUserId(),
-        uploaded_by: getUserId(),
-      })
-      .select("id")
-      .single();
+        releaseNote,
+      },
+    }),
+    20000,
+    "The deliverable release record took too long to create. Please try again."
+  );
 
-    if (error) return { ok: false, error: error.message };
-    deliverableId = data.id;
-  } else {
-    const { error } = await supabaseClient
-      .from("deliverables")
-      .update({
-        title,
-        deliverable_type: deliverableType,
-        project_id: projectId,
-        summary,
-        status: "draft",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", deliverableId);
-
-    if (error) return { ok: false, error: error.message };
+  if (!prepareResult.ok) {
+    return { ok: false, error: prepareResult.error || "The deliverable release record could not be created." };
   }
 
-  setAdminReleaseStatus("Creating the controlled deliverable version.");
-  const versionNumber = await getNextDeliverableVersionNumber(deliverableId);
-  const { data: version, error: versionError } = await supabaseClient
-    .from("deliverable_versions")
-    .insert({
-      deliverable_id: deliverableId,
-      request_id: requestId || null,
-      organization_id: organizationId,
-      project_id: projectId,
-      version_number: versionNumber,
-      status: "draft",
-      summary,
-      release_note: releaseNote,
-      released_at: null,
-      released_by: getUserId(),
-      created_by: getUserId(),
-    })
-    .select("id")
-    .single();
-
-  if (versionError) return { ok: false, error: versionError.message };
-
+  const prepared = prepareResult.data || {};
+  const deliverableId = prepared.deliverableId;
+  const versionId = prepared.versionId;
+  const versionNumber = prepared.versionNumber;
+  const storagePrefix = prepared.storagePrefix || `clients/${organizationId}/deliverables/${deliverableId}/v${versionNumber}/`;
+  const storagePaths = [];
+  const fileRecords = [];
   let uploaded = 0;
+
+  const abortPreparedRelease = async () => {
+    await fetchAdminApi("/api/admin-deliverable-release", {
+      method: "POST",
+      body: {
+        action: "abort",
+        organizationId,
+        deliverableId,
+        versionId,
+        createdDeliverable: prepared.createdDeliverable === true,
+        storagePaths,
+      },
+    }).then(() => null, () => null);
+  };
+
   for (const file of files) {
     setAdminReleaseStatus(`Uploading deliverable file ${uploaded + 1} of ${files.length}: ${file.name}`);
     const safeName = getSafeFileName(file.name);
-    const storagePath = `clients/${organizationId}/deliverables/${deliverableId}/v${versionNumber}/${Date.now()}-${safeName}`;
+    const storagePath = `${storagePrefix}${Date.now()}-${uploaded + 1}-${safeName}`;
     const uploadResponse = await withClientTimeout(
       supabaseClient.storage.from("private-deliverables").upload(storagePath, file, {
         upsert: false,
@@ -2509,143 +2524,67 @@ async function uploadAdminDeliverable() {
     );
     const uploadError = uploadResponse?.error;
 
-    if (uploadError) return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
-
-    const fileRecordResponse = await withClientTimeout(
-      supabaseClient.from("deliverable_version_files").insert({
-        deliverable_version_id: version.id,
-        deliverable_id: deliverableId,
-        organization_id: organizationId,
-        project_id: projectId,
-        storage_bucket: "private-deliverables",
-        storage_path: storagePath,
-        file_name: file.name,
-        content_type: getUploadContentType(file),
-        file_size_bytes: file.size,
-        uploaded_by: getUserId(),
-      }),
-      15000,
-      `${file.name} uploaded, but the deliverable file record took too long to save.`
-    );
-    const fileError = fileRecordResponse?.error;
-
-    if (fileError) {
-      await supabaseClient.storage.from("private-deliverables").remove([storagePath]).then(() => null, () => null);
-      return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, fileError.message), uploaded };
+    if (uploadError) {
+      await abortPreparedRelease();
+      return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
     }
+
+    storagePaths.push(storagePath);
+    fileRecords.push({
+      storageBucket: "private-deliverables",
+      storagePath,
+      fileName: file.name,
+      contentType: getUploadContentType(file),
+      fileSizeBytes: file.size,
+    });
     uploaded += 1;
   }
 
-  let creditResult = { ok: true, data: { balance: availableCredits } };
-  if (creditsUsed > 0) {
-    setAdminReleaseStatus("Recording Advisory Credit usage.");
-    creditResult = await updateServerCreditLedger({
-      organizationId,
-      type: "consume",
-      credits: creditsUsed,
-      reason: `Released deliverable: ${title}`,
-      requestId: requestId || null,
-      deliverableId,
-      projectId,
-      recipientEmail: getClientEmail(selectedClient) || null,
-      idempotencyKey: `admin-release-${organizationId}-${deliverableId}-${version.id}-${creditsUsed}`,
-    });
-
-    if (!creditResult.ok) {
-      return { ok: false, error: creditResult.error || "Advisory Credits could not be recorded. Files remain in draft and were not released.", uploaded };
-    }
-
-    state.creditsLeft = Number(creditResult.data?.balance ?? state.creditsLeft);
-    updateSelectedAdminClientCreditAccount(state.creditsLeft, creditResult.data?.lowCreditThreshold ?? state.creditThreshold);
-  }
-
-  setAdminReleaseStatus("Publishing the deliverable to the client workspace.");
-  const { error: deliverableUpdateError } = await supabaseClient
-    .from("deliverables")
-    .update({
-      latest_version_id: version.id,
-      current_version_number: versionNumber,
-      status: "delivered",
-      shipped_at: new Date().toISOString(),
-      shipped_by: getUserId(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", deliverableId);
-
-  if (deliverableUpdateError) {
-    if (creditsUsed > 0) {
-      await updateServerCreditLedger({
-        organizationId,
-        type: "adjust",
-        credits: -creditsUsed,
-        reason: `Credit reversal because release failed: ${title}`,
-        requestId: requestId || null,
-        recipientEmail: getClientEmail(selectedClient) || null,
-        idempotencyKey: `admin-release-reversal-${organizationId}-${deliverableId}-${version.id}-${creditsUsed}`,
-      });
-    }
-    return { ok: false, error: deliverableUpdateError.message, uploaded };
-  }
-
-  const { error: versionReleaseError } = await supabaseClient
-    .from("deliverable_versions")
-    .update({
-      status: "released",
-      released_at: new Date().toISOString(),
-      released_by: getUserId(),
-    })
-    .eq("id", version.id);
-
-  if (versionReleaseError) {
-    if (creditsUsed > 0) {
-      await updateServerCreditLedger({
-        organizationId,
-        type: "adjust",
-        credits: -creditsUsed,
-        reason: `Credit reversal because version release failed: ${title}`,
-        requestId: requestId || null,
-        recipientEmail: getClientEmail(selectedClient) || null,
-        idempotencyKey: `admin-version-release-reversal-${organizationId}-${deliverableId}-${version.id}-${creditsUsed}`,
-      });
-    }
-    return { ok: false, error: versionReleaseError.message, uploaded };
-  }
-
-  if (requestId) {
-    await supabaseClient
-      .from("requests")
-      .update({
-        status: "delivered",
-        shipped_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", requestId);
-  }
-
-  let notificationResult = { ok: true, data: { sent: false, queued: false } };
-  if (notifyClient) {
-    setAdminReleaseStatus("Sending the client release notification.");
-    notificationResult = await fetchAdminApi("/api/deliverable-ready-notification", {
+  setAdminReleaseStatus(creditsUsed > 0 ? "Publishing the deliverable and recording Advisory Credits." : "Publishing the deliverable to the client workspace.");
+  const finalizeResult = await withClientTimeout(
+    fetchAdminApi("/api/admin-deliverable-release", {
       method: "POST",
       body: {
-        deliverableId,
-        versionId: version.id,
+        action: "finalize",
+        organizationId,
         projectId,
+        requestId: requestId || null,
+        deliverableId,
+        versionId,
+        versionNumber,
+        title,
+        releaseNote,
+        creditsUsed,
+        notifyClient,
+        recipientEmail: getClientEmail(selectedClient) || null,
+        fileRecords,
       },
-    });
+    }),
+    30000,
+    "The deliverable was uploaded, but publishing took too long. Please refresh the admin file before trying again."
+  );
+
+  if (!finalizeResult.ok) {
+    await abortPreparedRelease();
+    return { ok: false, error: finalizeResult.error || "Deliverable files were uploaded, but the release could not be finalized.", uploaded };
+  }
+
+  if (creditsUsed > 0) {
+    state.creditsLeft = Number(finalizeResult.data?.balance ?? state.creditsLeft);
+    updateSelectedAdminClientCreditAccount(state.creditsLeft, finalizeResult.data?.lowCreditThreshold ?? state.creditThreshold);
   }
 
   return {
     ok: true,
     uploaded,
     creditsUsed,
-    balance: creditsUsed > 0 ? Number(creditResult.data?.balance ?? state.creditsLeft) : availableCredits,
+    balance: creditsUsed > 0 ? Number(finalizeResult.data?.balance ?? state.creditsLeft) : availableCredits,
     deliverableId,
-    versionId: version.id,
+    versionId,
     notificationRequested: notifyClient,
-    notificationQueued: notifyClient && notificationResult.ok && notificationResult.data?.queued === true,
-    notificationSent: notifyClient && notificationResult.ok && notificationResult.data?.sent === true,
-    notificationError: notificationResult.error,
+    notificationQueued: notifyClient && finalizeResult.data?.notificationQueued === true,
+    notificationSent: notifyClient && finalizeResult.data?.notificationSent === true,
+    notificationError: finalizeResult.data?.notificationError,
   };
 }
 
@@ -3282,8 +3221,8 @@ function renderCreditControls() {
   if (deliveryCreditStatus) {
     deliveryCreditStatus.textContent =
       state.creditsLeft <= 0
-        ? "Delivery is paused until credits are added."
-        : `${state.creditsLeft} Advisory Credits available for the selected client.`;
+        ? "The selected client has no Advisory Credits available. Status can be updated, but new credit work should remain paused."
+        : `${state.creditsLeft} client-level Advisory Credits available. Status updates do not consume credits.`;
     deliveryCreditStatus.classList.toggle("warning", state.creditsLeft <= state.creditThreshold);
   }
   updateAdminReleaseReadiness();
@@ -3324,7 +3263,7 @@ function updateAdminReleaseReadiness() {
     message = `This client has ${availableCredits} Advisory Credit${availableCredits === 1 ? "" : "s"} available. Add credits or set credits to 0 only if this work is covered by a fixed scope.`;
     ready = false;
   } else {
-    const creditText = creditsUsed > 0 ? ` ${creditsUsed} Advisory Credit${creditsUsed === 1 ? "" : "s"} will be recorded.` : " No Advisory Credits will be recorded.";
+    const creditText = creditsUsed > 0 ? ` ${creditsUsed} Advisory Credit${creditsUsed === 1 ? "" : "s"} will be recorded now.` : " No Advisory Credits will be recorded until you decide to deduct or adjust them.";
     message = `${files.length} file${files.length === 1 ? "" : "s"} ready to release to the selected client.${creditText}`;
   }
 
@@ -3670,8 +3609,9 @@ function renderAdminClientPortfolio() {
           <td>
             <strong>${escapeHtml(client.name || "Client workspace")}</strong>
             <span>${escapeHtml(getClientEmail(client) || "No email recorded")}</span>
+            <small>Client ID: ${escapeHtml(getClientDisplayId(client))}</small>
             <small>${escapeHtml((client.projects?.length || 0) ? `${client.projects.length} project${client.projects.length === 1 ? "" : "s"}` : "No project yet")}</small>
-            <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">Open file</button>
+            <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">View dossier</button>
           </td>
           <td>${escapeHtml(getAdminClientHealth(client))}</td>
           <td>${escapeHtml(client.balance ?? 0)}</td>
@@ -3705,8 +3645,13 @@ function renderAdminClientDossier() {
     const projectDeliverables = client.id ? state.adminDeliverables.filter((deliverable) => isSelectedAdminScopedRecord(deliverable, client, activeProject)) : [];
     const projectMessages = client.id ? getAdminMessagesForClient(client) : [];
     const profileRows = [
+      ["Client ID", getClientDisplayId(client)],
       ["Email", getClientEmail(client) || "Not recorded"],
+      ["Primary contact", [client.firstName, client.lastName].filter(Boolean).join(" ") || "Not recorded"],
+      ["Job title", client.jobTitle || "Not recorded"],
+      ["Phone", client.phone || "Not recorded"],
       ["Workspace status", client.id ? "Client workspace active" : "Inquiry without workspace"],
+      ["Project ID", activeProject ? getProjectDisplayId(activeProject) : "No project selected"],
       ["Active project", activeProject ? getProjectLabel(activeProject) : "No project selected"],
       ["Industry", client.industry || "Not recorded"],
       ["Country", client.country || "Not recorded"],
@@ -3722,7 +3667,21 @@ function renderAdminClientDossier() {
         <article><strong>${escapeHtml(projectMessages.length)}</strong><span>Messages and notices</span></article>
       </div>
     `;
-    profile.innerHTML = projectSummary + profileRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("");
+    const requestSummary = projectRequests.length
+      ? `<div class="dossier-mini-list">
+          <strong>Active request context</strong>
+          ${projectRequests
+            .slice(0, 3)
+            .map(
+              (request) => `
+                <p>${escapeHtml(request.id || request.type)} | ${escapeHtml(request.status || "Open")}<br />
+                <span>${escapeHtml(request.businessGoal || request.targetAudience || request.attachmentDescription || "Intake details available in the request file.")}</span></p>
+              `
+            )
+            .join("")}
+        </div>`
+      : "";
+    profile.innerHTML = projectSummary + profileRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("") + requestSummary;
   }
 
   if (files) {
@@ -3845,6 +3804,11 @@ function normalizeAdminRequest(request) {
     type: request.request_type || request.request_code || "Client request",
     action: normalizeStatusValue(status) === "new" ? "Scope request" : "Review intake",
     status,
+    businessGoal: request.business_goal || "",
+    targetAudience: request.target_audience || "",
+    attachmentDescription: request.attachment_description || "",
+    creditsEstimated: request.credits_estimated ?? null,
+    creditsApproved: request.credits_approved ?? null,
     dueAt: request.due_at || null,
     dueLabel: formatDisplayDate(request.due_at),
   };
@@ -4802,7 +4766,6 @@ document.addEventListener("click", async (event) => {
     syncSelectedAdminProjectToClient();
     saveState();
     render();
-    document.querySelector("#adminSelectedClientName")?.scrollIntoView({ behavior: "smooth", block: "start" });
     showToast("Client file opened.");
     return;
   }
@@ -4903,7 +4866,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.adminAction === "ship-deliverable") {
     const requestId = document.querySelector("#adminDeliverableSelect").value;
     const status = document.querySelector("#adminDeliverableStatus").value;
-    const creditsUsed = Math.max(0, Number(document.querySelector("#adminCreditsUsed").value || 0));
+    const approvedCredits = Math.max(0, Number(document.querySelector("#adminCreditsUsed").value || 0));
     const selectedClient = getSelectedAdminClient();
     const selectedProject = getSelectedAdminProject();
     const adminItem = state.adminQueue.find(
@@ -4928,62 +4891,13 @@ document.addEventListener("click", async (event) => {
       return;
     }
 
-    if (creditsUsed > state.creditsLeft) {
-      const pausedStatus = "Paused, awaiting credits";
-      if (supabaseClient && adminItem?.requestId && adminItem?.organizationId) {
-        await supabaseClient
-          .from("requests")
-          .update({
-            status: toRequestStorageStatus(pausedStatus),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", adminItem.requestId)
-          .eq("organization_id", adminItem.organizationId);
-      }
-      if (request) {
-        request.status = pausedStatus;
-      }
-      if (adminItem) {
-        adminItem.status = pausedStatus;
-      }
-      addAuditEvent("Delivery paused", `${request?.id || adminItem.id} paused because the selected client does not have enough Advisory Credits.`);
-      saveState();
-      render();
-      showToast("Delivery paused until credits are added.");
-      return;
-    }
-
-    if (adminItem && creditsUsed > 0 && isShippedStatus(adminItem.status)) {
-      showToast("Credits already appear to be recorded for this item. Use 0 credits for later status changes.");
-      return;
-    }
-
-    if (adminItem?.organizationId && creditsUsed > 0) {
-      const result = await updateServerCreditLedger({
-        organizationId: adminItem.organizationId,
-        type: "consume",
-        credits: creditsUsed,
-        reason: `${status}: ${request?.type || adminItem.type}`,
-        requestId: adminItem.requestId || null,
-        projectId: adminItem.projectId || selectedProject?.id || null,
-        recipientEmail: adminItem.clientEmail || null,
-        idempotencyKey: `admin-delivery-${adminItem.organizationId}-${adminItem.requestId || adminItem.id}-${status}-${creditsUsed}`,
-      });
-
-      if (!result.ok) {
-        showToast(result.error || "Deliverable credits could not be updated.");
-        return;
-      }
-
-      state.creditsLeft = Number(result.data.balance ?? state.creditsLeft);
-    }
-
     const displayStatus = status === "Delivered" || status === "Completed" || status === "Completed and shipped" ? "Complete" : status;
     if (supabaseClient && adminItem?.requestId && adminItem?.organizationId) {
       const { error: statusUpdateError } = await supabaseClient
         .from("requests")
         .update({
           status: toRequestStorageStatus(displayStatus),
+          credits_approved: approvedCredits > 0 ? approvedCredits : null,
           shipped_at: isShippedStatus(displayStatus) ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
@@ -5001,16 +4915,13 @@ document.addEventListener("click", async (event) => {
     }
     if (adminItem) {
       adminItem.status = displayStatus;
-    }
-    if (creditsUsed > 0 && !adminItem?.organizationId) {
-      state.creditsLeft = Math.max(0, state.creditsLeft - creditsUsed);
-      addCreditHistory(request?.type || adminItem.type, `-${creditsUsed} consumed`, state.creditsLeft);
+      adminItem.creditsApproved = approvedCredits > 0 ? approvedCredits : null;
     }
     updateSelectedAdminClientCreditAccount(state.creditsLeft, state.creditThreshold);
-    addAuditEvent("Deliverable status updated", `${request?.id || adminItem.id} set to ${status}. Credits used: ${creditsUsed}.`);
+    addAuditEvent("Request status updated", `${request?.id || adminItem.id} set to ${status}. Approved credits: ${approvedCredits}.`);
     saveState();
     render();
-    showToast("Deliverable status and credit usage updated.");
+    showToast("Request status updated.");
   }
 
   if (target.dataset.adminAction === "upload-deliverable") {
