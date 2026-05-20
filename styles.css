@@ -1888,7 +1888,17 @@ input[type="file"]::file-selector-button:hover {
   border-radius: 8px;
   display: grid;
   gap: 12px;
+  min-width: 0;
   padding: 16px;
+}
+
+.client-action-card label,
+.client-action-card input,
+.client-action-card select,
+.client-action-card textarea,
+.client-action-card button {
+  min-width: 0;
+  width: 100%;
 }
 
 .delivery-summary-grid span,

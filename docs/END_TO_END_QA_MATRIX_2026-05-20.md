@@ -33,7 +33,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Client sees credit balance | Improved | UI now shows available Advisory Credits instead of calculating cycle usage as 5 minus balance. |
 | Client submits request with files | Pass | Authenticated QA request was created with a project and two source files. User also confirmed a three-file request submission and smooth source download. |
 | Client submits request with no credits | Risk | Current gate checks balance but does not reserve credits. Parallel requests can overcommit credits until server-side reservation exists. |
-| Client uploads message or revision | Improved | Message submit has a busy state. Related request and deliverable references are validated. Shortcut buttons now open the Messages and Files panel instead of focusing a hidden field. |
+| Client uploads message or revision | Improved | Message submit has a busy state. Related request and deliverable references are validated. Shortcut buttons now open the Messages and Files panel, and the form layout now stays contained with long related item names. |
 | Client downloads source file | Pass | Signed URL flow no longer leaves a blank helper tab. |
 | Client deletes source file | Risk | Delete works, but there is no guard against deleting the last source file on an active request. |
 | Client signs out | Pass | Local state clears before remote sign out. |
