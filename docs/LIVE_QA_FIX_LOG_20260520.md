@@ -251,3 +251,24 @@ Fix applied:
 - Replaced helper-tab download behavior with an invisible secure download link.
 - The client-facing action now shows `Preparing`, starts the download, then returns to `Download`.
 - This prevents the blank tab left behind after download.
+
+### Admin Deliverable Release QA
+
+Issue found:
+
+- The live database still had older required fields on `deliverables.storage_path` and `deliverables.file_name`.
+- The newer app uses versioned deliverable files in `deliverable_versions` and `deliverable_version_files`, so a fresh admin release could fail before file upload.
+- The primary administrator needed a `profiles` row so deliverable foreign keys can be written cleanly.
+
+Fix applied:
+
+- Added and applied `supabase/20260520_admin_deliverable_release_repair.sql`.
+- Dropped `not null` from the legacy `deliverables.storage_path` and `deliverables.file_name` fields.
+- Created or updated the primary administrator profile for `vishh1973@gmail.com` with role `admin`.
+
+Rollback-only verification:
+
+- Confirmed `current_user_is_admin()` returns true for the primary administrator.
+- Confirmed the primary administrator can insert deliverable, deliverable version, and deliverable version file rows.
+- Confirmed the primary administrator can insert into the private deliverables storage bucket.
+- Rolled back all QA test rows.
