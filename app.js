@@ -3735,7 +3735,10 @@ function renderAdminClientDossier() {
     messages.innerHTML = rows.length
       ? rows
           .slice(0, 8)
-          .map((message) => `<p><strong>${escapeHtml(message.type)}</strong><br /><span>${escapeHtml(getClientProjectLabel(message))} | ${escapeHtml(message.action)} | ${escapeHtml(formatDateTime(message.dueAt))}</span></p>`)
+          .map((message) => {
+            const body = message.body ? `<br /><span>${escapeHtml(message.body)}</span>` : "";
+            return `<p><strong>${escapeHtml(message.type)}</strong><br /><span>${escapeHtml(getClientProjectLabel(message))} | ${escapeHtml(message.action)} | ${escapeHtml(formatDateTime(message.dueAt))}</span>${body}</p>`;
+          })
           .join("")
       : `<p class="muted">No client messages need review.</p>`;
   }
@@ -3883,6 +3886,7 @@ function normalizeAdminClientMessage(message) {
     clientEmail: organization.billing_email || "",
     client: organization.name || (message.organization_id ? `Workspace ${String(message.organization_id).slice(0, 8)}` : "Client workspace"),
     type: message.subject || "Client workspace message",
+    body: message.body || "",
     action: "Review and respond",
     status: message.status || "Received",
     dueAt: message.created_at || null,

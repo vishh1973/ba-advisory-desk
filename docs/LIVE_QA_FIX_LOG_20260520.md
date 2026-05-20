@@ -238,6 +238,7 @@ Date: 2026-05-20
 - Client deliverable shortcut buttons for messages and uploads set the right context but did not open the Messages and Files panel, which made the action feel broken.
 - The client message and upload forms could overflow the two-column card layout when a long deliverable name appeared in the related item list. This made the Send Message button difficult to click reliably.
 - Client messages could save correctly in the client workspace but not appear in the admin dossier when custom quote items filled the clipped admin queue first.
+- Admin dossier showed the client message subject but not the message body.
 
 ### Fixes Applied
 
@@ -245,6 +246,7 @@ Date: 2026-05-20
 - Client message and upload shortcut buttons now open the Messages and Files panel, scroll to the correct form, and focus the right field.
 - Client message and upload card controls now stay inside their cards, even when the related item name is long.
 - The admin queue now keeps the full normalized data returned by the admin API so client messages are not dropped before the dossier renders.
+- The admin dossier now shows the body of client messages under the message metadata.
 - Smoke tests now include a source check that client message shortcuts open the action panel.
 - Sample PDFs are available on the live domain.
 - `robots.txt`, `sitemap.xml`, and `llms.txt` are available on the live domain.
