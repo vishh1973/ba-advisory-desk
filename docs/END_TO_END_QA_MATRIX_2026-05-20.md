@@ -47,7 +47,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Admin selects client | Pass | `View dossier` updates right-side dossier without page jump. |
 | Admin reviews client dossier | Pass | Dossier shows client ID, project ID, profile, source files, deliverables, and messages. |
 | Admin reviews projects | Risk | Project filter exists. Need an All Projects option for larger accounts. |
-| Admin downloads source files | Pass with caveat | Admin route is protected. Optional selected client and project assertion would make this safer against stale UI clicks. |
+| Admin downloads source files | Improved | Admin route is protected, and download APIs now validate selected client and project context when supplied by the admin UI. |
 | Admin releases deliverable | Pass after user retest | User confirmed feature update works. Server prepare, upload, finalize, and abort flow is in place. |
 | Admin releases with zero credits | Pass by design | Release can go to client review without deducting credits. |
 | Admin records credits | Risk | Release credit use is idempotent. Manual credit adjustment still needs stable operation ID protection. |
@@ -109,6 +109,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 - Profile save has duplicate-submit protection.
 - Client message submit has duplicate-submit protection.
 - Security QA hardening SQL added for Supabase.
+- Admin source and deliverable downloads validate selected dossier context.
 
 ## Highest Priority Remaining Work
 

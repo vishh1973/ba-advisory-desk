@@ -42,7 +42,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
   if (fileKind === "client_upload") {
     const { data, error } = await supabase
       .from("client_uploads")
-      .select("id,organization_id,request_id,deliverable_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes")
+      .select("id,organization_id,project_id,request_id,deliverable_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes")
       .eq("id", fileId)
       .single();
 
@@ -76,6 +76,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
     return {
       id: data.id,
       organizationId: data.organization_id,
+      projectId: data.project_id,
       uploadedBy: data.uploaded_by,
       bucket: "client-files",
       path: data.storage_path,
@@ -87,7 +88,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
 
   const { data, error } = await supabase
     .from("request_files")
-    .select("id,request_id,organization_id,uploaded_by,storage_path,file_name,file_size_bytes")
+    .select("id,request_id,organization_id,project_id,uploaded_by,storage_path,file_name,file_size_bytes")
     .eq("id", fileId)
     .single();
 
@@ -108,6 +109,7 @@ async function readSourceFile(supabase, fileKind, fileId) {
   return {
     id: data.id,
     organizationId: data.organization_id,
+    projectId: data.project_id,
     uploadedBy: data.uploaded_by,
     bucket: "client-files",
     path: data.storage_path,
@@ -142,6 +144,8 @@ module.exports = async function handler(req, res) {
     const fileKind = body.fileKind || body.file_kind || "request_file";
     const action = String(body.action || "download").toLowerCase();
     const expiresIn = readExpirySeconds(body.expiresIn || body.expires_in);
+    const requestedOrganizationId = String(body.organizationId || body.organization_id || "").trim();
+    const requestedProjectId = String(body.projectId || body.project_id || "").trim();
 
     if (!fileId) {
       res.status(400).json({ error: "File is required." });
@@ -150,6 +154,16 @@ module.exports = async function handler(req, res) {
 
     const file = await readSourceFile(supabase, fileKind, fileId);
     const admin = await requireAdmin(req);
+    if (admin) {
+      if (requestedOrganizationId && requestedOrganizationId !== file.organizationId) {
+        res.status(403).json({ error: "This file does not belong to the selected client dossier." });
+        return;
+      }
+      if (requestedProjectId && file.projectId && requestedProjectId !== file.projectId) {
+        res.status(403).json({ error: "This file does not belong to the selected project dossier." });
+        return;
+      }
+    }
     if (!admin) {
       const organizationIds = await getUserOrganizationIds(supabase, userData.user.id);
       if (!organizationIds.has(file.organizationId)) {

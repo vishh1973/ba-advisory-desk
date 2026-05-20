@@ -52,6 +52,8 @@ module.exports = async function handler(req, res) {
     const fileId = body.fileId || body.file_id;
     const versionId = body.versionId || body.version_id;
     const expiresIn = readExpirySeconds(body.expiresIn || body.expires_in);
+    const requestedOrganizationId = String(body.organizationId || body.organization_id || "").trim();
+    const requestedProjectId = String(body.projectId || body.project_id || "").trim();
 
     if (!fileId && !versionId) {
       res.status(400).json({ error: "File or version is required." });
@@ -60,7 +62,7 @@ module.exports = async function handler(req, res) {
 
     let query = supabase
       .from("deliverable_version_files")
-      .select("id,deliverable_version_id,deliverable_id,organization_id,storage_bucket,storage_path,file_name,file_size_bytes")
+      .select("id,deliverable_version_id,deliverable_id,organization_id,project_id,storage_bucket,storage_path,file_name,file_size_bytes")
       .limit(1);
 
     query = fileId ? query.eq("id", fileId) : query.eq("deliverable_version_id", versionId);
@@ -108,6 +110,16 @@ module.exports = async function handler(req, res) {
     }
 
     const admin = await requireAdmin(req);
+    if (admin) {
+      if (requestedOrganizationId && requestedOrganizationId !== file.organization_id) {
+        res.status(403).json({ error: "This file does not belong to the selected client dossier." });
+        return;
+      }
+      if (requestedProjectId && file.project_id && requestedProjectId !== file.project_id) {
+        res.status(403).json({ error: "This file does not belong to the selected project dossier." });
+        return;
+      }
+    }
     if (!admin) {
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")

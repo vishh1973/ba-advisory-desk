@@ -5105,7 +5105,11 @@ document.addEventListener("click", async (event) => {
 
   const result = await fetchClientApi("/api/deliverable-download-url", {
     method: "POST",
-    body: { fileId },
+    body: {
+      fileId,
+      organizationId: isAdminUser() ? state.selectedAdminClientId : undefined,
+      projectId: isAdminUser() ? state.selectedAdminProjectId : undefined,
+    },
   });
 
   if (!result.ok || !result.data?.signedUrl) {
@@ -5137,7 +5141,12 @@ document.addEventListener("click", async (event) => {
 
   const result = await fetchClientApi("/api/source-file-download-url", {
     method: "POST",
-    body: { fileId, fileKind },
+    body: {
+      fileId,
+      fileKind,
+      organizationId: isAdminUser() ? state.selectedAdminClientId : undefined,
+      projectId: isAdminUser() ? state.selectedAdminProjectId : undefined,
+    },
   });
 
   if (!result.ok || !result.data?.signedUrl) {
@@ -5170,7 +5179,13 @@ document.addEventListener("click", async (event) => {
   setButtonBusy(target, true, "Deleting");
   const result = await fetchClientApi("/api/source-file-download-url", {
     method: "POST",
-    body: { fileId, fileKind, action: "delete" },
+    body: {
+      fileId,
+      fileKind,
+      action: "delete",
+      organizationId: isAdminUser() ? state.selectedAdminClientId : undefined,
+      projectId: isAdminUser() ? state.selectedAdminProjectId : undefined,
+    },
   });
   setButtonBusy(target, false);
 

@@ -53,6 +53,7 @@ Last updated: 2026-05-20
 - [x] Security QA hardening SQL added for admin role checks and message related-record ownership.
 - [x] Client credit balance display now shows available credits instead of calculating cycle usage as starter credits minus balance.
 - [x] Client profile save and client message submit now use busy-state guards to reduce duplicate submissions.
+- [x] Admin file download APIs now validate selected client and project context when provided by the admin UI.
 
 ## Addressed In Hosted Configuration
 
