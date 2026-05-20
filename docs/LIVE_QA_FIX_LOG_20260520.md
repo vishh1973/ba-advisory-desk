@@ -338,3 +338,9 @@ Responsive admin QA completed:
 - Bumped public asset versions so real browsers load the new CSS without manual cache clearing.
 - Verified live mobile width at 390 pixels and tablet width at 768 pixels with `styles.css?v=9`.
 - Result: no page overflow, no layout offenders, and no internal panel overflow detected in the authenticated admin workspace.
+
+Admin portfolio UX check:
+
+- Selected a different client from the portfolio list in the authenticated admin workspace.
+- The right-side client dossier updated from the safe QA client to `Fit MBW`.
+- The page scroll position stayed stable, so the admin is not pulled away from the portfolio context.

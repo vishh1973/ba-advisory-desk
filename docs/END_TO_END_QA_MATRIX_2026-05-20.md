@@ -54,6 +54,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Admin records credits | Risk | Release credit use is idempotent. Manual credit adjustment still needs stable operation ID protection. |
 | Client notification after release | Risk | Notification can fail after release. UI warns, but admin needs a visible retry action. |
 | Authenticated admin mobile and tablet layout | Pass | Live `#admin` tested at 390 and 768 pixel widths with refreshed assets. No layout offenders or internal panel overflow detected. |
+| Admin client selection | Pass | Selecting a different client updates the dossier in place without shifting the admin away from the portfolio context. |
 
 ## Security QA
 
