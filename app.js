@@ -3,6 +3,7 @@ const config = {
   adminEmail: "",
   supportEmail: "support@baadvisorydesk.com",
   maxFileSizeMb: 50,
+  maxFilesPerUpload: 10,
   allowedFileTypes: ["PDF", "Word", "Excel", "PowerPoint", "PNG", "JPG"],
   starterCredits: 5,
   topUpCredits: 3,
@@ -558,7 +559,7 @@ function getLowCreditMessage() {
 
 function getCreditPromptHtml() {
   if (state.creditsLeft <= 0) {
-    return `No Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> to restart paused deliverables.`;
+    return `No Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before starting new credit based work.`;
   }
   if (state.creditsLeft <= state.creditThreshold) {
     return `${state.creditsLeft} Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before the next deliverable is scoped.`;
@@ -577,7 +578,7 @@ function getRequestCreditScope() {
 
 function getInsufficientCreditMessage(requestedCredits, balance = state.creditsLeft) {
   const safeBalance = Math.max(0, Number(balance || 0));
-  return `This request needs ${requestedCredits} Advisory Credit${requestedCredits === 1 ? "" : "s"}, but your workspace has ${safeBalance}. Please add credits or choose a paid Rescue Sprint before submitting source files.`;
+  return `This request needs ${requestedCredits} Advisory Credit${requestedCredits === 1 ? "" : "s"}. Your workspace currently has ${safeBalance}. Add credits in Billing, or choose Custom Scope if this work should be priced separately.`;
 }
 
 function updateRequestReadinessStatus(files = []) {
@@ -860,6 +861,31 @@ function resetClientWorkspaceState() {
   clearPendingCheckoutType();
 }
 
+function clearSupabaseAuthStorage() {
+  const keys = new Set(["supabase.auth.token"]);
+  try {
+    const projectRef = config.supabaseUrl ? new URL(config.supabaseUrl).hostname.split(".")[0] : "";
+    if (projectRef) {
+      keys.add(`sb-${projectRef}-auth-token`);
+      keys.add(`sb-${projectRef}-auth-token-code-verifier`);
+    }
+  } catch (_error) {
+    // If the project URL cannot be parsed, the generic cleanup below still runs.
+  }
+
+  [localStorage, sessionStorage].forEach((storage) => {
+    if (!storage) return;
+    Array.from({ length: storage.length }, (_, index) => storage.key(index))
+      .filter(Boolean)
+      .filter((key) => keys.has(key) || key.startsWith("sb-") && key.includes("-auth-token"))
+      .forEach((key) => storage.removeItem(key));
+  });
+}
+
+function isProtectedRoute(route) {
+  return new Set(["dashboard", "profile", "request", "billing", "checkout-success", "admin", "messages", "files", "deliverables"]).has(route);
+}
+
 function closeNavigationMenus() {
   document.querySelectorAll("[data-nav-menu].open").forEach((menu) => {
     menu.classList.remove("open");
@@ -1094,15 +1120,13 @@ async function signOutCurrentUser(event) {
   } catch (_error) {
     // Local session has already been cleared so the client is not left trapped in the workspace.
   } finally {
+    clearSupabaseAuthStorage();
     showToast("Signed out.");
   }
 }
 
 async function initAuth() {
   state.passwordRecovery = isPasswordRecoveryUrl();
-  if (state.passwordRecovery && window.location.hash.replace("#", "") !== "login") {
-    window.history.replaceState(null, "", `${window.location.pathname}#login`);
-  }
 
   if (!supabaseClient) {
     setAuthStatus("Secure account access is temporarily unavailable. Please contact support for assistance.");
@@ -1146,7 +1170,12 @@ async function initAuth() {
       await routeAfterAuth();
       render();
     } else {
-      resetAdminAccessState();
+      const currentRoute = routeAliases[window.location.hash.replace("#", "")] || window.location.hash.replace("#", "");
+      resetClientWorkspaceState();
+      if (isProtectedRoute(currentRoute)) {
+        window.history.replaceState(null, "", `${window.location.pathname}#login`);
+        setView();
+      }
       updateAuthUi();
       render();
     }
@@ -1199,9 +1228,9 @@ async function fetchAdminApi(path, options = {}) {
         data = { error: "The admin service returned an unexpected response." };
       }
     }
-    return response.ok ? { ok: true, data } : { ok: false, error: data.error || "The admin request could not be completed." };
+    return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: data.error || "The admin request could not be completed." };
   } catch (error) {
-    return { ok: false, error: error.message || "The admin request could not be completed." };
+    return { ok: false, status: 0, error: error.message || "The admin request could not be completed." };
   }
 }
 
@@ -1232,9 +1261,9 @@ async function fetchClientApi(path, options = {}) {
         data = { error: "The secure workspace returned an unexpected response." };
       }
     }
-    return response.ok ? { ok: true, data } : { ok: false, error: data.error || "The secure workspace request could not be completed." };
+    return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: data.error || "The secure workspace request could not be completed." };
   } catch (error) {
-    return { ok: false, error: error.message || "The secure workspace request could not be completed." };
+    return { ok: false, status: 0, error: error.message || "The secure workspace request could not be completed." };
   }
 }
 
@@ -1257,11 +1286,11 @@ function setCheckoutStatus({ title, body, status, level = "", panelHtml = "" }) 
 }
 
 function getCheckoutEmailText(emailResult) {
-  if (!emailResult?.attempted) return "Confirmation email will be sent when notification service is available.";
+  if (!emailResult?.attempted) return "Payment is recorded in your workspace.";
   if (emailResult.sent) return "A payment confirmation email has been sent.";
-  if (emailResult.skipped) return "Payment is recorded. Email notification is being configured and may not send from this transaction.";
-  if (emailResult.error) return "Payment is recorded. Email notification could not be sent automatically.";
-  return "Payment is recorded. Email notification status is being finalized.";
+  if (emailResult.skipped) return "Payment is recorded. Your workspace and billing history are the source of truth.";
+  if (emailResult.error) return "Payment is recorded. We could not send the confirmation email automatically.";
+  return "Payment is recorded. Confirmation email status is being finalized.";
 }
 
 async function handleCheckoutSuccessView() {
@@ -1297,6 +1326,7 @@ async function handleCheckoutSuccessView() {
     status: "Confirming payment and updating your Advisory Credit balance.",
   });
 
+  const priorCredits = Number(state.creditsLeft || 0);
   const result = await fetchClientApi("/api/create-checkout-session", {
     method: "POST",
     body: {
@@ -1307,10 +1337,34 @@ async function handleCheckoutSuccessView() {
 
   if (!result.ok) {
     checkoutReconcileSessionId = "";
+    await withClientTimeout(loadClientWorkspaceData(), 8000, "Workspace refresh is taking longer than expected.").catch(() => null);
+    render();
+    const creditsNow = Number(state.creditsLeft || 0);
+    const paymentWasRecorded = state.paymentHistory.some((payment) => isPaidPaymentStatus(payment.status));
+    if (creditsNow > priorCredits || paymentWasRecorded) {
+      setCheckoutStatus({
+        title: "Payment confirmed.",
+        body: `Your workspace billing has been updated. Your current Advisory Credit balance is ${creditsNow}.`,
+        status: "Use the button below when you are ready to return to the workspace.",
+        level: "success",
+        panelHtml: `
+          <h3>Payment confirmation</h3>
+          <ul class="check-list">
+            <li>Payment has been matched to this client workspace.</li>
+            <li>Billing history has been refreshed.</li>
+            <li>Current Advisory Credit balance: ${escapeHtml(creditsNow)}</li>
+          </ul>
+        `,
+      });
+      return;
+    }
+    const isPendingPayment = result.status === 409;
     setCheckoutStatus({
-      title: "Payment is still being confirmed.",
-      body: "Your payment may be processing. Please wait a moment, then use View Billing. If the balance does not update, contact support.",
-      status: result.error || "Payment confirmation is still pending.",
+      title: isPendingPayment ? "We are matching your payment to this workspace." : "Workspace billing needs another check.",
+      body: isPendingPayment
+        ? "This can take a moment. Use View Billing again shortly. If the balance still does not update, contact support with the checkout email."
+        : "Your workspace may already be updated. Please view billing or reopen the client workspace.",
+      status: result.error || "Checkout status could not be refreshed.",
       level: "warning",
     });
     return;
@@ -1823,11 +1877,18 @@ function getFileExtension(fileName) {
 
 function validateWorkspaceFiles(files) {
   const maxBytes = config.maxFileSizeMb * 1024 * 1024;
+  const list = Array.from(files || []);
+  if (list.length > config.maxFilesPerUpload) {
+    return `Please upload no more than ${config.maxFilesPerUpload} files at a time. You can attach more files later from Messages and Files.`;
+  }
   const invalid = Array.from(files || []).find((file) => {
     const extension = getFileExtension(file.name);
-    return !allowedUploadExtensions.has(extension) || file.size > maxBytes;
+    return !allowedUploadExtensions.has(extension) || file.size > maxBytes || file.size <= 0;
   });
   if (!invalid) return "";
+  if (invalid.size <= 0) {
+    return `${invalid.name} appears to be empty. Please attach a file that contains content.`;
+  }
   if (invalid.size > maxBytes) {
     return `${invalid.name} is larger than ${config.maxFileSizeMb} MB. Please reduce the file size or split the material.`;
   }
@@ -1993,33 +2054,45 @@ async function saveClientUpload() {
 
     if (organizationId && userId && supabaseClient) {
       const storagePath = createClientStoragePath(userId, `workspace-uploads/${context.type}-${context.id || "workspace"}`, file.name, index);
-      const { error: uploadError } = await supabaseClient.storage.from("client-files").upload(storagePath, file, {
-        upsert: false,
-        contentType: getUploadContentType(file),
-      });
+      const uploadResponse = await withClientTimeout(
+        supabaseClient.storage.from("client-files").upload(storagePath, file, {
+          upsert: false,
+          contentType: getUploadContentType(file),
+        }),
+        45000,
+        `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
+      );
+      const uploadError = uploadResponse?.error;
 
       if (uploadError) {
         return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message || "File could not be uploaded.") };
       }
 
-      const { data: uploadRecord, error: recordError } = await supabaseClient
-        .from("client_uploads")
-        .insert({
-          organization_id: organizationId,
-          uploaded_by: userId,
-          deliverable_id: context.deliverableId,
-          request_id: context.requestId,
-          upload_type: purpose,
-          original_file_name: file.name,
-          file_size_bytes: file.size,
-          storage_bucket: "client-files",
-          storage_path: storagePath,
-          note,
-          status: "received",
-        })
-        .select("id")
-        .single();
+      const recordResponse = await withClientTimeout(
+        supabaseClient
+          .from("client_uploads")
+          .insert({
+            organization_id: organizationId,
+            uploaded_by: userId,
+            deliverable_id: context.deliverableId,
+            request_id: context.requestId,
+            upload_type: purpose,
+            original_file_name: file.name,
+            file_size_bytes: file.size,
+            storage_bucket: "client-files",
+            storage_path: storagePath,
+            note,
+            status: "received",
+          })
+          .select("id")
+          .single(),
+        15000,
+        `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
+      );
+      const uploadRecord = recordResponse?.data;
+      const recordError = recordResponse?.error;
       if (recordError) {
+        await supabaseClient.storage.from("client-files").remove([storagePath]).then(() => null, () => null);
         return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, recordError.message || "File record could not be saved to the workspace.") };
       }
       entry.fileId = uploadRecord?.id || "";
@@ -4760,34 +4833,41 @@ document.querySelector("#clientMessageForm")?.addEventListener("submit", async (
 
 document.querySelector("#clientUploadForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = event.submitter || document.querySelector("#clientUploadForm button[type='submit']");
+  if (submitButton?.dataset.busy === "true") return;
   const status = document.querySelector("#clientUploadStatus");
   if (status) {
     status.textContent = "Uploading client files.";
     status.classList.remove("warning", "success");
   }
-  const result = await saveClientUpload();
-  if (!result.ok) {
-    if (status) {
-      status.textContent = result.error || "Files could not be uploaded.";
-      status.classList.add("warning");
+  setButtonBusy(submitButton, true, "Uploading Files");
+  try {
+    const result = await saveClientUpload();
+    if (!result.ok) {
+      if (status) {
+        status.textContent = result.error || "Files could not be uploaded.";
+        status.classList.add("warning");
+      }
+      showToast(result.error || "Files could not be uploaded.");
+      return;
     }
-    showToast(result.error || "Files could not be uploaded.");
-    return;
+    document.querySelector("#clientUploadFiles").value = "";
+    document.querySelector("#clientUploadNotes").value = "";
+    document.querySelector("#clientUploadFileList").textContent = "No files selected yet.";
+    if (status) {
+      const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"}`;
+      status.textContent = result.advisorNotified
+        ? `${fileText} uploaded, attached, and shared with the advisory team.`
+        : result.storedOnline
+          ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
+          : `${fileText} recorded in this workspace.`;
+      status.classList.add("success");
+    }
+    render();
+    showToast("Client upload added to the workspace.");
+  } finally {
+    setButtonBusy(submitButton, false);
   }
-  document.querySelector("#clientUploadFiles").value = "";
-  document.querySelector("#clientUploadNotes").value = "";
-  document.querySelector("#clientUploadFileList").textContent = "No files selected yet.";
-  if (status) {
-    const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"}`;
-    status.textContent = result.advisorNotified
-      ? `${fileText} uploaded, attached, and shared with the advisory team.`
-      : result.storedOnline
-        ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
-        : `${fileText} recorded in this workspace.`;
-    status.classList.add("success");
-  }
-  render();
-  showToast("Client upload added to the workspace.");
 });
 
 document.querySelector("#requestForm").addEventListener("submit", async (event) => {
@@ -4843,6 +4923,13 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       warn("Please complete the business goal, target audience, desired output, deadline, and attachment description before submitting.");
       return;
     }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const chosenDeadline = new Date(`${decisionDeadline}T00:00:00`);
+    if (Number.isNaN(chosenDeadline.getTime()) || chosenDeadline < today) {
+      warn("Please choose today or a future date for the deadline or decision date.");
+      return;
+    }
 
     const requestFiles = Array.from(document.querySelector("#fileUpload")?.files || []);
     if (!requestFiles.length) {
@@ -4867,13 +4954,21 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     }
 
     if (requestedCredits > 0) {
-      const creditResult = await withClientTimeout(
-        refreshCreditBalanceForSubmit(organizationId),
-        10000,
-        "We could not verify your current Advisory Credit balance quickly enough. Please refresh the page and try again."
-      );
+      let creditResult;
+      try {
+        creditResult = await withClientTimeout(
+          refreshCreditBalanceForSubmit(organizationId),
+          12000,
+          "Credit balance refresh is taking longer than expected."
+        );
+      } catch (_balanceError) {
+        const fallbackBalance = Number(state.creditsLeft || 0);
+        creditResult = fallbackBalance >= requestedCredits
+          ? { ok: true, balance: fallbackBalance, usedWorkspaceBalance: true }
+          : { ok: false, balance: fallbackBalance };
+      }
       if (!creditResult.ok) {
-        warn("We could not verify your current Advisory Credit balance. Refresh the page and try again, or contact support if this continues.");
+        warn("We could not verify enough Advisory Credits for this request. Please open Billing to refresh your balance, or contact support if this continues.");
         return;
       }
       if (Number(creditResult.balance || 0) < requestedCredits) {
@@ -4883,6 +4978,9 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
         saveState();
         render();
         return;
+      }
+      if (creditResult.usedWorkspaceBalance) {
+        setInlineStatus(statusSelector, "Using your current workspace credit balance to continue this request.");
       }
     }
 
@@ -4970,7 +5068,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       relatedLabel: request.id,
     });
     if (!uploadResult.ok) {
-      const uploadAttentionMessage = `Request ${request.id} was created, but the file upload needs attention. ${uploadResult.reason || "Please try the upload again, or contact support."}`;
+      const uploadAttentionMessage = `Request ${request.id} was created, but the file upload needs attention. Please open Messages and Files, choose ${request.id}, and attach the remaining files there. ${uploadResult.reason || ""}`.trim();
       setInlineStatus(statusSelector, uploadAttentionMessage, "warning");
       showPersistentNotice(uploadAttentionMessage);
       render();

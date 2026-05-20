@@ -67,7 +67,8 @@ async function insertWebhookEvent(supabase, event) {
       .maybeSingle();
 
     if (existingError) throw existingError;
-    return { duplicate: existingEvent?.processing_status === "processed" };
+    const status = String(existingEvent?.processing_status || "").toLowerCase();
+    return { duplicate: status === "processed" || status === "received" };
   }
   throw error;
 }

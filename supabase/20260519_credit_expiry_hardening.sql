@@ -419,6 +419,7 @@ begin
   end if;
 
   v_idempotency_key := 'stripe-' || p_stripe_source_id || '-credits';
+  perform pg_advisory_xact_lock(hashtext(v_idempotency_key));
   v_entry_type := case when p_product_type = 'starter_monthly' then 'monthly_grant' else 'top_up' end;
   v_expires_at := case
     when p_product_type = 'starter_monthly' then coalesce(p_period_end, coalesce(p_period_start, p_paid_at, now()) + interval '1 month')

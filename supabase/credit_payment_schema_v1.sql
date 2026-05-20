@@ -329,6 +329,10 @@ create unique index if not exists payment_orders_stripe_payment_intent_idx
 on public.payment_orders(stripe_payment_intent_id)
 where stripe_payment_intent_id is not null;
 
+create unique index if not exists payment_orders_stripe_invoice_idx
+on public.payment_orders(stripe_invoice_id)
+where stripe_invoice_id is not null;
+
 create index if not exists payment_orders_organization_created_idx
 on public.payment_orders(organization_id, created_at desc);
 

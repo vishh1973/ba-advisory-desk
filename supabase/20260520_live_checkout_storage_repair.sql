@@ -12,6 +12,14 @@ on public.payment_events(idempotency_key);
 create unique index if not exists subscriptions_stripe_subscription_full_idx
 on public.subscriptions(stripe_subscription_id);
 
+create unique index if not exists payment_orders_stripe_invoice_idx
+on public.payment_orders(stripe_invoice_id)
+where stripe_invoice_id is not null;
+
+create unique index if not exists request_files_storage_path_idx
+on public.request_files(storage_path)
+where storage_path is not null;
+
 grant usage on schema public to authenticated, anon, service_role;
 grant usage on schema storage to authenticated, service_role;
 
@@ -107,6 +115,7 @@ to authenticated
 with check (
   uploaded_by = auth.uid()
   and organization_id in (select public.current_user_organization_ids())
+  and storage_path like auth.uid()::text || '/%'
   and exists (
     select 1
     from public.requests r

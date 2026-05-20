@@ -149,3 +149,60 @@ These still need live browser validation after deployment:
 - Confirm client sign out works after deployment.
 - Confirm payment confirmation email is received or logged as skipped with a clear fallback.
 
+## Follow-Up QA Pass After Live Client Testing
+
+Date: 2026-05-20
+
+### Issues Reported During Live Client Testing
+
+- A successful Credit Top Up increased the client balance from 11 to 14, but the checkout confirmation page still showed a warning.
+- A new request with three attached files was blocked by a slow credit balance verification message, even though the workspace showed 14 Advisory Credits.
+- Client upload and request upload paths needed stronger duplicate-submit, partial-failure, and empty-file protection.
+- Logout needed a stronger local session cleanup fallback.
+
+### Fixes Applied In This Pass
+
+- Checkout success now treats an already updated workspace balance as a successful payment confirmation.
+- Reconcile now returns success when an order is already marked paid, which protects against webhook-first payment timing.
+- Request submission now falls back to the current workspace balance when the live balance refresh is slow and the visible balance is sufficient.
+- Client file upload now has upload and record-save timeouts.
+- Client file upload now removes the storage object if the database file record fails.
+- Client file upload now prevents duplicate button clicks during upload.
+- File validation now rejects empty files and enforces a 10 file per upload limit.
+- Request submission now rejects past deadline dates.
+- Request upload failure messaging now directs the client to Messages and Files for the same request instead of suggesting a duplicate intake submission.
+- Logout now clears Supabase auth storage as a fallback after clearing local workspace state.
+- Stripe checkout now reuses an existing Stripe customer when available.
+- Starter checkout now blocks duplicate active Starter subscriptions.
+- Stripe webhook duplicate handling now treats already received events as in progress.
+- Credit grant SQL now uses an advisory transaction lock around Stripe idempotency keys.
+- Live database now has unique indexes for `payment_orders.stripe_invoice_id` and `request_files.storage_path`.
+- Request file insert policy now verifies the storage path belongs to the signed-in user folder.
+
+### Live Database Verification
+
+Confirmed after applying SQL:
+
+- Test client `totallyfitmbw@gmail.com` is linked to organization `83ccdf26-f4ca-474c-ba9d-d93198e2c1a9`.
+- Current verified balance is 14 Advisory Credits.
+- `payment_orders_stripe_invoice_idx` exists.
+- `request_files_storage_path_idx` exists.
+- `payment_events_idempotency_key_full_idx` exists.
+- `subscriptions_stripe_subscription_full_idx` exists.
+- Request file insert policy includes a signed-in user storage path prefix check.
+- `record_stripe_credit_grant` includes the advisory lock.
+
+### Local Verification
+
+All smoke tests passed after the fixes.
+
+Coverage included:
+
+- Public page load.
+- Public wording scan.
+- Checkout confirmation surface.
+- Checkout reconciliation source checks.
+- Request upload source checks.
+- Sign out source checks.
+- Sample PDF availability.
+- Anonymous protected-table write blocking.

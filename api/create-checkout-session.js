@@ -77,6 +77,20 @@ async function findStripeCustomerId(supabase, organizationId) {
   return order?.stripe_customer_id || null;
 }
 
+async function findActiveStarterSubscription(supabase, organizationId) {
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select("id,stripe_subscription_id,status,current_period_end")
+    .eq("organization_id", organizationId)
+    .in("status", ["active", "trialing", "past_due"])
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
 function isoFromUnixSeconds(value) {
   return Number.isFinite(Number(value)) ? new Date(Number(value) * 1000).toISOString() : null;
 }
@@ -164,6 +178,23 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
   const workspace = await getAuthenticatedWorkspace({ supabase, bearerToken, organizationId });
   if (workspace.error) {
     return { status: workspace.status, body: { error: workspace.error } };
+  }
+
+  if (String(order.status || "").toLowerCase() === "paid") {
+    const balance = await getCreditBalance(supabase, organizationId);
+    return {
+      status: 200,
+      body: {
+        confirmed: true,
+        productType: order.product_type,
+        credits: Number(order.credits || 0),
+        balance: balance.balance,
+        lowCreditThreshold: balance.lowCreditThreshold,
+        creditGranted: false,
+        alreadyRecorded: true,
+        email: { attempted: false },
+      },
+    };
   }
 
   if (session.payment_status !== "paid" && session.status !== "complete") {
@@ -324,6 +355,21 @@ module.exports = async function handler(req, res) {
     }
     const { userId, clientEmail } = workspace;
 
+    let existingCustomerId = null;
+    if (productType === "starter_monthly") {
+      const existingSubscription = await findActiveStarterSubscription(supabase, organizationId);
+      if (existingSubscription?.stripe_subscription_id) {
+        res.status(409).json({
+          error: "This workspace already has an active Starter plan. Open Billing to manage the current plan or add a Credit Top Up.",
+          subscriptionId: existingSubscription.stripe_subscription_id,
+        });
+        return;
+      }
+      existingCustomerId = await findStripeCustomerId(supabase, organizationId);
+    } else {
+      existingCustomerId = await findStripeCustomerId(supabase, organizationId);
+    }
+
     const { data: order, error: orderError } = await supabase
       .from("payment_orders")
       .insert({
@@ -355,7 +401,8 @@ module.exports = async function handler(req, res) {
 
     const session = await stripe.checkout.sessions.create({
       mode: priceConfig.mode,
-      customer_email: clientEmail || undefined,
+      customer: existingCustomerId || undefined,
+      customer_email: existingCustomerId ? undefined : clientEmail || undefined,
       client_reference_id: workspaceId || order.id,
       line_items: [{ price: priceConfig.priceId, quantity: 1 }],
       success_url: `${baseUrl}/success.html?session_id={CHECKOUT_SESSION_ID}&product=${productType}`,
