@@ -233,3 +233,21 @@ Confirmed with an authenticated balance query:
 
 - `credit_balance_summary` returns 14 Advisory Credits for the test client.
 - Query completed in under one second during verification.
+
+### Client Follow-Up Confirmation
+
+Vishal confirmed in live client testing:
+
+- The same three-file request submitted successfully after the balance fallback fix.
+- The dashboard shows the submitted source files and revision uploads.
+- Payment history, credit usage history, and deliverable status are visible and useful.
+
+Additional issue found:
+
+- Source file download starts successfully, but the prior method opened a helper tab and left one blank tab behind.
+
+Fix applied:
+
+- Replaced helper-tab download behavior with an invisible secure download link.
+- The client-facing action now shows `Preparing`, starts the download, then returns to `Download`.
+- This prevents the blank tab left behind after download.

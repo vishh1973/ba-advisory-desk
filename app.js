@@ -1420,6 +1420,22 @@ async function updateServerCreditLedger(payload) {
   });
 }
 
+function triggerSecureDownload(signedUrl, fileName = "workspace-file") {
+  if (!signedUrl) {
+    showToast("Download link could not be created.");
+    return;
+  }
+  const link = document.createElement("a");
+  link.href = signedUrl;
+  link.download = fileName || "workspace-file";
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  window.setTimeout(() => link.remove(), 1000);
+  showToast("Download started.");
+}
+
 function setFieldValue(selector, value) {
   const field = document.querySelector(selector);
   if (field && value !== undefined && value !== null && value !== "") {
@@ -4686,10 +4702,8 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const downloadWindow = window.open("", "_blank", "noopener,noreferrer");
-  if (downloadWindow) {
-    downloadWindow.document.write("<p>Preparing secure download...</p>");
-  }
+  target.disabled = true;
+  target.textContent = "Preparing";
 
   const result = await fetchClientApi("/api/deliverable-download-url", {
     method: "POST",
@@ -4697,16 +4711,15 @@ document.addEventListener("click", async (event) => {
   });
 
   if (!result.ok || !result.data?.signedUrl) {
-    if (downloadWindow) downloadWindow.close();
     showToast(result.error || "Download link could not be created.");
+    target.disabled = false;
+    target.textContent = "Download";
     return;
   }
 
-  if (downloadWindow) {
-    downloadWindow.location.href = result.data.signedUrl;
-  } else {
-    window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
-  }
+  triggerSecureDownload(result.data.signedUrl, result.data.fileName || target.textContent || "deliverable-file");
+  target.disabled = false;
+  target.textContent = "Download";
 });
 
 document.addEventListener("click", async (event) => {
@@ -4721,10 +4734,8 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const downloadWindow = window.open("", "_blank", "noopener,noreferrer");
-  if (downloadWindow) {
-    downloadWindow.document.write("<p>Preparing secure download...</p>");
-  }
+  target.disabled = true;
+  target.textContent = "Preparing";
 
   const result = await fetchClientApi("/api/source-file-download-url", {
     method: "POST",
@@ -4732,16 +4743,15 @@ document.addEventListener("click", async (event) => {
   });
 
   if (!result.ok || !result.data?.signedUrl) {
-    if (downloadWindow) downloadWindow.close();
     showToast(result.error || "Download link could not be created.");
+    target.disabled = false;
+    target.textContent = "Download";
     return;
   }
 
-  if (downloadWindow) {
-    downloadWindow.location.href = result.data.signedUrl;
-  } else {
-    window.open(result.data.signedUrl, "_blank", "noopener,noreferrer");
-  }
+  triggerSecureDownload(result.data.signedUrl, result.data.fileName || "source-file");
+  target.disabled = false;
+  target.textContent = "Download";
 });
 
 document.addEventListener("click", async (event) => {
