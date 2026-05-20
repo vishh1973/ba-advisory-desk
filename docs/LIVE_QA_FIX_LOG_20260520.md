@@ -206,3 +206,30 @@ Coverage included:
 - Sign out source checks.
 - Sample PDF availability.
 - Anonymous protected-table write blocking.
+
+### Live Deployment Verification
+
+Commit deployed:
+
+- `525923a Harden live checkout credits and uploads`
+
+Confirmed on the live site:
+
+- `app.js` contains the new checkout confirmation language.
+- `app.js` contains the request balance fallback language.
+- `app.js` contains the 10 file upload limit.
+- Sample PDFs are available on the live domain.
+- `robots.txt`, `sitemap.xml`, and `llms.txt` are available on the live domain.
+
+### Rollback RLS Verification
+
+Confirmed with an authenticated rollback-only database test:
+
+- The test client can insert a `request_files` row for their own organization and their own storage path.
+- A file path outside the signed-in user's folder is blocked by row-level security.
+- No test rows were kept.
+
+Confirmed with an authenticated balance query:
+
+- `credit_balance_summary` returns 14 Advisory Credits for the test client.
+- Query completed in under one second during verification.
