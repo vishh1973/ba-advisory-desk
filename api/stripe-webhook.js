@@ -208,15 +208,13 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
     await upsertSubscriptionRecord(supabase, subscription, session.metadata);
   }
 
-  if (!CREDIT_PRODUCTS.has(order.product_type)) {
-    await markOrderPaid(supabase, order, {
-      paidAt: isoFromUnixSeconds(session.created) || new Date().toISOString(),
-      stripePaymentIntentId: session.payment_intent || null,
-      stripeInvoiceId: session.invoice || null,
-      stripeCheckoutSessionId: session.id,
-      stripeCustomerId,
-    });
-  }
+  await markOrderPaid(supabase, order, {
+    paidAt: isoFromUnixSeconds(session.created) || new Date().toISOString(),
+    stripePaymentIntentId: session.payment_intent || null,
+    stripeInvoiceId: session.invoice || null,
+    stripeCheckoutSessionId: session.id,
+    stripeCustomerId,
+  });
 
   const paidOrder = {
     ...order,

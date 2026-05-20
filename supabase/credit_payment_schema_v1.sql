@@ -758,9 +758,9 @@ begin
 
   update public.credit_accounts
   set
-    balance = balance + v_signed_credits,
-    reserved_balance = greatest(0, reserved_balance + v_reserved_delta),
-    status = case when balance + v_signed_credits <= 0 then 'depleted' else 'active' end,
+    balance = public.credit_accounts.balance + v_signed_credits,
+    reserved_balance = greatest(0, public.credit_accounts.reserved_balance + v_reserved_delta),
+    status = case when public.credit_accounts.balance + v_signed_credits <= 0 then 'depleted' else 'active' end,
     updated_at = now()
   where id = v_account.id
   returning * into v_account;

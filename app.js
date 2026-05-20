@@ -942,7 +942,12 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
   }
   const pendingRoute = currentRoute === "checkout-success" ? "checkout-success" : getPendingPostAuthRoute() || defaultRoute;
   localStorage.removeItem("baad-post-auth-route");
-  window.location.hash = organizationId ? pendingRoute : "profile";
+  const nextRoute = organizationId ? pendingRoute : "profile";
+  if (window.location.hash.replace("#", "") === nextRoute) {
+    setView();
+    return;
+  }
+  window.location.hash = nextRoute;
 }
 
 function getAuthErrorMessage() {
@@ -1234,6 +1239,7 @@ async function fetchClientApi(path, options = {}) {
 }
 
 let checkoutReconcileSessionId = "";
+let authStartupComplete = false;
 
 function getCheckoutSessionId() {
   return new URLSearchParams(window.location.search).get("session_id") || "";
@@ -1273,10 +1279,12 @@ async function handleCheckoutSuccessView() {
   if (!state.session?.user) {
     setPendingPostAuthRoute("checkout-success");
     setCheckoutStatus({
-      title: "Sign in to finish connecting your payment.",
-      body: "Use the same email address used at checkout so the payment can be attached to your client workspace.",
-      status: "Please sign in, then return to this confirmation page.",
-      level: "warning",
+      title: authStartupComplete ? "Sign in to finish connecting your payment." : "Restoring your secure session.",
+      body: authStartupComplete
+        ? "Use the same email address used at checkout so the payment can be attached to your client workspace."
+        : "Please stay on this confirmation page while we check your secure client session.",
+      status: authStartupComplete ? "Please sign in, then return to this confirmation page." : "Checking your secure session.",
+      level: authStartupComplete ? "warning" : "",
     });
     return;
   }
@@ -1751,26 +1759,37 @@ async function uploadRequestFiles(requestId, organizationId) {
   let uploaded = 0;
   for (const [index, file] of files.entries()) {
     const storagePath = createClientStoragePath(userId, requestId, file.name, index);
-    const { error: uploadError } = await supabaseClient.storage.from("client-files").upload(storagePath, file, {
-      upsert: false,
-      contentType: getUploadContentType(file),
-    });
+    const uploadResponse = await withClientTimeout(
+      supabaseClient.storage.from("client-files").upload(storagePath, file, {
+        upsert: false,
+        contentType: getUploadContentType(file),
+      }),
+      45000,
+      `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
+    );
+    const uploadError = uploadResponse?.error;
 
     if (uploadError) {
       return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
     }
 
-    const { error: fileRecordError } = await supabaseClient.from("request_files").insert({
-      request_id: requestId,
-      organization_id: organizationId,
-      storage_path: storagePath,
-      file_name: file.name,
-      file_size_bytes: file.size,
-      mime_type: file.type,
-      uploaded_by: userId,
-    });
+    const fileRecordResponse = await withClientTimeout(
+      supabaseClient.from("request_files").insert({
+        request_id: requestId,
+        organization_id: organizationId,
+        storage_path: storagePath,
+        file_name: file.name,
+        file_size_bytes: file.size,
+        mime_type: getUploadContentType(file),
+        uploaded_by: userId,
+      }),
+      15000,
+      `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
+    );
+    const fileRecordError = fileRecordResponse?.error;
 
     if (fileRecordError) {
+      await supabaseClient.storage.from("client-files").remove([storagePath]).then(() => null, () => null);
       return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
     }
 
@@ -1816,22 +1835,20 @@ function validateWorkspaceFiles(files) {
 }
 
 function getUploadContentType(file) {
-  if (file?.type) return file.type;
   const extension = getFileExtension(file?.name);
-  return (
-    {
-      pdf: "application/pdf",
-      doc: "application/msword",
-      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      xls: "application/vnd.ms-excel",
-      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      ppt: "application/vnd.ms-powerpoint",
-      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      png: "image/png",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-    }[extension] || "application/octet-stream"
-  );
+  const mappedType = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+  }[extension];
+  return mappedType || file?.type || "application/octet-stream";
 }
 
 function createClientStoragePath(userId, folder, fileName, index = 0) {
@@ -4944,7 +4961,6 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       request.status = "File upload needs attention";
     }
     await loadClientWorkspaceData();
-    window.location.hash = "dashboard";
     await notifyAdvisorEvent({
       eventType: "client_request_submitted",
       title: "New client request submitted",
@@ -4954,13 +4970,17 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       relatedLabel: request.id,
     });
     if (!uploadResult.ok) {
-      warn(`Request received, but file upload needs attention. ${uploadResult.reason || "Please upload the files from Messages and Files, or contact support."}`);
+      const uploadAttentionMessage = `Request ${request.id} was created, but the file upload needs attention. ${uploadResult.reason || "Please try the upload again, or contact support."}`;
+      setInlineStatus(statusSelector, uploadAttentionMessage, "warning");
+      showPersistentNotice(uploadAttentionMessage);
+      render();
       return;
     }
 
     const successMessage = `Request received. ${uploadResult.uploaded} file${uploadResult.uploaded === 1 ? "" : "s"} uploaded and attached to your workspace.`;
     setInlineStatus(statusSelector, successMessage, "success");
     showToast(successMessage);
+    window.location.hash = "dashboard";
   } catch (error) {
     warn(error.message || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
   } finally {
@@ -5139,5 +5159,14 @@ renderContentDrivenSections();
 setupOAuthButtons();
 toggleOther("#requestType", "#requestOtherWrap");
 toggleOther("#quoteCompanyType", "#quoteOtherWrap");
-initAuth();
 setView();
+initAuth()
+  .catch((error) => {
+    setAuthStatus(error.message || `Secure account access could not be started. Please contact ${config.supportEmail}.`);
+  })
+  .finally(() => {
+    authStartupComplete = true;
+    if ((routeAliases[window.location.hash.replace("#", "")] || window.location.hash.replace("#", "")) === "checkout-success") {
+      setView();
+    }
+  });
