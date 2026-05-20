@@ -278,3 +278,10 @@ Additional admin upload hardening:
 - Admin deliverable uploads now use bounded upload and file-record save timeouts.
 - Admin deliverable uploads now use mapped content types for PDF, Office, and image files.
 - If a deliverable file uploads but the file record fails, the storage object is removed.
+
+Credit-consume verification:
+
+- Ran a rollback-only consume test against the latest client request.
+- Balance moved from 14 to 13 inside the rollback transaction.
+- Balance returned to 14 after rollback.
+- This confirms the credit-consume function can support admin release without changing live credits during QA.
