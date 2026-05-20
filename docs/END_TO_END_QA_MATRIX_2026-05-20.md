@@ -53,6 +53,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Admin releases with zero credits | Pass by design | Release can go to client review without deducting credits. |
 | Admin records credits | Risk | Release credit use is idempotent. Manual credit adjustment still needs stable operation ID protection. |
 | Client notification after release | Risk | Notification can fail after release. UI warns, but admin needs a visible retry action. |
+| Authenticated admin mobile and tablet layout | Pass | Live `#admin` tested at 390 and 768 pixel widths with refreshed assets. No layout offenders or internal panel overflow detected. |
 
 ## Security QA
 
@@ -72,6 +73,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 |---|---:|---|
 | Stripe product mapping | Pass | Rescue, Starter, and Top Up product credit setup is consistent. |
 | Top Up credit grant | Pass from user test | User confirmed Top Up increased credits from 11 to 14. |
+| Checkout guardrails | Pass | Live API rejects unauthenticated checkout, rejects wrong organization checkout, and returns valid Stripe checkout URLs for safe Starter and Top Up requests. |
 | Starter credits | Risk | Needs repeated live test across webhook-first and success-page-first paths. |
 | Duplicate Stripe event handling | Risk | Existing idempotency is mostly sound, but concurrent received-event handling needs stress testing. |
 | Paid order with missing credits | Risk | Reconcile may not repair if order was marked paid before credit grant failed. |
@@ -84,8 +86,10 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 |---|---:|---|
 | Multi-file source upload | Pass from user test | User confirmed three-file request submitted and files appeared. |
 | Source file download | Pass from user test | User confirmed download now works smoothly without blank tab. |
+| Wrong client file access | Pass | Safe QA client was blocked from another client's source file and deliverable file with controlled 403 responses. |
 | Admin release upload | Pass from user test | User confirmed feature update works. |
 | Deliverable versioning | Pass for one QA path | Safe QA admin release created a controlled deliverable and version. Client could see and download it. |
+| Revision upload | Pass | Safe QA client uploaded an approved revision file and could download their own deliverable after upload. Unsupported text file upload was rejected. |
 | Partial source upload | Risk | If one file fails after earlier files upload, request remains with partial files and attention status. |
 | Deliverable finalization atomicity | Risk | Database changes are not yet one Postgres transaction. Storage upload plus DB finalize is controlled, but not fully atomic. |
 | File pagination | Open | Current views are capped. A full file browser will be needed as clients grow. |

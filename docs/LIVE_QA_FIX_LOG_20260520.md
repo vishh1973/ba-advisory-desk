@@ -315,3 +315,26 @@ Credit-consume verification:
 - Balance moved from 14 to 13 inside the rollback transaction.
 - Balance returned to 14 after rollback.
 - This confirms the credit-consume function can support admin release without changing live credits during QA.
+
+### Authenticated Live QA Expansion
+
+Safe QA account checks completed:
+
+- Client revision upload accepts approved file types and stores the uploaded revision in the client workspace.
+- Unsupported file type upload is rejected by the storage policy with a controlled 415 response.
+- A signed-in client cannot download another client workspace source file.
+- A signed-in client cannot download another client workspace deliverable file.
+- The same signed-in client can download its own deliverable file.
+- Checkout APIs reject unauthenticated checkout requests.
+- Checkout APIs reject checkout attempts for the wrong client organization.
+- Checkout APIs return a clear support fallback when a client has no Stripe customer portal record yet.
+- Starter and Credit Top Up checkout session creation returns valid Stripe checkout URLs for the safe QA client.
+
+Responsive admin QA completed:
+
+- Found that the authenticated admin workspace had mobile and tablet overflow risks in the client portfolio, project selectors, and dossier panels.
+- Reworked the admin portfolio into stacked client cards below 820 pixels.
+- Forced admin form controls, project selectors, dossier content, and dashboard panels to stay inside the viewport.
+- Bumped public asset versions so real browsers load the new CSS without manual cache clearing.
+- Verified live mobile width at 390 pixels and tablet width at 768 pixels with `styles.css?v=9`.
+- Result: no page overflow, no layout offenders, and no internal panel overflow detected in the authenticated admin workspace.

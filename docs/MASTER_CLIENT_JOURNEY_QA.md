@@ -167,6 +167,7 @@ Current QA status:
 Remaining QA:
 
 - Confirm the client receives the ready notification.
+- Confirm the mobile admin layout after future dashboard changes.
 
 ## Journey 8: Credit Management
 
@@ -215,7 +216,7 @@ Current QA status:
 
 Remaining QA:
 
-- Confirm wrong client file access is blocked with two authenticated accounts.
+- Completed on 2026-05-20: wrong client source file and deliverable file access was blocked with authenticated safe QA account checks.
 - Confirm inbound email forwarding after Resend webhook secret is configured.
 
 ## Current Launch Readiness
