@@ -1,6 +1,6 @@
 # BA Advisory Desk Running Issue Tracker
 
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 
 ## Addressed In Code
 
@@ -41,6 +41,12 @@ Last updated: 2026-05-19
 - [x] Deliverable download admin access now uses the same protected admin authorization helper as other admin APIs.
 - [x] Public custom quote submissions can no longer attach themselves to a client workspace without a signed in matching account.
 - [x] Public footer now includes Privacy, Terms, and Refund Policy links.
+- [x] Admin client portfolio now uses `View dossier` and updates the right-side dossier without auto-scrolling the page.
+- [x] Admin dossier now shows client ID, project ID, active project, client profile, request context, source files, deliverables, and messages for the selected client.
+- [x] New client projects receive generated project codes, while Advisory Credit balance remains attached to the client account.
+- [x] Admin deliverable release now uses a protected server-side prepare, upload, finalize, and abort flow.
+- [x] Deliverable release no longer automatically consumes credits unless the admin enters credits to record for that release.
+- [x] Credit ledger project references are stored as context only. The account balance remains client-level.
 
 ## Addressed In Hosted Configuration
 
@@ -74,15 +80,15 @@ Last updated: 2026-05-19
 
 - [ ] Add server-backed client message notification to admin.
 - [ ] Add client confirmation email for custom quote requests.
-- [ ] Move admin deliverable release to a server route.
-- [ ] Add atomic deliverable release route for upload, version assignment, credit deduction, status update, and client notification.
-- [ ] Make deliverable version assignment database controlled.
-- [ ] Make credit deduction part of the deliverable release flow.
-- [ ] Fix reserve versus consume credit semantics so credits are not double deducted.
+- [x] Move admin deliverable release to a protected server route.
+- [x] Add protected deliverable release flow for prepare, upload, finalize, cleanup, status update, optional credit use, and client notification.
+- [x] Make deliverable version assignment server controlled.
+- [x] Make credit use part of the deliverable release flow only when explicitly entered by admin.
+- [x] Fix release credit semantics so client review releases can use 0 credits and final credit use can be recorded deliberately.
 - [ ] Add server-side credit expiry before balance reads and reminders.
 - [ ] Add client approve version and request revision actions.
 - [x] Replace example values in forms with placeholders.
-- [ ] Validate file type and size before upload.
+- [x] Validate file type and size before upload.
 
 ## Configuration Links
 
