@@ -58,9 +58,9 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Area | Status | Result |
 |---|---:|---|
 | Admin API authorization | Fixed in app | API now requires admin profile role plus active allowlist match. |
-| Database admin function | SQL ready | `supabase/20260520_security_qa_hardening.sql` must be applied to hosted Supabase. |
+| Database admin function | Pass | `supabase/20260520_security_qa_hardening.sql` applied to hosted Supabase on 2026-05-20. Admin function and client message policy verified. |
 | Client notification references | Fixed in app | Project, request, and deliverable references are validated before notification records are written. |
-| Client message RLS | SQL ready | Related request and deliverable ownership checks are in the new SQL hardening file. |
+| Client message RLS | Pass | Related request and deliverable ownership checks are applied in hosted Supabase. |
 | Legacy deliverable notification mutation | Fixed in app | Legacy route is now notification-only and refuses unreleased deliverables. |
 | Anonymous writes | Pass | Smoke test confirms key protected tables reject anonymous inserts. |
 | Private file buckets | Pass at code level | Files use signed URL APIs with auth and ownership checks. |
@@ -113,7 +113,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 
 ## Highest Priority Remaining Work
 
-1. Apply `supabase/20260520_security_qa_hardening.sql` in the hosted Supabase SQL editor.
+1. Complete an authenticated live browser regression for client and admin journeys now that the hosted Supabase hardening SQL is applied.
 2. Add server-side request submission with credit reservation.
 3. Add server-side expiry refresh before request balance checks.
 4. Add authenticated integration tests for client and admin journeys.

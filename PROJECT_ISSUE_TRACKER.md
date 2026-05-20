@@ -78,7 +78,7 @@ Last updated: 2026-05-20
 - [x] Public copy cleanup: remove any provider wording that is not client friendly.
 - [x] Supabase configuration: enable Google sign-in after Google Cloud OAuth client is created.
 - [ ] Supabase configuration: enable Apple sign-in after Apple Developer service credentials are created.
-- [ ] Supabase SQL: apply `supabase/20260520_security_qa_hardening.sql` to the hosted database.
+- [x] Supabase SQL: applied `supabase/20260520_security_qa_hardening.sql` to the hosted database on 2026-05-20 and verified the admin function plus client message policy.
 
 ## Pending External Configuration
 
