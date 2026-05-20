@@ -1017,8 +1017,7 @@ begin
     order by case when role in ('owner', 'admin', 'billing') then 0 else 1 end, created_at
     limit 1
   ) p on true
-  where ca.status = 'active'
-    and ca.balance <= ca.low_credit_threshold
+  where ca.balance <= ca.low_credit_threshold
     and (
       (ca.balance <= 0 and (ca.last_depleted_credit_reminder_at is null or ca.last_depleted_credit_reminder_at < now() - interval '7 days'))
       or
@@ -1033,8 +1032,7 @@ begin
     last_low_credit_reminder_at = case when balance > 0 and balance <= low_credit_threshold then now() else last_low_credit_reminder_at end,
     last_depleted_credit_reminder_at = case when balance <= 0 then now() else last_depleted_credit_reminder_at end,
     updated_at = now()
-  where status = 'active'
-    and balance <= low_credit_threshold
+  where balance <= low_credit_threshold
     and (
       (balance <= 0 and (last_depleted_credit_reminder_at is null or last_depleted_credit_reminder_at < now() - interval '7 days'))
       or

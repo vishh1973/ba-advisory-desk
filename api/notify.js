@@ -1,6 +1,7 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
 const { requireAdmin } = require("./_lib/adminAuth");
+const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 
 function parseBody(req) {
   if (typeof req.body === "string") {
@@ -180,8 +181,10 @@ async function handleClientWorkspaceNotification(req, res) {
       template_key: eventType,
       subject,
       body: summary,
-      status: emailResult.skipped ? "queued" : "sent",
-      sent_at: emailResult.skipped ? null : new Date().toISOString(),
+      status: emailResult.sent ? "sent" : emailResult.skipped ? "queued" : "failed",
+      sent_at: emailResult.sent ? new Date().toISOString() : null,
+      failed_at: emailResult.sent ? null : new Date().toISOString(),
+      failure_reason: emailResult.sent ? null : emailResult.reason || emailResult.error || "Email provider did not confirm delivery.",
       related_entity_type: scope.relatedEntityType,
       related_entity_id: scope.relatedEntityId,
     })
@@ -190,7 +193,7 @@ async function handleClientWorkspaceNotification(req, res) {
   res.status(200).json({
     ok: true,
     queued: true,
-    sent: !emailResult.skipped,
+    sent: Boolean(emailResult.sent),
     recipientEmail: supportEmail,
   });
 }
@@ -250,14 +253,9 @@ module.exports = async function handler(req, res) {
       html: `<p>${String(message).replace(/\n/g, "</p><p>")}</p>`,
     });
 
-    if (!result.skipped) {
-      await supabase
-        .from("notifications")
-        .update({ status: "sent", sent_at: new Date().toISOString() })
-        .eq("id", notification.id);
-    }
+    await updateNotificationDeliveryStatus(supabase, notification.id, result);
 
-    res.status(200).json({ queued: true, sent: !result.skipped });
+    res.status(200).json({ queued: true, sent: Boolean(result.sent), error: result.error || "" });
   } catch (error) {
     res.status(500).json({ error: error.message || "Notification failed." });
   }

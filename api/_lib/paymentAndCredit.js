@@ -39,32 +39,52 @@ async function queueNotification(supabase, payload) {
     status: "queued",
     related_entity_type: payload.relatedEntityType || null,
     related_entity_id: payload.relatedEntityId || null,
+    dedupe_key: payload.dedupeKey || null,
   });
+}
+
+async function updateNotificationDeliveryStatus(supabase, notificationId, result) {
+  if (!notificationId) return;
+
+  const now = new Date().toISOString();
+  let update;
+  if (result?.skipped) {
+    update = {
+      status: "skipped",
+      failed_at: now,
+      failure_reason: result.reason || "Email provider is not configured.",
+    };
+  } else if (result?.sent) {
+    update = { status: "sent", sent_at: now };
+  } else {
+    update = {
+      status: "failed",
+      failed_at: now,
+      failure_reason: result?.error || "Email provider did not confirm delivery.",
+    };
+  }
+
+  const { error } = await supabase.from("notifications").update(update).eq("id", notificationId);
+  if (error?.code === "PGRST204") {
+    const fallbackUpdate = result?.sent
+      ? { status: "sent", sent_at: now }
+      : { status: result?.skipped ? "skipped" : "failed" };
+    await supabase.from("notifications").update(fallbackUpdate).eq("id", notificationId).then(() => null, () => null);
+    return;
+  }
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
 }
 
 async function sendAndRecordEmail(supabase, payload) {
   if (!payload.to) return { skipped: true, reason: "No recipient email." };
 
   const queued = await queueNotification(supabase, payload);
+  if (queued?.duplicate) {
+    return { skipped: true, duplicate: true, reason: "Notification already queued or sent." };
+  }
+
   const sent = await sendEmail({ to: payload.to, subject: payload.subject, html: payload.html });
-
-  if (sent.skipped && queued?.data?.id) {
-    const { error } = await supabase
-      .from("notifications")
-      .update({ status: "skipped", failure_reason: sent.reason || "Email provider is not configured." })
-      .eq("id", queued.data.id);
-    if (error && !shouldIgnoreOptionalSchemaError(error)) {
-      await supabase.from("notifications").update({ status: "skipped" }).eq("id", queued.data.id).then(() => null, () => null);
-    }
-  }
-
-  if (!sent.skipped && queued?.data?.id) {
-    const { error } = await supabase
-      .from("notifications")
-      .update({ status: "sent", sent_at: new Date().toISOString() })
-      .eq("id", queued.data.id);
-    if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
-  }
+  await updateNotificationDeliveryStatus(supabase, queued?.data?.id, sent);
 
   return sent;
 }
@@ -150,7 +170,6 @@ async function grantPurchaseCredits(supabase, {
     return { granted: false, balanceAfter: null, reason: "No eligible workspace or credit amount." };
   }
 
-  const stripeIdempotencyKey = `stripe-${stripeSourceId}-credits`;
   const { data, error } = await supabase
     .rpc("record_stripe_credit_grant", {
       p_payment_order_id: order.id || null,
@@ -170,38 +189,7 @@ async function grantPurchaseCredits(supabase, {
   if (error && !isMissingStripeGrantRpc(error)) throw error;
 
   if (error && isMissingStripeGrantRpc(error)) {
-    await markOrderPaid(supabase, order, {
-      paidAt,
-      stripePaymentIntentId,
-      stripeInvoiceId,
-      stripeCheckoutSessionId,
-      stripeCustomerId: order.stripe_customer_id || null,
-    });
-
-    const entryType = order.product_type === "starter_monthly" ? "monthly_grant" : "top_up";
-    const fallbackResult = await supabase
-      .rpc("apply_credit_change", {
-        p_organization_id: order.organization_id,
-        p_entry_type: entryType,
-        p_credits: credits,
-        p_entry_reason: order.product_type,
-        p_related_request_id: null,
-        p_related_deliverable_id: null,
-        p_related_payment_id: order.id || null,
-        p_source: "stripe",
-        p_idempotency_key: stripeIdempotencyKey,
-        p_actor_id: null,
-      })
-      .single();
-
-    if (fallbackResult.error) throw fallbackResult.error;
-
-    return {
-      granted: true,
-      balanceAfter: fallbackResult.data?.balance ?? null,
-      expiresAt: null,
-      reason: "Credit grant recorded through standard credit ledger.",
-    };
+    throw new Error("Stripe credit grant schema is not installed. Payment was recorded, but credits were not granted.");
   }
 
   return {
@@ -219,6 +207,7 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
     organizationId: order.organization_id,
     relatedEntityType: "payment_order",
     relatedEntityId: order.id,
+    dedupeKey: customerEmail ? `payment:${order.id}:payment_confirmation:client:${customerEmail}` : `payment:${order.id}:payment_confirmation:client`,
     ...email,
   });
 
@@ -231,6 +220,7 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
       organizationId: order.organization_id,
       relatedEntityType: "payment_order",
       relatedEntityId: order.id,
+      dedupeKey: `payment:${order.id}:payment_confirmation:admin:${adminEmail}`,
       ...admin,
     });
   }
@@ -239,6 +229,7 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
     client: clientEmailResult,
     admin: adminEmailResult,
     skipped: Boolean(clientEmailResult?.skipped && adminEmailResult?.skipped),
+    sent: Boolean(clientEmailResult?.sent),
   };
 }
 
@@ -334,5 +325,7 @@ module.exports = {
   notifyPaymentConfirmed,
   recordAuditEvent,
   recordPaymentHistory,
+  sendAndRecordEmail,
   shouldIgnoreOptionalSchemaError,
+  updateNotificationDeliveryStatus,
 };

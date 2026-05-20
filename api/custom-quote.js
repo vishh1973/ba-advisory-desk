@@ -153,13 +153,15 @@ module.exports = async function handler(req, res) {
       template_key: "custom_quote_admin_notice",
       subject: "New BA Advisory Desk custom advisory request",
       body: `Custom advisory request from ${payload.workEmail}.`,
-      status: emailResult.skipped ? "queued" : "sent",
-      sent_at: emailResult.skipped ? null : new Date().toISOString(),
+      status: emailResult.sent ? "sent" : emailResult.skipped ? "queued" : "failed",
+      sent_at: emailResult.sent ? new Date().toISOString() : null,
+      failed_at: emailResult.sent ? null : new Date().toISOString(),
+      failure_reason: emailResult.sent ? null : emailResult.reason || emailResult.error || "Email provider did not confirm delivery.",
       related_entity_type: "custom_quote_request",
       related_entity_id: quote.id,
     });
 
-    res.status(200).json({ ok: true, quoteId: quote.id, emailed: !emailResult.skipped });
+    res.status(200).json({ ok: true, quoteId: quote.id, emailed: Boolean(emailResult.sent) });
   } catch (error) {
     res.status(500).json({ error: "Custom advisory request could not be submitted." });
   }

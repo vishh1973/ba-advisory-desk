@@ -1,6 +1,7 @@
 const { requireAdmin } = require("./_lib/adminAuth");
 const { handleAdminDeliverableAction } = require("./_lib/adminDeliverableReleaseActions");
 const { sendEmail } = require("./_lib/email");
+const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 
 function parseBody(req) {
@@ -50,6 +51,14 @@ function buildEmail({ deliverable, version, files }) {
 
 async function readRecipientEmail({ supabase, organizationId, explicitEmail }) {
   if (explicitEmail) return explicitEmail;
+
+  const { data: organization, error: organizationError } = await supabase
+    .from("client_organizations")
+    .select("billing_email")
+    .eq("id", organizationId)
+    .maybeSingle();
+  if (organizationError) throw organizationError;
+  if (organization?.billing_email) return organization.billing_email;
 
   const { data, error } = await supabase
     .from("profiles")
@@ -153,10 +162,23 @@ module.exports = async function handler(req, res) {
         status: "queued",
         related_entity_type: "deliverable",
         related_entity_id: deliverable.id,
+        dedupe_key: `deliverable_ready:${version.id}:${recipientEmail}`,
       })
       .select("id")
       .single();
 
+    if (notificationError?.code === "23505") {
+      res.status(200).json({
+        queued: true,
+        sent: false,
+        duplicate: true,
+        notificationId: null,
+        deliverableId: deliverable.id,
+        versionId: version.id,
+        recipientEmail,
+      });
+      return;
+    }
     if (notificationError) throw notificationError;
 
     const result = await sendEmail({
@@ -165,16 +187,12 @@ module.exports = async function handler(req, res) {
       html: email.html,
     });
 
-    if (!result.skipped) {
-      await supabase
-        .from("notifications")
-        .update({ status: "sent", sent_at: new Date().toISOString() })
-        .eq("id", notification.id);
-    }
+    await updateNotificationDeliveryStatus(supabase, notification.id, result);
 
     res.status(200).json({
       queued: true,
-      sent: !result.skipped,
+      sent: Boolean(result.sent),
+      error: result.error || "",
       notificationId: notification.id,
       deliverableId: deliverable.id,
       versionId: version.id,

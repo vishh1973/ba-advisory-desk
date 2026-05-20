@@ -1,5 +1,5 @@
 const { sendEmail } = require("./email");
-const { detectAndNotifyCreditStatus } = require("./paymentAndCredit");
+const { detectAndNotifyCreditStatus, updateNotificationDeliveryStatus } = require("./paymentAndCredit");
 const { getSupabaseAdmin } = require("./supabaseAdmin");
 
 function parseBody(req) {
@@ -63,6 +63,14 @@ function buildEmail({ title, versionNumber, releaseNote, files }) {
 
 async function readRecipientEmail(supabase, organizationId, explicitEmail) {
   if (explicitEmail) return explicitEmail;
+  const { data: organization, error: organizationError } = await supabase
+    .from("client_organizations")
+    .select("billing_email")
+    .eq("id", organizationId)
+    .maybeSingle();
+  if (organizationError) throw organizationError;
+  if (organization?.billing_email) return organization.billing_email;
+
   const { data, error } = await supabase
     .from("profiles")
     .select("work_email,auth_email")
@@ -370,15 +378,24 @@ async function finalizeRelease({ supabase, req, body }) {
           status: "queued",
           related_entity_type: "deliverable",
           related_entity_id: deliverableId,
+          dedupe_key: `deliverable_ready:${versionId}:${recipientEmail}`,
         })
         .select("id")
         .single();
-      if (notificationError) throw notificationError;
+      if (notificationError?.code === "23505") {
+        notification.queued = true;
+        notification.error = "Client notification was already queued or sent for this release.";
+      } else if (notificationError) {
+        throw notificationError;
+      }
       notification.queued = true;
-      const sent = await sendEmail({ to: recipientEmail, subject: email.subject, html: email.html });
-      if (!sent.skipped) {
-        await supabase.from("notifications").update({ status: "sent", sent_at: now }).eq("id", row.id);
-        notification.sent = true;
+      if (row?.id) {
+        const sent = await sendEmail({ to: recipientEmail, subject: email.subject, html: email.html });
+        await updateNotificationDeliveryStatus(supabase, row.id, sent);
+        notification.sent = Boolean(sent.sent);
+        if (!sent.sent && !sent.skipped) {
+          notification.error = sent.error || "Client notification could not be sent.";
+        }
       }
     } catch (error) {
       notification.error = error.message || "Client notification could not be sent.";

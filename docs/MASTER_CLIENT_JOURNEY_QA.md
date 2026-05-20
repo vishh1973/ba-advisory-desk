@@ -166,8 +166,9 @@ Current QA status:
 
 Remaining QA:
 
-- Confirm the client receives the ready notification.
+- Completed on 2026-05-20: client ready notification was sent through the live notification API and confirmed in Gmail for `vishh1973@gmail.com`.
 - Confirm the mobile admin layout after future dashboard changes.
+- Continue project-level authenticated QA: create a new project, submit files, release a deliverable to that project, then verify both client and admin project filters show the correct files, requests, messages, and deliverables.
 
 ## Journey 8: Credit Management
 
@@ -185,6 +186,11 @@ Current QA status:
 
 - Fixed: daily reminder job now expires credit grants before queuing reminders.
 - Fixed: payment status matching no longer treats unpaid as paid.
+- Fixed: checkout success reconciliation now reruns missed credit grants for already paid credit orders.
+- Fixed: webhook retries no longer skip events stuck in received or failed status.
+- Fixed: payment confirmation emails use dedupe keys.
+- Fixed: email provider errors are recorded as failed instead of sent.
+- Fixed: depleted credit accounts are included in reminder queueing.
 - Passed: local smoke confirms anonymous writes to credit protected tables are blocked.
 
 Remaining QA:

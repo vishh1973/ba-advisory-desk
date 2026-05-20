@@ -344,3 +344,26 @@ Admin portfolio UX check:
 - Selected a different client from the portfolio list in the authenticated admin workspace.
 - The right-side client dossier updated from the safe QA client to `Fit MBW`.
 - The page scroll position stayed stable, so the admin is not pulled away from the portfolio context.
+
+### Payment, Email, And Admin Data Hardening
+
+Sub-agent QA findings addressed:
+
+- Stripe checkout reconciliation now requires Stripe `payment_status = paid` before credits are granted.
+- A paid order that missed a previous credit grant now reruns the credit grant idempotently for the same Stripe session.
+- Webhook retries are no longer skipped when the prior webhook row is still `received` or `failed`.
+- Payment confirmation notifications now use dedupe keys to avoid duplicate client and admin emails.
+- Resend provider errors are no longer treated as successful sends.
+- Notification rows now move to `sent`, `skipped`, or `failed` based on the actual provider result.
+- Deliverable-ready notifications now use dedupe keys and prefer organization billing email before profile email.
+- Low credit reminder dispatch no longer sends payment confirmation emails as part of the reminder job.
+- Depleted credit accounts are now eligible for low credit notification queueing.
+- Admin payment, credit, and audit rows no longer overwrite client billing state.
+- Client sign out now clears client-facing forms and file selectors.
+- Client message and upload context options now follow the selected project view.
+
+Verification:
+
+- Syntax checks passed for the changed public app file and API routes.
+- Local smoke test passed after the hardening patch.
+- Public asset version was bumped to `v=10`.

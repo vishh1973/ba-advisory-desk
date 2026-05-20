@@ -76,10 +76,12 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Top Up credit grant | Pass from user test | User confirmed Top Up increased credits from 11 to 14. |
 | Checkout guardrails | Pass | Live API rejects unauthenticated checkout, rejects wrong organization checkout, and returns valid Stripe checkout URLs for safe Starter and Top Up requests. |
 | Starter credits | Risk | Needs repeated live test across webhook-first and success-page-first paths. |
-| Duplicate Stripe event handling | Risk | Existing idempotency is mostly sound, but concurrent received-event handling needs stress testing. |
-| Paid order with missing credits | Risk | Reconcile may not repair if order was marked paid before credit grant failed. |
+| Duplicate Stripe event handling | Fixed in app | Webhook retries now reprocess rows still marked received or failed. Processed rows remain idempotently ignored. |
+| Paid order with missing credits | Fixed in app | Checkout reconciliation now reruns the idempotent credit grant for paid credit products. |
 | Credit expiry | Risk | Expiry is server-side but request gate can read balance before expiry job runs. |
 | Credit reservation | Open | Requests check balance but do not reserve credits. Server-side reservation should be added before launch scale. |
+| Unpaid Stripe sessions | Fixed in app | Credits are granted only when Stripe reports payment status as paid. |
+| Payment confirmation email duplicate risk | Fixed in app | Client and admin payment confirmation notifications now use dedupe keys. |
 
 ## File And Deliverable QA
 
@@ -94,6 +96,8 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Partial source upload | Risk | If one file fails after earlier files upload, request remains with partial files and attention status. |
 | Deliverable finalization atomicity | Risk | Database changes are not yet one Postgres transaction. Storage upload plus DB finalize is controlled, but not fully atomic. |
 | File pagination | Open | Current views are capped. A full file browser will be needed as clients grow. |
+| Deliverable-ready email status | Fixed in app | Provider errors now mark notification rows failed instead of sent. Deliverable-ready notification rows now use dedupe keys. |
+| Project scoped client actions | Fixed in app | Client message and upload dropdowns now use visible items from the selected project view. |
 
 ## Public Website And Trust QA
 

@@ -855,6 +855,31 @@ function clearPublicAuthFields() {
   });
 }
 
+function clearClientForms() {
+  ["#profileForm", "#requestForm", "#clientMessageForm", "#clientUploadForm", "#quoteForm"].forEach((formSelector) => {
+    const form = document.querySelector(formSelector);
+    if (!form) return;
+    form.querySelectorAll("input, textarea, select").forEach((field) => {
+      if (field.type === "checkbox" || field.type === "radio") {
+        field.checked = Boolean(field.defaultChecked);
+      } else if (field.tagName === "SELECT") {
+        field.selectedIndex = 0;
+      } else {
+        field.value = "";
+      }
+    });
+  });
+
+  [
+    ["#fileList", "No files selected yet."],
+    ["#clientUploadFileList", "No files selected yet."],
+    ["#adminDeliverableFileList", "No deliverable files selected yet."],
+  ].forEach(([selector, text]) => {
+    const node = document.querySelector(selector);
+    if (node) node.textContent = text;
+  });
+}
+
 function getUserEmail() {
   return state.session?.user?.email || "";
 }
@@ -916,6 +941,8 @@ function isEmailVerified() {
 function resetClientWorkspaceState() {
   state.session = null;
   resetAdminAccessState();
+  clearPublicAuthFields();
+  clearClientForms();
   state.client = { email: "", company: "" };
   state.requests = [];
   state.deliverables = [];
@@ -1432,21 +1459,33 @@ async function handleCheckoutSuccessView() {
   });
 
   const priorCredits = Number(state.creditsLeft || 0);
-  const result = await fetchClientApi("/api/create-checkout-session", {
-    method: "POST",
-    body: {
-      action: "reconcile_checkout",
-      sessionId,
-    },
-  });
+  let result;
+  try {
+    result = await withClientTimeout(
+      fetchClientApi("/api/create-checkout-session", {
+        method: "POST",
+        body: {
+          action: "reconcile_checkout",
+          sessionId,
+        },
+      }),
+      15000,
+      "Payment confirmation is taking longer than expected. Please open billing and try again."
+    );
+  } catch (error) {
+    result = {
+      ok: false,
+      status: 0,
+      error: error.message || "Payment confirmation is taking longer than expected. Please open billing and try again.",
+    };
+  }
 
   if (!result.ok) {
     checkoutReconcileSessionId = "";
     await withClientTimeout(loadClientWorkspaceData(), 8000, "Workspace refresh is taking longer than expected.").catch(() => null);
     render();
     const creditsNow = Number(state.creditsLeft || 0);
-    const paymentWasRecorded = state.paymentHistory.some((payment) => isPaidPaymentStatus(payment.status));
-    if (creditsNow > priorCredits || paymentWasRecorded) {
+    if (creditsNow > priorCredits) {
       setCheckoutStatus({
         title: "Payment confirmed.",
         body: `Your workspace billing has been updated. Your current Advisory Credit balance is ${creditsNow}.`,
@@ -1478,7 +1517,7 @@ async function handleCheckoutSuccessView() {
   const data = result.data || {};
   state.creditsLeft = Number(data.balance ?? state.creditsLeft);
   state.creditThreshold = Number(data.lowCreditThreshold ?? state.creditThreshold);
-  addPaymentHistory(productLabel(data.productType), data.credits ? `${data.credits} Advisory Credit${Number(data.credits) === 1 ? "" : "s"}` : "Paid", "Paid");
+  addPaymentHistory(productLabel(data.productType), Number(data.amountCents || 0) ? formatUsdFromCents(data.amountCents, data.currency) : "Paid", "Paid");
   if (Number(data.credits || 0) > 0) {
     addCreditHistory(productLabel(data.productType), `+${data.credits}`, state.creditsLeft);
   }
@@ -1543,7 +1582,7 @@ function triggerSecureDownload(signedUrl, fileName = "workspace-file") {
 
 function setFieldValue(selector, value) {
   const field = document.querySelector(selector);
-  if (field && value !== undefined && value !== null && value !== "") {
+  if (field && value !== undefined && value !== null) {
     field.value = value;
   }
 }
@@ -2186,13 +2225,13 @@ function getPartialUploadError(fileName, uploaded, total, reason) {
 }
 
 function getWorkspaceItems() {
-  const deliverableItems = state.deliverables.map((deliverable) => ({
+  const deliverableItems = getVisibleDeliverables().map((deliverable) => ({
     type: "deliverable",
     id: deliverable.id,
     projectId: deliverable.projectId || "",
     label: `${deliverable.projectLabel || getClientProjectLabel(deliverable.projectId)} | ${deliverable.title} | Version ${deliverable.currentVersion}`,
   }));
-  const requestItems = state.requests.map((request) => ({
+  const requestItems = getVisibleRequests().map((request) => ({
     type: "request",
     id: request.requestId || request.id,
     projectId: request.projectId || "",
@@ -3026,7 +3065,7 @@ function renderCreditHistory() {
   if (paymentTable) paymentTable.innerHTML = paymentRows;
   if (adminCreditLedgerTable) adminCreditLedgerTable.innerHTML = adminCreditRows || `<tr><td colspan="4" class="empty-cell">No credit ledger entries for the selected client.</td></tr>`;
   if (adminPaymentTable) adminPaymentTable.innerHTML = adminPaymentRows || `<tr><td colspan="4" class="empty-cell">No payments for the selected client.</td></tr>`;
-  if (auditTable) auditTable.innerHTML = adminAuditRows || auditRows;
+  if (auditTable) auditTable.innerHTML = adminAuditRows || `<tr><td colspan="4" class="empty-cell">No admin audit entries for the selected client.</td></tr>`;
 }
 
 function renderCreditControls() {
@@ -4005,7 +4044,7 @@ function applyAdminQueueData(data) {
       department: profile.department || "",
       workingStyle: profile.preferred_working_style || "",
       primaryBusinessNeed: profile.primary_business_need || "",
-      balance: Number(account.balance ?? account.credit_balance ?? state.creditsLeft),
+      balance: Number(account.balance ?? account.credit_balance ?? 0),
       lowCreditThreshold: Number(account.low_credit_threshold ?? account.lowCreditThreshold ?? state.creditThreshold),
       status: account.status || organization.status || "active",
       projects: state.adminProjects.filter((project) => project.organizationId === id),
@@ -4019,9 +4058,9 @@ function applyAdminQueueData(data) {
       selectionId: item.organizationId || String(key),
       name: item.client || "Client workspace",
       email: item.clientEmail || "",
-      balance: Number(item.organizationId ? state.creditsLeft : 0),
+      balance: 0,
       lowCreditThreshold: state.creditThreshold,
-      status: item.organizationId ? "active" : "intake follow up",
+      status: item.organizationId ? "No credit account found" : "intake follow up",
       projects: state.adminProjects.filter((project) => project.organizationId === item.organizationId),
     });
   });
@@ -4033,9 +4072,9 @@ function applyAdminQueueData(data) {
       selectionId: file.organizationId || String(key),
       name: file.client || "Client workspace",
       email: file.clientEmail || "",
-      balance: Number(file.organizationId ? state.creditsLeft : 0),
+      balance: 0,
       lowCreditThreshold: state.creditThreshold,
-      status: "active",
+      status: file.organizationId ? "No credit account found" : "active",
       projects: state.adminProjects.filter((project) => project.organizationId === file.organizationId),
     });
   });
@@ -4047,9 +4086,9 @@ function applyAdminQueueData(data) {
       selectionId: deliverable.organization_id,
       name: `Workspace ${String(deliverable.organization_id).slice(0, 8)}`,
       email: "",
-      balance: Number(state.creditsLeft || 0),
+      balance: 0,
       lowCreditThreshold: state.creditThreshold,
-      status: "active",
+      status: "No credit account found",
       projects: state.adminProjects.filter((project) => project.organizationId === deliverable.organization_id),
     });
   });
@@ -4112,9 +4151,6 @@ function applyAdminQueueData(data) {
     amount: payment.amount || payment.amount_display || payment.total || formatUsdFromCents(payment.amount_cents, payment.currency),
     status: payment.status || "Recorded",
   }));
-  if (data.paymentHistory || data.payments) {
-    state.paymentHistory = state.adminPaymentHistory.slice(0, 20);
-  }
 
   const creditLedger = data.creditLedger || data.creditHistory || data.ledger || [];
   state.adminCreditLedger = creditLedger.slice(0, 30).map((entry) => ({
@@ -4126,9 +4162,6 @@ function applyAdminQueueData(data) {
     credits: entry.credits ?? entry.delta ?? entry.credit_delta ?? "Recorded",
     balance: entry.balance ?? entry.balance_after ?? state.creditsLeft,
   }));
-  if (data.creditHistory || data.ledger) {
-    state.creditHistory = state.adminCreditLedger.slice(0, 20);
-  }
 
   const auditEvents = data.auditEvents || [];
   state.adminAuditEvents = auditEvents.slice(0, 30).map((entry) => ({
@@ -4943,21 +4976,20 @@ document.addEventListener("click", async (event) => {
       return;
     }
 
-    const status = document.querySelector("#adminDeliverableUploadStatus");
-    if (status) {
-      const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"} released`;
-      const creditText = result.creditsUsed > 0 ? ` ${result.creditsUsed} Advisory Credit${result.creditsUsed === 1 ? "" : "s"} recorded.` : " No Advisory Credits were recorded for this release.";
-      if (!result.notificationRequested) {
-        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification was not selected.`;
-      } else if (result.notificationSent) {
-        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification sent.`;
-      } else if (result.notificationQueued) {
-        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification is queued and needs email service review.`;
-      } else {
-        status.textContent = `Deliverable uploaded. ${fileText}.${creditText} Client notification needs review.`;
-      }
-      status.classList.toggle("warning", result.notificationRequested && !result.notificationSent);
-      status.classList.toggle("success", !result.notificationRequested || result.notificationSent);
+    const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"} released`;
+    const creditText = result.creditsUsed > 0 ? ` ${result.creditsUsed} Advisory Credit${result.creditsUsed === 1 ? "" : "s"} recorded.` : " No Advisory Credits were recorded for this release.";
+    let releaseStatusText = "";
+    let releaseStatusLevel = "success";
+    if (!result.notificationRequested) {
+      releaseStatusText = `Deliverable uploaded. ${fileText}.${creditText} Client notification was not selected.`;
+    } else if (result.notificationSent) {
+      releaseStatusText = `Deliverable uploaded. ${fileText}.${creditText} Client notification sent.`;
+    } else if (result.notificationQueued) {
+      releaseStatusText = `Deliverable uploaded. ${fileText}.${creditText} Client notification is queued and needs email service review.`;
+      releaseStatusLevel = "warning";
+    } else {
+      releaseStatusText = `Deliverable uploaded. ${fileText}.${creditText} Client notification needs review.`;
+      releaseStatusLevel = "warning";
     }
 
     const fileInput = document.querySelector("#adminDeliverableFiles");
@@ -4967,6 +4999,7 @@ document.addEventListener("click", async (event) => {
     await loadAdminQueue();
     saveState();
     render();
+    setAdminReleaseStatus(releaseStatusText, releaseStatusLevel);
     showToast("Deliverable uploaded to the client workspace.");
   }
   } catch (error) {

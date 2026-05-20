@@ -1,6 +1,7 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
 const { requireAdmin } = require("./_lib/adminAuth");
+const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 
 module.exports = async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) {
@@ -33,12 +34,13 @@ module.exports = async function handler(req, res) {
       .from("notifications")
       .select("*")
       .eq("status", "queued")
-      .in("template_key", ["low_credit_reminder", "credits_depleted", "payment_confirmation"])
+      .in("template_key", ["low_credit_reminder", "credits_depleted"])
       .limit(25);
 
     if (error) throw error;
 
     let sent = 0;
+    let failed = 0;
     for (const notification of notifications || []) {
       const result = await sendEmail({
         to: notification.recipient_email,
@@ -46,16 +48,15 @@ module.exports = async function handler(req, res) {
         html: `<p>${String(notification.body).replace(/\n/g, "</p><p>")}</p>`,
       });
 
-      if (!result.skipped) {
+      if (result.sent) {
         sent += 1;
-        await supabase
-          .from("notifications")
-          .update({ status: "sent", sent_at: new Date().toISOString() })
-          .eq("id", notification.id);
+      } else if (!result.skipped) {
+        failed += 1;
       }
+      await updateNotificationDeliveryStatus(supabase, notification.id, result);
     }
 
-    res.status(200).json({ checkedAccounts: creditAccounts?.length || 0, queued: notifications?.length || 0, sent });
+    res.status(200).json({ checkedAccounts: creditAccounts?.length || 0, queued: notifications?.length || 0, sent, failed });
   } catch (error) {
     res.status(500).json({ error: error.message || "Reminder job failed." });
   }

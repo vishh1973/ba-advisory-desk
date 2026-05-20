@@ -9,6 +9,8 @@ const {
   recordAuditEvent,
 } = require("./_lib/paymentAndCredit");
 
+const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase() || null;
 }
@@ -107,6 +109,10 @@ function customerEmailFromSession(session) {
   return session.customer_details?.email || session.customer_email || session.metadata?.client_email || null;
 }
 
+function isSessionPaid(session) {
+  return String(session?.payment_status || "").toLowerCase() === "paid";
+}
+
 function periodFromSubscription(subscription) {
   return {
     start: isoFromUnixSeconds(subscription?.current_period_start),
@@ -181,6 +187,46 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
   }
 
   if (String(order.status || "").toLowerCase() === "paid") {
+    let creditGrant = { granted: false, balanceAfter: null, reason: "Payment was already recorded." };
+    let subscription = null;
+    const stripeCustomerId = stripeCustomerIdFrom(session.customer);
+    const subscriptionId = subscriptionIdFrom(session.subscription);
+    if (subscriptionId) {
+      subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      await upsertSubscriptionRecord(supabase, subscription, metadata);
+    }
+
+    if (CREDIT_PRODUCTS.has(order.product_type)) {
+      if (!isSessionPaid(session)) {
+        return {
+          status: 409,
+          body: {
+            error: "Stripe has not confirmed this payment as paid yet. Please wait a moment and refresh billing.",
+            paymentStatus: session.payment_status || session.status || "pending",
+          },
+        };
+      }
+
+      const paidOrder = {
+        ...order,
+        stripe_payment_intent_id: session.payment_intent || order.stripe_payment_intent_id || null,
+        stripe_invoice_id: session.invoice || order.stripe_invoice_id || null,
+        stripe_checkout_session_id: session.id,
+        stripe_customer_id: stripeCustomerId || order.stripe_customer_id || null,
+      };
+      const period = periodFromSubscription(subscription);
+      creditGrant = await grantPurchaseCredits(supabase, {
+        order: paidOrder,
+        stripeSourceId: `session-${session.id}`,
+        stripePaymentIntentId: session.payment_intent || order.stripe_payment_intent_id,
+        stripeInvoiceId: session.invoice || order.stripe_invoice_id,
+        stripeCheckoutSessionId: session.id,
+        paidAt: order.paid_at || isoFromUnixSeconds(session.created) || new Date().toISOString(),
+        billingPeriodStart: period.start,
+        billingPeriodEnd: period.end,
+      });
+    }
+
     const balance = await getCreditBalance(supabase, organizationId);
     return {
       status: 200,
@@ -188,16 +234,19 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
         confirmed: true,
         productType: order.product_type,
         credits: Number(order.credits || 0),
+        amountCents: Number(order.amount_cents || 0),
+        currency: order.currency || "usd",
         balance: balance.balance,
         lowCreditThreshold: balance.lowCreditThreshold,
-        creditGranted: false,
+        creditGranted: Boolean(creditGrant.granted),
         alreadyRecorded: true,
+        creditGrantReason: creditGrant.reason,
         email: { attempted: false },
       },
     };
   }
 
-  if (session.payment_status !== "paid" && session.status !== "complete") {
+  if (!isSessionPaid(session)) {
     return {
       status: 409,
       body: {
@@ -258,7 +307,12 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
       balanceAfter: creditGrant.balanceAfter,
       source: "checkout.session.reconciled",
     });
-    emailResult = { attempted: true, sent: !sent?.skipped, skipped: Boolean(sent?.skipped) };
+    emailResult = {
+      attempted: true,
+      sent: Boolean(sent?.client?.sent || sent?.sent),
+      skipped: Boolean(sent?.client?.skipped),
+      error: sent?.client?.error || "",
+    };
   } catch (emailError) {
     emailResult = { attempted: true, sent: false, skipped: false, error: emailError.message || "Email could not be sent." };
     await recordAuditEvent(supabase, {
@@ -279,6 +333,8 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
       confirmed: true,
       productType: order.product_type,
       credits: Number(order.credits || 0),
+      amountCents: Number(order.amount_cents || 0),
+      currency: order.currency || "usd",
       balance: balance.balance,
       lowCreditThreshold: balance.lowCreditThreshold,
       creditGranted: Boolean(creditGrant.granted),

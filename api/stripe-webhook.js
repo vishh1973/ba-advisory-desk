@@ -8,8 +8,6 @@ const {
   shouldIgnoreOptionalSchemaError,
 } = require("./_lib/paymentAndCredit");
 
-const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
-
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -50,6 +48,10 @@ function periodFromInvoice(invoice, subscription) {
   };
 }
 
+function isCheckoutSessionPaid(session) {
+  return String(session?.payment_status || "").toLowerCase() === "paid";
+}
+
 async function insertWebhookEvent(supabase, event) {
   const { error } = await supabase.from("stripe_webhook_events").insert({
     id: event.id,
@@ -68,7 +70,20 @@ async function insertWebhookEvent(supabase, event) {
 
     if (existingError) throw existingError;
     const status = String(existingEvent?.processing_status || "").toLowerCase();
-    return { duplicate: status === "processed" || status === "received" };
+    if (status === "processed") {
+      return { duplicate: true };
+    }
+
+    const { error: retryError } = await supabase
+      .from("stripe_webhook_events")
+      .update({
+        payload: event,
+        processing_status: "received",
+        processed_at: null,
+      })
+      .eq("id", event.id);
+    if (retryError && !shouldIgnoreOptionalSchemaError(retryError)) throw retryError;
+    return { duplicate: false, retry: true };
   }
   throw error;
 }
@@ -199,6 +214,20 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
 
   if (orderError) throw orderError;
   if (!order) return;
+
+  if (!isCheckoutSessionPaid(session)) {
+    await recordAuditEvent(supabase, {
+      organizationId: order.organization_id,
+      eventType: "stripe_checkout_not_paid",
+      eventDetail: {
+        payment_order_id: order.id,
+        stripe_checkout_session_id: session.id,
+        stripe_event_type: eventType,
+        payment_status: session.payment_status || "unknown",
+      },
+    });
+    return;
+  }
 
   const customerEmail = customerEmailFromSession(session);
   const stripeCustomerId = stripeCustomerIdFrom(session.customer);
@@ -422,7 +451,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    if (event.type === "checkout.session.completed") {
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       await handleCheckoutCompleted(supabase, stripe, event.data.object, event.type);
     }
 
