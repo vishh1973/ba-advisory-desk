@@ -83,9 +83,10 @@ module.exports = async function handler(req, res) {
     }
 
     const supabase = getSupabaseAdmin();
+    const requestedProjectId = String(body.projectId || "").trim() || null;
     let versionQuery = supabase
       .from("deliverable_versions")
-      .select("id,deliverable_id,organization_id,version_number,status,summary,release_note,released_at")
+      .select("id,deliverable_id,organization_id,project_id,version_number,status,summary,release_note,released_at")
       .limit(1);
     versionQuery = versionId
       ? versionQuery.eq("id", versionId)
@@ -101,7 +102,7 @@ module.exports = async function handler(req, res) {
 
     const { data: deliverable, error: deliverableError } = await supabase
       .from("deliverables")
-      .select("id,request_id,organization_id,title,deliverable_type,status")
+      .select("id,request_id,organization_id,project_id,title,deliverable_type,status")
       .eq("id", version.deliverable_id)
       .single();
 
@@ -140,6 +141,7 @@ module.exports = async function handler(req, res) {
     await supabase
       .from("deliverables")
       .update({
+        project_id: requestedProjectId || deliverable.project_id || version.project_id || null,
         latest_version_id: version.id,
         current_version_number: version.version_number,
         status: "delivered",
@@ -152,6 +154,7 @@ module.exports = async function handler(req, res) {
       .from("notifications")
       .insert({
         organization_id: deliverable.organization_id,
+        project_id: requestedProjectId || deliverable.project_id || version.project_id || null,
         recipient_email: recipientEmail,
         template_key: "deliverable_ready",
         subject: email.subject,

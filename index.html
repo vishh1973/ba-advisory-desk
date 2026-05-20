@@ -879,6 +879,17 @@
               <article><span>Active requests</span><strong id="activeCount">0</strong></article>
               <article><span>Ready for review</span><strong id="newDeliverableCount">0</strong></article>
             </div>
+            <div class="project-focus-panel">
+              <div>
+                <span>Project workspace</span>
+                <strong id="clientProjectFocusTitle">All active projects</strong>
+                <p id="clientProjectFocusBody">Requests, files, messages, and deliverables can be filtered by project.</p>
+              </div>
+              <label>
+                View project
+                <select id="clientProjectFilter"></select>
+              </label>
+            </div>
             <div class="workspace-command-grid">
               <article class="workspace-command-card featured">
                 <span>Next step</span>
@@ -926,7 +937,7 @@
               <summary>Requests</summary>
               <table id="requestTable">
                 <thead>
-                  <tr><th>Request</th><th>Type</th><th>Status</th><th>Due</th></tr>
+                  <tr><th>Request</th><th>Project</th><th>Type</th><th>Status</th><th>Due</th></tr>
                 </thead>
                 <tbody></tbody>
               </table>
@@ -1194,6 +1205,15 @@
             <p>Every request needs a business goal, target audience, desired output, deadline, and usable source material.</p>
           </div>
           <form id="requestForm" class="form-card">
+            <label>
+              Project workspace
+              <select id="requestProjectSelect"></select>
+              <small>Select an existing project, or create a new project name so all related requests, files, messages, and deliverables stay together.</small>
+            </label>
+            <label id="requestProjectNameWrap" class="conditional hidden">
+              New project name
+              <input id="requestProjectName" placeholder="Example: Finance dashboard modernization" />
+            </label>
             <label>
               Request type
               <select id="requestType">
@@ -1464,8 +1484,12 @@
             <div class="admin-panel-head">
               <div>
                 <h3>Client dossier</h3>
-                <p>Profile, files, communications, deliverables, credits, and payment context for the selected client.</p>
+                <p>Profile, files, communications, deliverables, credits, and payment context for the selected client and project.</p>
               </div>
+              <label class="admin-project-filter">
+                Active project
+                <select id="adminProjectFilter"></select>
+              </label>
             </div>
             <div class="dossier-grid">
               <div class="dossier-block">
@@ -1593,6 +1617,11 @@
               <label>
                 Linked request
                 <select id="adminUploadRequestSelect"></select>
+              </label>
+              <label>
+                Project workspace
+                <select id="adminUploadProjectSelect"></select>
+                <small>Choose the project that this deliverable belongs to. Linked requests automatically set the project.</small>
               </label>
               <label>
                 Existing deliverable

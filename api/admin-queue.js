@@ -22,10 +22,15 @@ module.exports = async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const limit = readLimit(req);
 
-    const [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles] = await Promise.all([
+    const [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles] = await Promise.all([
+      supabase
+        .from("client_projects")
+        .select("id,organization_id,name,project_code,status,is_default,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+        .order("updated_at", { ascending: false })
+        .limit(limit),
       supabase
         .from("requests")
-        .select("id,organization_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+        .select("id,organization_id,project_id,request_code,request_type,status,credits_estimated,credits_approved,due_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
@@ -45,32 +50,32 @@ module.exports = async function handler(req, res) {
         .limit(limit),
       supabase
         .from("notifications")
-        .select("id,organization_id,recipient_email,channel,template_key,subject,status,related_entity_type,related_entity_id,sent_at,created_at")
+        .select("id,organization_id,project_id,recipient_email,channel,template_key,subject,status,related_entity_type,related_entity_id,sent_at,created_at,client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
         .from("credit_ledger")
-        .select("id,organization_id,related_request_id,related_deliverable_id,related_payment_id,entry_type,entry_reason,credits,balance_after,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+        .select("id,organization_id,project_id,related_request_id,related_deliverable_id,related_payment_id,entry_type,entry_reason,credits,balance_after,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
         .from("audit_events")
-        .select("id,organization_id,event_type,event_detail,related_entity_type,related_entity_id,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+        .select("id,organization_id,project_id,event_type,event_detail,related_entity_type,related_entity_id,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
         .from("client_deliverable_messages")
-        .select("id,organization_id,deliverable_id,request_id,subject,body,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+        .select("id,organization_id,project_id,deliverable_id,request_id,subject,body,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
         .from("client_uploads")
-        .select("id,organization_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+        .select("id,organization_id,project_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
         .from("request_files")
-        .select("id,request_id,organization_id,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type),client_organizations(name,billing_email,industry,country,timezone,status)")
+        .select("id,request_id,project_id,organization_id,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
@@ -80,12 +85,12 @@ module.exports = async function handler(req, res) {
         .limit(limit),
     ]);
 
-    const firstError = [requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles].find((result) => result.error);
+    const firstError = [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
 
     const { data: deliverables, error: deliverablesError } = await supabase
       .from("deliverables")
-      .select("id,request_id,organization_id,title,deliverable_type,status,current_version_number,latest_version_id,created_at,updated_at")
+      .select("id,request_id,organization_id,project_id,title,deliverable_type,status,current_version_number,latest_version_id,created_at,updated_at,client_projects(id,name,project_code,status)")
       .order("updated_at", { ascending: false })
       .limit(limit);
 
@@ -95,7 +100,7 @@ module.exports = async function handler(req, res) {
     const { data: deliverableFiles, error: deliverableFilesError } = deliverableIds.length
       ? await supabase
           .from("deliverable_version_files")
-          .select("id,deliverable_version_id,deliverable_id,organization_id,file_name,file_size_bytes,created_at,deliverable_versions(version_number,status,released_at,release_note)")
+          .select("id,deliverable_version_id,deliverable_id,organization_id,project_id,file_name,file_size_bytes,created_at,client_projects(id,name,project_code,status),deliverable_versions(version_number,status,released_at,release_note,project_id)")
           .in("deliverable_id", deliverableIds)
           .order("created_at", { ascending: false })
           .limit(limit * 5)
@@ -104,6 +109,7 @@ module.exports = async function handler(req, res) {
     if (deliverableFilesError) throw deliverableFilesError;
 
     res.status(200).json({
+      projects: projects.data || [],
       requests: requests.data || [],
       customQuoteRequests: quoteRequests.data || [],
       creditAccounts: creditAccounts.data || [],

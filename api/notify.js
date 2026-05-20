@@ -74,6 +74,7 @@ async function handleClientWorkspaceNotification(req, res) {
   const relatedEntityType = String(body.relatedEntityType || "").trim() || null;
   const relatedEntityId = String(body.relatedEntityId || "").trim() || null;
   const relatedLabel = String(body.relatedLabel || "").trim();
+  const projectId = String(body.projectId || "").trim() || null;
 
   const supabase = getSupabaseAdmin();
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
@@ -107,6 +108,7 @@ async function handleClientWorkspaceNotification(req, res) {
     .from("notifications")
     .insert({
       organization_id: profile.organization_id,
+      project_id: projectId,
       recipient_email: supportEmail,
       channel: "email",
       template_key: eventType,

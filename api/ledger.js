@@ -20,6 +20,8 @@ module.exports = async function handler(req, res) {
     const credits = Number(body.credits || 0);
     const reason = body.reason || "Admin adjustment";
     const requestId = body.requestId || null;
+    const deliverableId = body.deliverableId || null;
+    const projectId = body.projectId || null;
     const recipientEmail = body.email || body.clientEmail || body.recipientEmail || null;
     const requestedThreshold = Number(body.lowCreditThreshold);
     const thresholdProvided = Number.isFinite(requestedThreshold);
@@ -71,7 +73,7 @@ module.exports = async function handler(req, res) {
         p_credits: rpcCredits,
         p_entry_reason: reason,
         p_related_request_id: requestId,
-        p_related_deliverable_id: null,
+        p_related_deliverable_id: deliverableId,
         p_related_payment_id: null,
         p_source: "admin",
         p_idempotency_key: body.idempotencyKey || null,
@@ -80,6 +82,21 @@ module.exports = async function handler(req, res) {
       .single();
 
     if (ledgerError) throw ledgerError;
+
+    if (projectId && ledgerResult?.ledger_id) {
+      await supabase
+        .from("credit_ledger")
+        .update({ project_id: projectId })
+        .eq("id", ledgerResult.ledger_id)
+        .then(() => null, () => null);
+      if (body.idempotencyKey) {
+        await supabase
+          .from("audit_events")
+          .update({ project_id: projectId })
+          .eq("idempotency_key", `${body.idempotencyKey}:audit`)
+          .then(() => null, () => null);
+      }
+    }
 
     let balanceAfter = Number(ledgerResult?.balance || 0);
     let lowCreditThreshold = 2;
@@ -114,7 +131,7 @@ module.exports = async function handler(req, res) {
         balance: balanceAfter,
         threshold: lowCreditThreshold,
         recipientEmail,
-        relatedEntityId: requestId,
+        relatedEntityId: deliverableId || requestId,
       });
     }
 
