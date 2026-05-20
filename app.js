@@ -3966,7 +3966,7 @@ function applyAdminQueueData(data) {
     ...paymentOrders.map(normalizePaymentOrder),
     ...notifications.map(normalizeNotification),
     ...fallbackItems.map(normalizeAdminQueueItem),
-  ].slice(0, 100);
+  ];
   state.adminQueue = normalizedItems;
   state.adminClientUploads = clientUploads.map(normalizeAdminClientUpload);
   state.adminRequestFiles = requestFiles.map(normalizeAdminRequestFile);
