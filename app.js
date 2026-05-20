@@ -1058,7 +1058,11 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
   updateAuthUi();
   if (isAdmin) {
     localStorage.removeItem("baad-post-auth-route");
-    window.location.hash = "admin";
+    if (window.location.hash.replace("#", "") === "admin") {
+      setView();
+    } else {
+      window.location.hash = "admin";
+    }
     return;
   }
 
