@@ -9,7 +9,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  if (!(await requireAdmin(req, { allowSecret: true }))) {
+  if (!(await requireAdmin(req, { allowSecret: true, allowCron: true }))) {
     res.status(401).json({ error: "Unauthorized." });
     return;
   }

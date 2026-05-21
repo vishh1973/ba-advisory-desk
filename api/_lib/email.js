@@ -8,7 +8,16 @@ async function sendEmail({ to, subject, html, replyTo }) {
   const from = process.env.NOTIFICATION_FROM_EMAIL || "BA Advisory Desk <support@baadvisorydesk.com>";
   const payload = { from, to, subject, html };
   if (replyTo) payload.replyTo = replyTo;
-  const result = await resend.emails.send(payload);
+  let result;
+  try {
+    result = await resend.emails.send(payload);
+  } catch (error) {
+    return {
+      skipped: false,
+      sent: false,
+      error: error.message || "Email provider could not be reached.",
+    };
+  }
   if (result?.error) {
     const message = result.error.message || result.error.name || "Email provider returned an error.";
     return { skipped: false, sent: false, error: message, result };

@@ -16,6 +16,12 @@ function readBearerToken(req) {
   return match ? match[1].trim() : "";
 }
 
+function hasCronSecret(req) {
+  const expected = process.env.CRON_SECRET;
+  const token = readBearerToken(req);
+  return Boolean(expected && token && token === expected);
+}
+
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -94,6 +100,10 @@ async function verifyAdminBearer(req) {
 }
 
 async function requireAdmin(req, options = {}) {
+  if (options.allowCron && hasCronSecret(req)) {
+    return true;
+  }
+
   if (options.allowSecret && hasAdminSecret(req)) {
     return true;
   }

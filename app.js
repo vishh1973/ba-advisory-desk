@@ -440,13 +440,17 @@ function getAdminUploadProjectId() {
   return value === ADMIN_ALL_PROJECTS_VALUE ? "" : value;
 }
 
+function isActiveProject(project) {
+  return !["archived", "closed"].includes(normalizeStatusValue(project?.status || project?.projectStatus || project?.project_status));
+}
+
 function getActiveClientProjects() {
-  return state.clientProjects.filter((project) => !["archived", "closed"].includes(String(project.status || "").toLowerCase()));
+  return state.clientProjects.filter(isActiveProject);
 }
 
 function getAdminProjectsForClient(client = getSelectedAdminClient()) {
   if (!client?.id) return [];
-  return state.adminProjects.filter((project) => project.organizationId === client.id || project.organization_id === client.id);
+  return state.adminProjects.filter((project) => (project.organizationId === client.id || project.organization_id === client.id) && isActiveProject(project));
 }
 
 function getSelectedAdminProject() {
@@ -653,8 +657,17 @@ function isSelectedAdminRecord(record, client = getSelectedAdminClient()) {
 }
 
 function isSelectedAdminProjectRecord(record, project = getSelectedAdminProject()) {
-  if (!project?.id) return true;
   const recordProjectId = record.projectId || record.project_id || record.deliverable_versions?.project_id || record.requests?.project_id || "";
+  if (!project?.id) {
+    const recordProjectStatus =
+      record.projectStatus ||
+      record.project_status ||
+      record.client_projects?.status ||
+      record.project?.status ||
+      getProjectById(recordProjectId, state.adminProjects)?.status ||
+      "";
+    return recordProjectStatus ? isActiveProject({ status: recordProjectStatus }) : true;
+  }
   return String(recordProjectId || "") === String(project.id);
 }
 
@@ -1474,8 +1487,20 @@ async function initAuth() {
     return;
   }
 
-  const { data } = await supabaseClient.auth.getSession();
-  state.session = data.session;
+  let sessionData = null;
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      clearSupabaseAuthStorage();
+      setAuthStatus("Your previous session expired. Please sign in again.");
+    }
+    sessionData = data;
+  } catch (_error) {
+    clearSupabaseAuthStorage();
+    setAuthStatus("Your previous session expired. Please sign in again.");
+  }
+
+  state.session = sessionData?.session || null;
   if (state.session?.user) {
     await loadSignedInProfile();
     await loadClientWorkspaceData();
@@ -1605,6 +1630,31 @@ async function fetchClientApi(path, options = {}) {
     return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: data.error || "The secure workspace request could not be completed." };
   } catch (error) {
     return { ok: false, status: 0, error: error.message || "The secure workspace request could not be completed." };
+  }
+}
+
+async function fetchMaybeAuthedApi(path, options = {}) {
+  const token = await getSessionAccessToken();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
+  };
+
+  try {
+    const response = await fetch(path, {
+      method: options.method || "POST",
+      ...options,
+      headers,
+      body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { ok: false, error: data.error || "Request could not be completed." };
+    }
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: error.message || "Request could not be completed." };
   }
 }
 
@@ -1936,11 +1986,13 @@ function getProjectFieldsFromRow(row) {
   const projectId = row.project_id || row.projectId || project.id || row.requests?.project_id || row.deliverable_versions?.project_id || "";
   const projectName = project.name || row.project_name || row.projectName || "";
   const projectCode = project.project_code || row.project_code || row.projectCode || "";
+  const projectStatus = project.status || row.project_status || row.projectStatus || "";
   return {
     projectId,
     projectName,
     projectCode,
-    projectLabel: projectName ? (projectCode ? `${projectCode} | ${projectName}` : projectName) : projectId ? "Client project" : "General advisory work",
+    projectStatus,
+    projectLabel: projectName || (projectId ? "Client project" : "General advisory work"),
   };
 }
 
@@ -3443,7 +3495,7 @@ function renderCreditControls() {
   }
   if (adminUploadProjectSelect) {
     const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const projects = selectedOrg ? state.adminProjects.filter((project) => project.organizationId === selectedOrg) : [];
+    const projects = selectedOrg ? state.adminProjects.filter((project) => project.organizationId === selectedOrg && isActiveProject(project)) : [];
     const current =
       state.adminUploadProjectId === null || state.adminUploadProjectId === undefined
         ? state.selectedAdminProjectId
@@ -3628,8 +3680,6 @@ function render() {
   const billingCreditBalance = document.querySelector("#billingCreditBalance");
   if (billingCreditBalance) billingCreditBalance.textContent = state.creditsLeft;
   document.querySelector("#activeCount").textContent = getVisibleRequests().filter((request) => !isShippedStatus(request.status)).length;
-  document.querySelector("#adminNewCount").textContent = state.adminNewCount || state.requests.filter((request) => request.status === "New").length;
-  document.querySelector("#adminQuoteCount").textContent = state.quoteCount;
   renderClientProjectControls();
   renderClientWorkspaceSummary();
   renderRequests();
@@ -3924,18 +3974,21 @@ function getAdminClientHealth(client) {
 
 function renderAdminSnapshot() {
   const clients = state.adminClients.filter((client) => client.id);
-  const fileInbox = state.adminClientUploads.length + state.adminRequestFiles.length;
+  const fileInbox = state.adminQueue.filter((item) => ["client-upload", "request-file"].includes(item.queueType) && isAdminQueueOpenItem(item)).length;
   const released = state.adminDeliverables.length;
   const lowCreditClients = clients.filter((client) => getCreditAlertState(Number(client.balance || 0), Number(client.lowCreditThreshold || config.lowCreditThreshold)).level !== "healthy").length;
-  const openWork = state.adminQueue.filter((item) => isPendingStatus(item.status)).length;
+  const openWork = state.adminQueue.filter(isAdminQueueOpenItem).length;
+  const customInquiries = state.adminQueue.filter((item) => item.queueType === "quote" && isAdminQueueOpenItem(item)).length;
   const activeClientCount = document.querySelector("#adminActiveClientCount");
   const openWorkCount = document.querySelector("#adminNewCount");
+  const quoteCount = document.querySelector("#adminQuoteCount");
   const fileInboxCount = document.querySelector("#adminFileInboxCount");
   const readyCount = document.querySelector("#adminReadyCount");
   const alertCount = document.querySelector("#adminAlertCount");
   const alertSummary = document.querySelector("#adminAlertSummary");
   if (activeClientCount) activeClientCount.textContent = clients.length;
   if (openWorkCount) openWorkCount.textContent = openWork || state.adminNewCount || 0;
+  if (quoteCount) quoteCount.textContent = customInquiries;
   if (fileInboxCount) fileInboxCount.textContent = fileInbox;
   if (readyCount) readyCount.textContent = released;
   if (alertCount) alertCount.textContent = lowCreditClients;
@@ -4120,8 +4173,10 @@ function resolveAdminMessageContext(queueItem = null) {
           billingEmail: queueItem.clientEmail,
         }
     : selectedClient;
-  const project = queueItem?.projectId
-    ? state.adminProjects.find((item) => item.id === queueItem.projectId) || getSelectedAdminProject()
+  const project = queueItem
+    ? queueItem.projectId
+      ? state.adminProjects.find((item) => item.id === queueItem.projectId) || null
+      : null
     : getSelectedAdminProject();
   let relatedEntityType = ["request", "deliverable", "workspace"].includes(queueItem?.relatedEntityType) ? queueItem.relatedEntityType : "workspace";
   let relatedEntityId = relatedEntityType === "workspace" ? null : queueItem?.relatedEntityId || null;
@@ -4578,7 +4633,7 @@ function applyAdminQueueData(data) {
       balance: Number(account.balance ?? account.credit_balance ?? 0),
       lowCreditThreshold: Number(account.low_credit_threshold ?? account.lowCreditThreshold ?? state.creditThreshold),
       status: account.status || organization.status || "active",
-      projects: state.adminProjects.filter((project) => project.organizationId === id),
+      projects: state.adminProjects.filter((project) => project.organizationId === id && isActiveProject(project)),
     });
   });
   normalizedItems.forEach((item) => {
@@ -4592,7 +4647,7 @@ function applyAdminQueueData(data) {
       balance: 0,
       lowCreditThreshold: state.creditThreshold,
       status: item.organizationId ? "No credit account found" : "intake follow up",
-      projects: state.adminProjects.filter((project) => project.organizationId === item.organizationId),
+      projects: state.adminProjects.filter((project) => project.organizationId === item.organizationId && isActiveProject(project)),
     });
   });
   state.adminRequestFiles.forEach((file) => {
@@ -4606,7 +4661,7 @@ function applyAdminQueueData(data) {
       balance: 0,
       lowCreditThreshold: state.creditThreshold,
       status: file.organizationId ? "No credit account found" : "active",
-      projects: state.adminProjects.filter((project) => project.organizationId === file.organizationId),
+      projects: state.adminProjects.filter((project) => project.organizationId === file.organizationId && isActiveProject(project)),
     });
   });
   (data.deliverables || []).forEach((deliverable) => {
@@ -4620,7 +4675,7 @@ function applyAdminQueueData(data) {
       balance: 0,
       lowCreditThreshold: state.creditThreshold,
       status: "No credit account found",
-      projects: state.adminProjects.filter((project) => project.organizationId === deliverable.organization_id),
+      projects: state.adminProjects.filter((project) => project.organizationId === deliverable.organization_id && isActiveProject(project)),
     });
   });
   clientProfiles.forEach((profile) => {
@@ -4645,12 +4700,12 @@ function applyAdminQueueData(data) {
       balance: 0,
       lowCreditThreshold: state.creditThreshold,
       status: organization.status || "active",
-      projects: state.adminProjects.filter((project) => project.organizationId === id),
+      projects: state.adminProjects.filter((project) => project.organizationId === id && isActiveProject(project)),
     });
   });
   state.adminClients = Array.from(adminClientMap.values()).map((client) => ({
     ...client,
-    projects: client.projects?.length ? client.projects : state.adminProjects.filter((project) => project.organizationId === client.id),
+    projects: client.projects?.length ? client.projects : state.adminProjects.filter((project) => project.organizationId === client.id && isActiveProject(project)),
   }));
   if (state.selectedAdminClientId) {
     const stillValid = state.adminClients.some(
@@ -5017,6 +5072,7 @@ async function markDeliverableAccepted(deliverableId) {
   if (supabaseClient && getUserId()) {
     const { error: messageError } = await supabaseClient.from("client_deliverable_messages").insert({
       organization_id: state.profileOrganizationId || (await getProfileOrganizationId()),
+      project_id: deliverable.projectId || deliverable.project_id || "",
       deliverable_id: deliverableId,
       submitted_by: getUserId(),
       subject: "Deliverable accepted",
@@ -6227,7 +6283,8 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
   }
   const organizationId = await getProfileOrganizationId();
 
-  const result = await fetchPublicApi("/api/custom-quote", {
+  const result = await fetchMaybeAuthedApi("/api/custom-quote", {
+    method: "POST",
     body: {
       organizationId,
       workEmail,

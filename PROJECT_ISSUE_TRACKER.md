@@ -72,6 +72,13 @@ Last updated: 2026-05-21
 - [x] Admin message retry behavior now avoids duplicate workspace messages when email delivery is delayed.
 - [x] Admin deliverable release now rejects stale or already finalized versions before publishing.
 - [x] Admin release abort cleanup now avoids deleting files from already finalized deliverable versions.
+- [x] Expired Supabase sessions now clear locally and return users to sign in instead of leaving stale refresh token errors in the browser.
+- [x] Admin snapshot counts now use open queue items, so reviewed files and addressed inquiries no longer stay in the main counts.
+- [x] Admin active project scope now excludes closed and archived projects from client dossier filtering.
+- [x] Signed in custom quote submissions now send the user token so the quote can link to the client workspace when ownership is verified.
+- [x] Client deliverable acceptance messages now retain the related project link.
+- [x] Resend email failures now return a controlled failure result instead of causing duplicate business records through retry confusion.
+- [x] Low credit reminder cron route now accepts Vercel cron authorization through `CRON_SECRET`.
 
 ## Addressed In Hosted Configuration
 
@@ -119,6 +126,16 @@ Last updated: 2026-05-21
 - [ ] Add client approve version and request revision actions.
 - [x] Replace example values in forms with placeholders.
 - [x] Validate file type and size before upload.
+- [ ] Move request creation and credit validation into a server-side transaction or RPC so stale browser credit balances cannot create requests after credits are depleted.
+- [ ] Move deliverable finalization, file rows, and credit use into one database transaction or RPC.
+- [ ] Add soft delete, stronger audit, and recovery workflow for client source files.
+- [ ] Add server-side cleanup for orphaned storage files when a file row insert fails.
+- [ ] Require admin download APIs to receive and validate explicit client and project context.
+- [ ] Add client-scoped file pagination or a "show all files" path for large workspaces.
+- [ ] Add server-side file validation, checksum, and malware scan or quarantine status before admin download.
+- [ ] Add proper handling for expired checkout sessions, refunds, disputes, and failed payments.
+- [ ] Add provider message IDs and first-class email reference IDs to notification records for stronger reply tracking.
+- [ ] Expand FAQ schema and social preview image metadata for stronger AI and search discovery.
 
 ## Configuration Links
 
