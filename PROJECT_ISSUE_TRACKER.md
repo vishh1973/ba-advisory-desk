@@ -135,7 +135,8 @@ Last updated: 2026-05-21
 - [x] Validate file type and size before upload.
 - [ ] Move request creation and credit validation into a server-side transaction or RPC so stale browser credit balances cannot create requests after credits are depleted.
 - [x] Move deliverable finalization, file rows, and credit use into one database transaction or RPC.
-- [x] Add soft delete, stronger audit, and recovery workflow for client source files.
+- [x] Add soft delete and stronger audit retention for client source files.
+- [ ] Add admin restore workflow for source files removed by mistake.
 - [ ] Add server-side cleanup for orphaned storage files when a file row insert fails.
 - [ ] Require admin download APIs to receive and validate explicit client and project context.
 - [ ] Add client-scoped file pagination or a "show all files" path for large workspaces.
