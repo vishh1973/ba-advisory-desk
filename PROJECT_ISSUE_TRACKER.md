@@ -84,6 +84,7 @@ Last updated: 2026-05-21
 - [x] Admin dossier and queue labels now use safe client, project, and request references instead of raw internal IDs.
 - [x] Client workspace message and upload selectors now respect the selected project view.
 - [x] Accepted deliverables now render as approved status in the client workspace.
+- [x] Client file uploads now have stronger timeout handling, persistent failure notices, partial upload recovery guidance, and workspace refresh after successful upload.
 
 ## Addressed In Hosted Configuration
 
@@ -138,6 +139,7 @@ Last updated: 2026-05-21
 - [x] Add soft delete and stronger audit retention for client source files.
 - [ ] Add admin restore workflow for source files removed by mistake.
 - [ ] Add server-side cleanup for orphaned storage files when a file row insert fails.
+- [ ] Move client file uploads to a server-mediated or signed-upload flow with idempotency keys and stronger abort handling.
 - [ ] Require admin download APIs to receive and validate explicit client and project context.
 - [ ] Add client-scoped file pagination or a "show all files" path for large workspaces.
 - [ ] Add server-side file validation, checksum, and malware scan or quarantine status before admin download.

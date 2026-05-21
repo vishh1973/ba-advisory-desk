@@ -2505,59 +2505,72 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
   const files = Array.from(fileInput.files || []);
   const userId = getUserId();
 
-  if (!files.length || !supabaseClient || !userId) {
-    return { ok: true, uploaded: 0 };
-  }
-  if (!requestId) {
-    return { ok: false, reason: "Your request was created, but the secure upload reference was not returned. Please refresh the workspace and try again.", uploaded: 0 };
-  }
-  const validationError = validateWorkspaceFiles(files);
-  if (validationError) {
-    return { ok: false, reason: validationError, uploaded: 0 };
-  }
-
   let uploaded = 0;
-  for (const [index, file] of files.entries()) {
-    const storagePath = createClientStoragePath(userId, requestId, file.name, index);
-    const uploadResponse = await withClientTimeout(
-      supabaseClient.storage.from("client-files").upload(storagePath, file, {
-        upsert: false,
-        contentType: getUploadContentType(file),
-      }),
-      45000,
-      `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
-    );
-    const uploadError = uploadResponse?.error;
 
-    if (uploadError) {
-      return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
+  try {
+    if (!files.length || !supabaseClient || !userId) {
+      return { ok: true, uploaded: 0 };
+    }
+    if (!requestId) {
+      return { ok: false, reason: "Your request was created, but the secure upload reference was not returned. Please refresh the workspace and try again.", uploaded: 0 };
+    }
+    const validationError = validateWorkspaceFiles(files);
+    if (validationError) {
+      return { ok: false, reason: validationError, uploaded: 0 };
     }
 
-    const fileRecordResponse = await withClientTimeout(
-      supabaseClient.from("request_files").insert({
-        request_id: requestId,
-        organization_id: organizationId,
-        project_id: projectId || null,
-        storage_path: storagePath,
-        file_name: file.name,
-        file_size_bytes: file.size,
-        mime_type: getUploadContentType(file),
-        uploaded_by: userId,
-      }),
-      15000,
-      `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
-    );
-    const fileRecordError = fileRecordResponse?.error;
+    for (const [index, file] of files.entries()) {
+      const storagePath = createClientStoragePath(userId, requestId, file.name, index);
+      const uploadResponse = await withClientTimeout(
+        supabaseClient.storage.from("client-files").upload(storagePath, file, {
+          upsert: false,
+          contentType: getUploadContentType(file),
+        }),
+        45000,
+        `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
+      );
+      const uploadError = uploadResponse?.error;
 
-    if (fileRecordError) {
-      await supabaseClient.storage.from("client-files").remove([storagePath]).then(() => null, () => null);
-      return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
+      if (uploadError) {
+        return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
+      }
+
+      const fileRecordResponse = await withClientTimeout(
+        supabaseClient.from("request_files").insert({
+          request_id: requestId,
+          organization_id: organizationId,
+          project_id: projectId || null,
+          storage_path: storagePath,
+          file_name: file.name,
+          file_size_bytes: file.size,
+          mime_type: getUploadContentType(file),
+          uploaded_by: userId,
+        }),
+        15000,
+        `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
+      );
+      const fileRecordError = fileRecordResponse?.error;
+
+      if (fileRecordError) {
+        await withClientTimeout(
+          supabaseClient.storage.from("client-files").remove([storagePath]),
+          8000,
+          "File cleanup took too long."
+        ).then(() => null, () => null);
+        return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
+      }
+
+      uploaded += 1;
     }
 
-    uploaded += 1;
+    return { ok: true, uploaded };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: getPartialUploadError("the current file", uploaded, files.length, error?.message || "The secure upload could not be completed."),
+      uploaded,
+    };
   }
-
-  return { ok: true, uploaded };
 }
 
 function getAdminUploadFiles() {
@@ -2629,7 +2642,15 @@ function createClientStoragePath(userId, folder, fileName, index = 0) {
 
 function getPartialUploadError(fileName, uploaded, total, reason) {
   const countText = `${uploaded} of ${total} file${total === 1 ? "" : "s"}`;
-  return `Upload stopped at ${fileName}. ${countText} were uploaded before the issue. ${reason || "Please review the file and try again."}`;
+  const recovery = uploaded > 0
+    ? "The uploaded files remain attached. Please retry the remaining files from Messages and Files."
+    : "No files were attached. Please try again with fewer or smaller files.";
+  return `Upload stopped at ${fileName}. ${countText} were uploaded before the issue. ${getFriendlyWorkspaceError(reason, "Please review the file and try again.")} ${recovery}`;
+}
+
+function getUploadOperationTimeoutMs(files, perFileMs = 60000, maximumMs = 180000) {
+  const count = Math.max(1, Array.from(files || []).length);
+  return Math.min(maximumMs, 30000 + count * perFileMs);
 }
 
 function getWorkspaceItems() {
@@ -6202,18 +6223,22 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   if (!uploadFieldsValid) return;
   const status = document.querySelector("#clientUploadStatus");
   if (status) {
-    status.textContent = "Uploading client files.";
+    status.textContent = `Uploading ${uploadFiles.length} file${uploadFiles.length === 1 ? "" : "s"}. Please keep this page open.`;
     status.classList.remove("warning", "success");
   }
   setButtonBusy(submitButton, true, "Uploading Files");
   try {
-    const result = await saveClientUpload();
+    const result = await withClientTimeout(
+      saveClientUpload(),
+      getUploadOperationTimeoutMs(uploadFiles),
+      `The upload is taking longer than expected. Please try again with fewer files, or contact ${config.supportEmail} if the issue continues.`
+    );
     if (!result.ok) {
       if (status) {
         status.textContent = result.error || "Files could not be uploaded.";
         status.classList.add("warning");
       }
-      showToast(result.error || "Files could not be uploaded.");
+      showPersistentNotice(result.error || "Files could not be uploaded.");
       return;
     }
     document.querySelector("#clientUploadFiles").value = "";
@@ -6225,6 +6250,16 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
         ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
         : `${fileText} recorded in this workspace.`;
       status.classList.add("success");
+    }
+    if (result.storedOnline) {
+      await withClientTimeout(
+        loadClientWorkspaceData(),
+        20000,
+        "Files were uploaded, but the workspace refresh took too long. Refresh the page if the new files are not visible."
+      ).then(() => null, (error) => {
+        setInlineStatus("#clientUploadStatus", error.message, "warning");
+        showPersistentNotice(error.message);
+      });
     }
     render();
     showToast("Client upload added to the workspace.");
@@ -6472,7 +6507,15 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     }
 
     setInlineStatus(statusSelector, `Request created. Uploading ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"}.`);
-    const uploadResult = await uploadRequestFiles(savedRequestId, organizationId, selectedProject.id || "");
+    const uploadResult = await withClientTimeout(
+      uploadRequestFiles(savedRequestId, organizationId, selectedProject.id || ""),
+      getUploadOperationTimeoutMs(requestFiles),
+      `Request ${request.id} was created, but the file upload took longer than expected. Please open Messages and Files and attach the files there.`
+    ).catch((error) => ({
+      ok: false,
+      uploaded: 0,
+      reason: error.message || "The request was created, but the file upload could not be completed.",
+    }));
     request.requestId = savedRequestId;
     state.requests.unshift(request);
     addAuditEvent(
