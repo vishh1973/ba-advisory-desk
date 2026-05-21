@@ -275,7 +275,7 @@ module.exports = async function handler(req, res) {
           deliverable_id: relatedEntityType === "deliverable" ? relatedEntityId : null,
           subject: finalSubject,
           body: message,
-          status: "queued",
+          status: "admin_email_pending",
         }
       : null;
     let messageRecordId = "";
@@ -314,15 +314,16 @@ module.exports = async function handler(req, res) {
     if (messageRecordId) {
       await supabase
         .from("client_deliverable_messages")
-        .update({ status: result.sent ? "sent" : "queued" })
+        .update({ status: result.sent ? "admin_sent" : "admin_email_pending" })
         .eq("id", messageRecordId)
         .then(() => null, () => null);
     }
 
     if (!result.sent) {
-      res.status(502).json({
+      res.status(200).json({
         queued: true,
         sent: false,
+        warning: result.error || result.reason || "Message was saved in the workspace, but email delivery was not confirmed.",
         error: result.error || result.reason || "Message was saved in the workspace, but email delivery was not confirmed.",
         emailReference,
       });

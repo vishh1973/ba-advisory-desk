@@ -2375,6 +2375,11 @@ input[type="file"]::file-selector-button:hover {
   margin: 3px 0 8px;
 }
 
+.admin-portfolio-panel tr.selected-row {
+  background: #f0fdfa;
+  box-shadow: inset 4px 0 0 var(--teal);
+}
+
 .dossier-grid {
   display: grid;
   gap: 12px;
@@ -2428,6 +2433,31 @@ input[type="file"]::file-selector-button:hover {
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-bottom: 12px;
+}
+
+.admin-scope-note {
+  background: #0b1f33;
+  border-radius: 8px;
+  color: #ffffff;
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.admin-scope-note strong,
+.admin-scope-note span {
+  display: block;
+}
+
+.admin-scope-note strong {
+  font-size: 13px;
+}
+
+.admin-scope-note span {
+  color: #dbe7f0;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .dossier-project-strip article,

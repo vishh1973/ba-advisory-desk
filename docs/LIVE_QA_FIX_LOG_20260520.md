@@ -415,3 +415,35 @@ Authenticated checks completed:
 Known test limitation:
 
 - Fresh browser navigation to the live domain was blocked by the browser automation policy during this pass. The same backend was tested through live API calls and a local authenticated browser run connected to the hosted Supabase project.
+
+### Admin Journey QA Hardening
+
+Date: 2026-05-21
+
+Fixes applied:
+
+- Added an all active projects scope to the admin dossier so selecting a client no longer hides other active projects by default.
+- Kept portfolio open item counts client wide, while the dossier still supports project level review.
+- Added a visible dossier scope note that explains whether the admin is viewing all projects or one project.
+- Added selected row styling in the client portfolio so the active client file is easier to see.
+- Added row level client and project context to source file and deliverable download buttons.
+- Strengthened admin queue cleanup so request file cleanup verifies the file belongs to the selected client before it is marked reviewed.
+- Made request file cleanup durable by checking audit records for the visible file IDs instead of relying only on the latest audit rows.
+- Changed request queue cleanup labels from generic Complete to scoped actions such as Mark Scoped and Close Request.
+- Added project workspace options to client message and upload context selectors so files and messages do not attach to the wrong project when more than one project exists.
+- Hardened tracked admin messages so a saved workspace message is not duplicated if email delivery is delayed.
+- Hardened deliverable release validation on the server so title, type, summary, version note, client, and project are required.
+- Hardened deliverable version finalization so a version must still be draft and match the server version number before release.
+- Prevented abort cleanup from deleting files from a version that has already been finalized.
+- Bumped public assets to `app.js?v=13` and `styles.css?v=13`.
+
+Verification:
+
+- Six parallel QA agents reviewed admin UX, queue cleanup, project linkage, release safety, messaging, and QA checklist gaps.
+- JavaScript parse checks passed for `app.js`, `api/admin-queue.js`, `api/notify.js`, and `api/_lib/adminDeliverableReleaseActions.js` using the Node REPL parser.
+- Hosted admin API smoke test with a temporary admin QA account confirmed admin session access and admin queue loading. The temporary admin QA account was removed after the test.
+
+Known test limitation:
+
+- The shell `node --check` command is blocked on this machine with Access denied, so syntax validation used the Node REPL parser instead.
+- Direct in-app browser navigation is still blocked by the browser automation policy in this session. API level checks were used for the protected admin paths.

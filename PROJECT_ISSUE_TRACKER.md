@@ -62,6 +62,16 @@ Last updated: 2026-05-21
 - [x] Outbound system emails now add a BA Advisory Desk support reference to the subject and body for future threading.
 - [x] Admin queue cleanup was folded into the existing admin queue API so the Vercel deployment stays within the current 12-function limit.
 - [x] Client workspace singular count wording corrected for one active project and one released deliverable.
+- [x] Admin dossier now supports an all active projects scope so the selected client file does not hide work from other active projects.
+- [x] Admin portfolio open item counts now stay client wide.
+- [x] Admin dossier now labels the current project scope and confirms credits and payments remain client level.
+- [x] Admin file download actions now pass row level client and project context.
+- [x] Request file queue cleanup now verifies file ownership before marking a file reviewed.
+- [x] Request file queue cleanup no longer depends only on the latest audit rows.
+- [x] Client message and upload actions now require an explicit project workspace when more than one active project exists.
+- [x] Admin message retry behavior now avoids duplicate workspace messages when email delivery is delayed.
+- [x] Admin deliverable release now rejects stale or already finalized versions before publishing.
+- [x] Admin release abort cleanup now avoids deleting files from already finalized deliverable versions.
 
 ## Addressed In Hosted Configuration
 
@@ -90,6 +100,7 @@ Last updated: 2026-05-21
 - [x] Supabase configuration: enable Google sign-in after Google Cloud OAuth client is created.
 - [ ] Supabase configuration: enable Apple sign-in after Apple Developer service credentials are created.
 - [x] Supabase SQL: applied `supabase/20260520_security_qa_hardening.sql` to the hosted database on 2026-05-20 and verified the admin function plus client message policy.
+- [x] Admin QA pass: six parallel review agents completed admin UX, queue, project linkage, release, message, and checklist reviews on 2026-05-21.
 
 ## Pending External Configuration
 

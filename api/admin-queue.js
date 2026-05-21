@@ -74,12 +74,12 @@ async function updateByTarget(supabase, target) {
   }
 
   if (target.queueType === "quote") {
-    return finishUpdate(
-      supabase
-        .from("custom_quote_requests")
-        .update({ status })
-        .eq("id", target.id)
-    );
+    let query = supabase
+      .from("custom_quote_requests")
+      .update({ status })
+      .eq("id", target.id);
+    if (target.organizationId) query = query.eq("organization_id", target.organizationId);
+    return finishUpdate(query);
   }
 
   if (target.queueType === "client-message") {
@@ -103,15 +103,27 @@ async function updateByTarget(supabase, target) {
   }
 
   if (target.queueType === "notification") {
-    return finishUpdate(
-      supabase
-        .from("notifications")
-        .update({ status, updated_at: now })
-        .eq("id", target.id)
-    );
+    let query = supabase
+      .from("notifications")
+      .update({ status, updated_at: now })
+      .eq("id", target.id);
+    if (target.organizationId) query = query.eq("organization_id", target.organizationId);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
+    return finishUpdate(query);
   }
 
   if (target.queueType === "request-file") {
+    let query = supabase
+      .from("request_files")
+      .select("id")
+      .eq("id", target.id)
+      .eq("organization_id", target.organizationId);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) {
+      return { ok: false, status: 404, error: "Request file was not found or is not linked to the selected client." };
+    }
     await insertAudit(supabase, target, `Request file marked ${status}.`);
     return { ok: true, status, auditInserted: true };
   }
@@ -218,18 +230,29 @@ module.exports = async function handler(req, res) {
 
     const firstError = [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
+    const requestFileRows = requestFiles.data || [];
+    const requestFileIds = requestFileRows.map((file) => file.id).filter(Boolean);
+    const { data: requestFileAuditRows, error: requestFileAuditError } = requestFileIds.length
+      ? await supabase
+          .from("audit_events")
+          .select("related_entity_id,event_detail")
+          .eq("event_type", "admin_queue_action")
+          .eq("related_entity_type", "request-file")
+          .in("related_entity_id", requestFileIds)
+          .limit(Math.max(requestFileIds.length * 4, 20))
+      : { data: [], error: null };
+    if (requestFileAuditError) throw requestFileAuditError;
+
     const reviewedRequestFileIds = new Set(
-      (auditEvents.data || [])
+      (requestFileAuditRows || [])
         .filter((entry) => {
           const detail = typeof entry.event_detail === "string" ? entry.event_detail : JSON.stringify(entry.event_detail || "");
-          return entry.event_type === "admin_queue_action" &&
-            entry.related_entity_type === "request-file" &&
-            /marked\s+(reviewed|addressed|dismissed)/i.test(detail);
+          return /marked\s+(reviewed|addressed|dismissed)/i.test(detail);
         })
         .map((entry) => entry.related_entity_id)
         .filter(Boolean)
     );
-    const visibleRequestFiles = (requestFiles.data || []).filter((file) => !reviewedRequestFileIds.has(file.id));
+    const visibleRequestFiles = requestFileRows.filter((file) => !reviewedRequestFileIds.has(file.id));
 
     const { data: deliverables, error: deliverablesError } = await supabase
       .from("deliverables")

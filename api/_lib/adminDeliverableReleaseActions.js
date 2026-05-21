@@ -136,13 +136,13 @@ async function prepareRelease({ supabase, req, body }) {
   const projectId = body.projectId;
   const requestId = body.requestId || null;
   const existingDeliverableId = body.existingDeliverableId || null;
-  const title = String(body.title || "Client deliverable").trim();
-  const deliverableType = String(body.deliverableType || "Business Analysis deliverable").trim();
+  const title = String(body.title || "").trim();
+  const deliverableType = String(body.deliverableType || "").trim();
   const summary = String(body.summary || "").trim();
-  const releaseNote = String(body.releaseNote || "Released to client workspace.").trim();
+  const releaseNote = String(body.releaseNote || "").trim();
 
-  if (!organizationId || !projectId || !title) {
-    return { status: 400, data: { error: "Client, project, and deliverable title are required." } };
+  if (!organizationId || !projectId || !title || !deliverableType || !summary || !releaseNote) {
+    return { status: 400, data: { error: "Client, project, title, type, release summary, and version note are required." } };
   }
 
   const scope = await validateScope({ supabase, organizationId, projectId, requestId, deliverableId: existingDeliverableId });
@@ -161,7 +161,7 @@ async function prepareRelease({ supabase, req, body }) {
         organization_id: organizationId,
         project_id: projectId,
         title,
-        deliverable_type: deliverableType,
+        deliverable_type: deliverableType || "Business Analysis deliverable",
         summary,
         status: "draft",
         created_by: actorId,
@@ -255,11 +255,17 @@ async function finalizeRelease({ supabase, req, body }) {
     .maybeSingle();
   if (versionError) throw versionError;
   if (!version?.id) return { status: 404, data: { error: "Draft version was not found." } };
+  if (version.status !== "draft") {
+    return { status: 409, data: { error: "This deliverable version has already been finalized. Refresh the admin workspace before trying again." } };
+  }
+  if (Number(version.version_number || 0) !== versionNumber) {
+    return { status: 409, data: { error: "The deliverable version changed. Refresh the admin workspace before trying again." } };
+  }
   if (version.project_id && version.project_id !== projectId) {
     return { status: 400, data: { error: "Draft version belongs to a different project." } };
   }
 
-  const storagePrefix = `clients/${organizationId}/deliverables/${deliverableId}/v${versionNumber}/`;
+  const storagePrefix = `clients/${organizationId}/deliverables/${deliverableId}/v${version.version_number}/`;
   const actorId = await readActorId(supabase, req);
   const safeFiles = files.map((file) => ({
     deliverable_version_id: versionId,
@@ -307,7 +313,7 @@ async function finalizeRelease({ supabase, req, body }) {
         p_related_deliverable_id: deliverableId,
         p_related_payment_id: null,
         p_source: "admin",
-        p_idempotency_key: `admin-release-${organizationId}-${deliverableId}-${versionId}-${creditsUsed}`,
+        p_idempotency_key: `admin-release-${organizationId}-${deliverableId}-${versionId}`,
         p_actor_id: actorId,
       })
       .single();
@@ -408,20 +414,29 @@ async function finalizeRelease({ supabase, req, body }) {
   }
 
   if (creditsUsed > 0) {
-    const { data: latestAccount } = await supabase
-      .from("credit_accounts")
-      .select("balance,low_credit_threshold")
-      .eq("organization_id", organizationId)
-      .maybeSingle();
-    balance = Number(latestAccount?.balance ?? balance);
-    lowCreditThreshold = Number(latestAccount?.low_credit_threshold || lowCreditThreshold);
-    await detectAndNotifyCreditStatus(supabase, {
-      organizationId,
-      balance,
-      threshold: lowCreditThreshold,
-      recipientEmail: body.recipientEmail || null,
-      relatedEntityId: deliverableId,
-    });
+    try {
+      const { data: latestAccount } = await supabase
+        .from("credit_accounts")
+        .select("balance,low_credit_threshold")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      balance = Number(latestAccount?.balance ?? balance);
+      lowCreditThreshold = Number(latestAccount?.low_credit_threshold || lowCreditThreshold);
+      const creditNotice = await detectAndNotifyCreditStatus(supabase, {
+        organizationId,
+        balance,
+        threshold: lowCreditThreshold,
+        recipientEmail: body.recipientEmail || null,
+        relatedEntityId: deliverableId,
+      });
+      if (creditNotice?.error && !notification.error) {
+        notification.error = creditNotice.error;
+      }
+    } catch (error) {
+      if (!notification.error) {
+        notification.error = error.message || "Credit reminder could not be sent.";
+      }
+    }
   }
 
   return {
@@ -448,6 +463,17 @@ async function abortRelease({ supabase, body }) {
   const createdDeliverable = Boolean(body.createdDeliverable);
   const paths = Array.isArray(body.storagePaths) ? body.storagePaths.filter(Boolean) : [];
 
+  if (versionId) {
+    const { data: version } = await supabase
+      .from("deliverable_versions")
+      .select("id,status")
+      .eq("id", versionId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (version?.status && version.status !== "draft") {
+      return { status: 200, data: { aborted: false, released: true } };
+    }
+  }
   if (paths.length) {
     await supabase.storage.from("private-deliverables").remove(paths).then(() => null, () => null);
   }

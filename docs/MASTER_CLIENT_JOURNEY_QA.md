@@ -170,12 +170,20 @@ Current QA status:
 - Passed: safe QA admin can sign in and open the operations desk.
 - Passed: safe QA admin can load the client portfolio, select the safe QA client, and review project, source file, and deliverable context.
 - Passed: safe QA admin release flow works through the protected API, and user retest confirmed the UI release update works.
+- Fixed: admin dossier now has an all active projects scope so client level review does not hide other active work.
+- Fixed: portfolio counts now stay client wide, while dossier counts follow the selected project scope.
+- Fixed: source file and deliverable downloads now carry row level client and project context.
+- Fixed: request file cleanup now verifies client ownership before review cleanup.
+- Fixed: admin message retry behavior avoids duplicate workspace messages when email delivery is delayed.
+- Fixed: deliverable finalization now rejects stale or already finalized draft versions.
+- Passed: temporary admin QA account confirmed protected admin session and admin queue loading through live APIs.
 
 Remaining QA:
 
 - Completed on 2026-05-20: client ready notification was sent through the live notification API and confirmed in Gmail for `vishh1973@gmail.com`.
 - Confirm the mobile admin layout after future dashboard changes.
 - Continue project-level authenticated QA: create a new project, submit files, release a deliverable to that project, then verify both client and admin project filters show the correct files, requests, messages, and deliverables.
+- After the next deployment, retest live request file queue cleanup to confirm the new ownership verification is active in production.
 
 ## Journey 8: Credit Management
 
