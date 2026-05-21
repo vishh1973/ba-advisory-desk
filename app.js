@@ -3615,9 +3615,11 @@ function getClientNextStep() {
     };
   }
   if (reviewCount) {
+    const deliverableNoun = `released deliverable${reviewCount === 1 ? "" : "s"}`;
+    const deliverableVerb = reviewCount === 1 ? "needs" : "need";
     return {
       title: "Review released work",
-      body: `${reviewCount} released deliverable${reviewCount === 1 ? "" : "s"} need your review, approval, or revision notes.`,
+      body: `${reviewCount} ${deliverableNoun} ${deliverableVerb} your review, approval, or revision notes.`,
       href: "#dashboard",
       cta: "Review Work",
     };
@@ -3679,10 +3681,12 @@ function renderClientProjectControls() {
 
   if (title) title.textContent = selectedProject ? getProjectLabel(selectedProject) : "All active projects";
   if (body) {
+    const projectNoun = `active project${projects.length === 1 ? "" : "s"}`;
+    const projectVerb = projects.length === 1 ? "is" : "are";
     body.textContent = selectedProject
       ? "Showing requests, files, messages, and deliverables for the selected project."
       : projects.length
-        ? `${projects.length} active project${projects.length === 1 ? "" : "s"} are connected to this workspace.`
+        ? `${projects.length} ${projectNoun} ${projectVerb} connected to this workspace.`
         : "Create a project when submitting your first request.";
   }
 }

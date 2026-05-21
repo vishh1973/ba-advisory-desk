@@ -113,11 +113,14 @@ Current QA status:
 - Fixed: client dashboard now has direct Deliverables and Messages And Files navigation.
 - Passed: safe QA client request was created with a project and multiple source files.
 - Passed: user confirmed a three-file live request submitted and the files were visible.
+- Passed: safe QA client source files remain project-linked after authenticated API checks.
+- Passed: signed URL creation succeeds for a client-owned request source file.
+- Passed: client-owned source file deletion works through the controlled API. A replacement QA source file was restored for future tests.
 
 Remaining QA:
 
 - Confirm admin can see request files.
-- Confirm invalid file type and oversized file errors are clear.
+- Confirm oversized file errors are clear.
 
 ## Journey 6: Client Uses Workspace
 
@@ -136,11 +139,15 @@ Current QA status:
 - Passed: signed out user cannot access workspace.
 - Passed: safe QA client can see a released deliverable, download it, message about it, and mark it reviewed and accepted.
 - Fixed: Message About This and Upload Revision Files now open the Messages and Files panel before focusing the related form.
+- Passed: safe QA client profile update saves through the hosted profile RPC.
+- Passed: safe QA client revision upload is stored and remains project-linked.
+- Passed: safe QA client message is stored and remains project-linked.
+- Passed: safe QA client can generate a signed download link for the released deliverable file.
+- Passed: local authenticated browser QA confirmed dashboard, project workspace, credit balance, deliverable visibility, corrected singular wording, and sign out behavior.
 
 Remaining QA:
 
-- Test revision upload as authenticated client.
-- Test wrong client signed URL access is blocked.
+- Retest wrong-client signed URL access after the next admin dashboard UI pass if additional file handling changes are made.
 
 ## Journey 7: Administrator Manages Work
 
@@ -192,6 +199,9 @@ Current QA status:
 - Fixed: email provider errors are recorded as failed instead of sent.
 - Fixed: depleted credit accounts are included in reminder queueing.
 - Passed: local smoke confirms anonymous writes to credit protected tables are blocked.
+- Passed: safe QA client credit balance reads as 5 through the hosted credit summary.
+- Passed: safe QA client credit ledger shows the QA grant used for this authenticated journey test.
+- Passed: local authenticated browser QA confirmed the billing view shows the current credit balance and subscription management action.
 
 Remaining QA:
 

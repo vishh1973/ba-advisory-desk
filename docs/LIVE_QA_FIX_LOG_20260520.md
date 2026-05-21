@@ -389,3 +389,29 @@ Verification:
 - Live admin message composer opens in-app, shows selected client context, and blocks empty message sends with field-level validation.
 - Live admin dossier metric cards jump to the correct sections.
 - Live admin queue hides internal UUIDs and cleared a safe QA file review item from the work queue.
+
+### Authenticated Client Journey QA Continuation
+
+Date: 2026-05-21
+
+Fixes applied:
+
+- Corrected singular wording in the client workspace when one project is connected.
+- Corrected singular wording in the client next step panel when one released deliverable needs review.
+
+Authenticated checks completed:
+
+- Created and used a safe QA client workspace connected to the hosted Supabase backend.
+- Confirmed the client profile update RPC saves profile and CRM context.
+- Confirmed the QA client has 5 Advisory Credits and the balance reads through `credit_balance_summary`.
+- Confirmed the project, request, source files, revision upload, client message, and released deliverable all remain linked to the same project.
+- Confirmed request source file signed URL creation succeeds for the signed-in client.
+- Confirmed released deliverable signed URL creation succeeds for the signed-in client.
+- Confirmed client delete behavior works for a client-owned source file, then restored a replacement QA source file so the project remains useful for future testing.
+- Confirmed local authenticated UI shows the client dashboard, project workspace, credit balance, released deliverable, and corrected singular text.
+- Confirmed local authenticated billing view shows the credit balance and subscription management action.
+- Confirmed local sign out clears the signed-in state, hides sign out buttons, and returns to client login.
+
+Known test limitation:
+
+- Fresh browser navigation to the live domain was blocked by the browser automation policy during this pass. The same backend was tested through live API calls and a local authenticated browser run connected to the hosted Supabase project.

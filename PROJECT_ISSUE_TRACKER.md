@@ -1,6 +1,6 @@
 # BA Advisory Desk Running Issue Tracker
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 ## Addressed In Code
 
@@ -61,6 +61,7 @@ Last updated: 2026-05-20
 - [x] Admin and client-facing forms now highlight missing required fields instead of silently failing or showing only a generic message.
 - [x] Outbound system emails now add a BA Advisory Desk support reference to the subject and body for future threading.
 - [x] Admin queue cleanup was folded into the existing admin queue API so the Vercel deployment stays within the current 12-function limit.
+- [x] Client workspace singular count wording corrected for one active project and one released deliverable.
 
 ## Addressed In Hosted Configuration
 
@@ -77,6 +78,7 @@ Last updated: 2026-05-20
 - [x] Live custom advisory request route verified with Supabase insert and Resend email delivery.
 - [x] Production deployment for commit `fc85c7d` verified as READY on Vercel after the admin queue endpoint consolidation.
 - [x] Live admin QA verified clickable dossier metrics, hidden internal IDs, tracked message validation, release-field validation, and queue file review cleanup.
+- [x] Authenticated client QA verified profile update, project linkage, request files, revision upload, client message, deliverable visibility, signed download links, billing credit balance, and sign out behavior using safe QA records.
 
 ## In Progress
 
