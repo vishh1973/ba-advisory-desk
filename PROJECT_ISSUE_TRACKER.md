@@ -85,6 +85,7 @@ Last updated: 2026-05-21
 - [x] Client workspace message and upload selectors now respect the selected project view.
 - [x] Accepted deliverables now render as approved status in the client workspace.
 - [x] Client file uploads now have stronger timeout handling, persistent failure notices, partial upload recovery guidance, and workspace refresh after successful upload.
+- [x] Repeatable authenticated live QA script added for safe client and admin account checks across request upload, signed download, admin review, client upload, and soft delete.
 
 ## Addressed In Hosted Configuration
 
@@ -153,6 +154,7 @@ Last updated: 2026-05-21
 - [ ] Replace hash sitemap entries with real public routes or remove fragment URLs from the sitemap.
 - [ ] Add branded social preview image metadata, favicon links, and theme color.
 - [ ] Align stale JavaScript smoke tests with the current PowerShell smoke tests.
+- [ ] Add browser-level authenticated QA with Playwright or another browser runner once a browser runtime is available in the local test environment.
 
 ## Configuration Links
 
