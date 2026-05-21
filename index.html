@@ -752,7 +752,7 @@
           <p class="form-note">
             Rescue Sprint purchases, Starter subscriptions, and credit top ups use a private workspace so payments, files, requests, and deliverables connect to the right client account.
           </p>
-          <p id="authStatus" class="auth-status">Sign in or create an account with your work email.</p>
+          <p id="authStatus" class="auth-status" role="status" aria-live="polite" aria-atomic="true">Sign in or create an account with your work email.</p>
           <p class="auth-intro">Use a secure account to access your client workspace.</p>
           <div class="account-standard">
             <article>
@@ -992,7 +992,7 @@
                     Message
                     <textarea id="clientMessageBody" rows="4" placeholder="Add a revision note, approval comment, or delivery question."></textarea>
                   </label>
-                  <p id="clientMessageStatus" class="admin-inline-status">Messages are attached to the selected workspace item.</p>
+                  <p id="clientMessageStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Messages are attached to the selected workspace item.</p>
                   <button type="submit" class="primary">Send Message</button>
                 </form>
                 <form id="clientUploadForm" class="client-action-card">
@@ -1020,7 +1020,7 @@
                     <textarea id="clientUploadNotes" rows="3" placeholder="Add context for the uploaded files."></textarea>
                   </label>
                   <div class="file-list" id="clientUploadFileList">No files selected yet.</div>
-                  <p id="clientUploadStatus" class="admin-inline-status">Files are linked to the selected workspace item.</p>
+                  <p id="clientUploadStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Files are linked to the selected workspace item.</p>
                   <button type="submit" class="primary">Upload Files</button>
                 </form>
               </div>
@@ -1178,7 +1178,7 @@
                 <option>Document review and written recommendations</option>
               </select>
             </label>
-            <p id="profileStatus" class="admin-inline-status">Complete the required profile fields once so your workspace stays connected.</p>
+            <p id="profileStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Complete the required profile fields once so your workspace stays connected.</p>
             <button type="submit">Save Client Profile</button>
           </form>
           <form id="accountSecurityForm" class="form-card">
@@ -1280,7 +1280,7 @@
               What are you attaching?
               <textarea id="attachmentDescription" rows="3" placeholder="Briefly describe the files, their purpose, and anything we should pay attention to."></textarea>
             </label>
-            <p id="requestStatus" class="admin-inline-status">Requests are checked against your profile, credit balance, and selected files before submission.</p>
+            <p id="requestStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Requests are checked against your profile, credit balance, and selected files before submission.</p>
             <button id="requestSubmitButton" type="submit">Submit Request</button>
           </form>
         </div>
@@ -1340,7 +1340,7 @@
               Your next step is the client workspace. Use the same email address used at checkout so your payment,
               profile, source files, messages, requests, and deliverables stay connected to one account.
             </p>
-            <p id="checkoutStatusMessage" class="admin-inline-status">Please stay on this page while we update your client workspace.</p>
+            <p id="checkoutStatusMessage" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Please stay on this page while we update your client workspace.</p>
             <div class="action-row">
               <a id="checkoutWorkspaceLink" class="primary" href="#dashboard">Open Client Workspace</a>
               <a id="checkoutBillingLink" class="secondary" href="#billing">View Billing</a>
@@ -1531,7 +1531,7 @@
                 Message
                 <textarea id="adminMessageBody" rows="5" placeholder="Write the message the client should see in their workspace."></textarea>
               </label>
-              <p id="adminMessageStatus" class="admin-inline-status">The email subject will include a support reference, and the message will be saved in the client workspace.</p>
+              <p id="adminMessageStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">The email subject will include a support reference, and the message will be saved in the client workspace.</p>
               <button type="button" data-admin-action="send-client-message">Send Tracked Message</button>
             </div>
           </div>
@@ -1590,7 +1590,7 @@
                 <input id="adminCreditsUsed" type="number" min="0" step="1" value="0" />
                 <small>Use this only to record the approved estimate. Advisory Credits are consumed when files are released or adjusted from the credit account controls.</small>
               </label>
-              <p id="adminDeliveryCreditStatus" class="admin-inline-status">Select a client request and confirm the approved credit estimate before updating status.</p>
+              <p id="adminDeliveryCreditStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Select a client request and confirm the approved credit estimate before updating status.</p>
               <button type="button" data-admin-action="ship-deliverable">Save Status</button>
             </div>
           </details>
@@ -1658,7 +1658,7 @@
                 <input id="adminNotifyClient" type="checkbox" checked />
                 Email the client when the deliverable is ready
               </label>
-              <p id="adminDeliverableUploadStatus" class="admin-inline-status">Select a client and upload files when the deliverable is ready.</p>
+              <p id="adminDeliverableUploadStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Select a client and upload files when the deliverable is ready.</p>
               <button id="adminReleaseFilesButton" type="button" data-admin-action="upload-deliverable">Release Files</button>
             </div>
           </article>
@@ -1761,7 +1761,7 @@
               What needs help?
               <textarea id="quoteSummary" rows="5" placeholder="Describe the business problem, timeline, audience, source material, and the decision or deliverable you need help with."></textarea>
             </label>
-            <p id="quoteStatus" class="admin-inline-status">Send the request and we will follow up with discovery next steps.</p>
+            <p id="quoteStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Send the request and we will follow up with discovery next steps.</p>
             <button type="submit">Send Custom Request</button>
           </form>
         </div>

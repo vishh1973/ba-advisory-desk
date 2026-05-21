@@ -158,6 +158,19 @@ function clearFieldErrors(containerSelector) {
   container.querySelectorAll(".field-error").forEach((field) => {
     field.classList.remove("field-error");
     field.removeAttribute("aria-invalid");
+    const errorId = field.dataset.errorId;
+    if (errorId) {
+      const describedBy = (field.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter((id) => id && id !== errorId)
+        .join(" ");
+      if (describedBy) {
+        field.setAttribute("aria-describedby", describedBy);
+      } else {
+        field.removeAttribute("aria-describedby");
+      }
+      delete field.dataset.errorId;
+    }
   });
   container.querySelectorAll(".field-error-note").forEach((note) => note.remove());
 }
@@ -168,8 +181,15 @@ function markFieldError(selector, message = "Required") {
   field.classList.add("field-error");
   field.setAttribute("aria-invalid", "true");
   const label = field.closest("label");
+  const safeId = `${selector.replace(/[^A-Za-z0-9_-]/g, "")}-error`;
+  field.dataset.errorId = safeId;
+  const currentDescribedBy = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+  if (!currentDescribedBy.includes(safeId)) {
+    field.setAttribute("aria-describedby", [...currentDescribedBy, safeId].join(" "));
+  }
   if (label && !label.querySelector(".field-error-note")) {
     const note = document.createElement("small");
+    note.id = safeId;
     note.className = "field-error-note";
     note.textContent = message;
     label.appendChild(note);
@@ -939,6 +959,40 @@ function withClientTimeout(promise, timeoutMs, message) {
   ]).finally(() => window.clearTimeout(timerId));
 }
 
+function getFriendlyWorkspaceError(error, fallback = "The workspace request could not be completed.") {
+  const message = typeof error === "string" ? error : error?.message || "";
+  if (!message) return fallback;
+  const lower = message.toLowerCase();
+  if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("took too long")) {
+    return "The request took too long. Please refresh the workspace and try again.";
+  }
+  if (lower.includes("network") || lower.includes("failed to fetch")) {
+    return "The workspace connection was interrupted. Please check your connection and try again.";
+  }
+  if (lower.includes("jwt") || lower.includes("token") || lower.includes("auth")) {
+    return "Your secure session needs to be refreshed. Please sign out, then sign in again.";
+  }
+  return fallback;
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 20000, timeoutMessage = "The request took too long.") {
+  const controller = new AbortController();
+  const timerId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: options.signal || controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(timeoutMessage);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timerId);
+  }
+}
+
 async function refreshCreditBalanceForSubmit(organizationId) {
   if (!supabaseClient || !organizationId) {
     return { ok: true, balance: Number(state.creditsLeft || 0) };
@@ -1355,7 +1409,17 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
     return;
   }
 
-  const organizationId = await getProfileOrganizationId();
+  let organizationId = "";
+  try {
+    organizationId = await withClientTimeout(
+      getProfileOrganizationId(),
+      10000,
+      "Profile verification took too long. Refresh the workspace and try again."
+    );
+  } catch (error) {
+    setAuthStatus(error.message || "Profile verification could not be completed. Please refresh and sign in again.");
+    return;
+  }
   if (organizationId && getPendingCheckoutType()) {
     await resumePendingCheckout();
     return;
@@ -1620,11 +1684,11 @@ async function fetchAdminApi(path, options = {}) {
   };
 
   try {
-    const response = await fetch(path, {
+    const response = await fetchWithTimeout(path, {
       ...options,
       headers,
       body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
-    });
+    }, options.timeoutMs || 20000, "The admin request took too long. Please refresh the operations workspace and try again.");
     const text = await response.text();
     let data = {};
     if (text) {
@@ -1634,9 +1698,9 @@ async function fetchAdminApi(path, options = {}) {
         data = { error: "The admin service returned an unexpected response." };
       }
     }
-    return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: data.error || "The admin request could not be completed." };
+    return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: getFriendlyWorkspaceError(data.error, "The admin request could not be completed.") };
   } catch (error) {
-    return { ok: false, status: 0, error: error.message || "The admin request could not be completed." };
+    return { ok: false, status: 0, error: getFriendlyWorkspaceError(error, "The admin request could not be completed.") };
   }
 }
 
@@ -1653,11 +1717,11 @@ async function fetchClientApi(path, options = {}) {
   };
 
   try {
-    const response = await fetch(path, {
+    const response = await fetchWithTimeout(path, {
       ...options,
       headers,
       body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
-    });
+    }, options.timeoutMs || 20000, "The secure workspace request took too long. Please refresh and try again.");
     const text = await response.text();
     let data = {};
     if (text) {
@@ -1667,9 +1731,9 @@ async function fetchClientApi(path, options = {}) {
         data = { error: "The secure workspace returned an unexpected response." };
       }
     }
-    return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: data.error || "The secure workspace request could not be completed." };
+    return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: getFriendlyWorkspaceError(data.error, "The secure workspace request could not be completed.") };
   } catch (error) {
-    return { ok: false, status: 0, error: error.message || "The secure workspace request could not be completed." };
+    return { ok: false, status: 0, error: getFriendlyWorkspaceError(error, "The secure workspace request could not be completed.") };
   }
 }
 
@@ -1682,19 +1746,19 @@ async function fetchMaybeAuthedApi(path, options = {}) {
   };
 
   try {
-    const response = await fetch(path, {
+    const response = await fetchWithTimeout(path, {
       method: options.method || "POST",
       ...options,
       headers,
       body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
-    });
+    }, options.timeoutMs || 20000, "The request took too long. Please refresh and try again.");
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return { ok: false, error: data.error || "Request could not be completed." };
+      return { ok: false, error: getFriendlyWorkspaceError(data.error, "Request could not be completed.") };
     }
     return { ok: true, data };
   } catch (error) {
-    return { ok: false, error: error.message || "Request could not be completed." };
+    return { ok: false, error: getFriendlyWorkspaceError(error, "Request could not be completed.") };
   }
 }
 
@@ -1874,6 +1938,15 @@ async function notifyAdvisorEvent(payload) {
       error: error.message || "The workspace item was saved, but the advisor notification could not be confirmed.",
     };
   }
+}
+
+function notifyAdvisorEventInBackground(payload) {
+  notifyAdvisorEvent(payload).then((result) => {
+    if (!result?.ok) {
+      addAuditEvent("Advisor notification pending", payload?.title || "Workspace notification could not be confirmed.");
+      saveState();
+    }
+  });
 }
 
 async function updateServerCreditLedger(payload) {
@@ -2432,8 +2505,11 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
   const files = Array.from(fileInput.files || []);
   const userId = getUserId();
 
-  if (!files.length || !supabaseClient || !userId || !requestId) {
+  if (!files.length || !supabaseClient || !userId) {
     return { ok: true, uploaded: 0 };
+  }
+  if (!requestId) {
+    return { ok: false, reason: "Your request was created, but the secure upload reference was not returned. Please refresh the workspace and try again.", uploaded: 0 };
   }
   const validationError = validateWorkspaceFiles(files);
   if (validationError) {
@@ -2623,7 +2699,16 @@ async function saveClientMessage() {
     createdAt: getIsoNow(),
   };
 
-  const organizationId = await getProfileOrganizationId();
+  let organizationId = "";
+  try {
+    organizationId = await withClientTimeout(
+      getProfileOrganizationId(),
+      10000,
+      "Profile verification took too long. Refresh the workspace and try again."
+    );
+  } catch (error) {
+    return { ok: false, error: error.message || "Profile verification could not be completed." };
+  }
   if (supabaseClient && !organizationId) {
     return { ok: false, error: "Please complete your client profile before sending a workspace message." };
   }
@@ -2655,7 +2740,7 @@ async function saveClientMessage() {
   entry.projectLabel = getClientProjectLabel(projectId);
   addAuditEvent("Client message received", `${context.label}: ${body.slice(0, 80)}`);
   saveState();
-  const notification = await notifyAdvisorEvent({
+  notifyAdvisorEventInBackground({
     eventType: "client_message",
     title: "Client message received",
     summary: `${context.label}: ${body}`,
@@ -2664,7 +2749,7 @@ async function saveClientMessage() {
     relatedLabel: context.label,
     projectId,
   });
-  return { ok: true, storedOnline: Boolean(result.ok), advisorNotified: notification.ok && notification.data?.sent !== false };
+  return { ok: true, storedOnline: Boolean(result.ok), notificationPending: true };
 }
 
 async function saveClientUpload() {
@@ -2788,7 +2873,7 @@ async function saveClientUpload() {
 
   addAuditEvent("Client files received", `${uploaded} file${uploaded === 1 ? "" : "s"} attached to ${context.label}.`);
   saveState();
-  const notification = await notifyAdvisorEvent({
+  notifyAdvisorEventInBackground({
     eventType: "client_file_upload",
     title: "Client files uploaded",
     summary: `${uploaded} file${uploaded === 1 ? "" : "s"} attached to ${context.label}. Purpose: ${purpose}. ${note ? `Notes: ${note}` : ""}`,
@@ -2797,7 +2882,7 @@ async function saveClientUpload() {
     relatedLabel: context.label,
     projectId,
   });
-  return { ok: true, uploaded, storedOnline, advisorNotified: notification.ok && notification.data?.sent !== false };
+  return { ok: true, uploaded, storedOnline, notificationPending: true };
 }
 
 async function getNextDeliverableVersionNumber(deliverableId) {
@@ -5206,7 +5291,7 @@ async function markDeliverableAccepted(deliverableId) {
   deliverable.verificationStatus = "Accepted";
   addAuditEvent("Deliverable accepted", `${deliverable.title} accepted by client.`);
   saveState();
-  await notifyAdvisorEvent({
+  notifyAdvisorEventInBackground({
     eventType: "deliverable_accepted",
     title: "Deliverable accepted",
     summary: `${deliverable.title} was marked reviewed and accepted by the client.`,
@@ -5282,7 +5367,7 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
   if (productType) {
     try {
       const accessToken = await getSessionAccessToken();
-      const response = await fetch("/api/create-checkout-session", {
+      const response = await fetchWithTimeout("/api/create-checkout-session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5293,7 +5378,7 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
           email: state.client.email,
           organizationId,
         }),
-      });
+      }, 20000, "Checkout took too long to open. Please try again.");
       const data = await response.json();
       if (response.ok && data.url) {
         clearPendingCheckoutType();
@@ -6036,6 +6121,24 @@ document.querySelector("#clientMessageForm")?.addEventListener("submit", async (
   event.preventDefault();
   const submitButton = event.submitter || document.querySelector("#clientMessageForm button[type='submit']");
   if (submitButton?.dataset.busy === "true") return;
+  const messageFieldsValid = validateFieldSet({
+    containerSelector: "#clientMessageForm",
+    statusSelector: "#clientMessageStatus",
+    message: "Complete the highlighted message fields before sending.",
+    fields: [
+      {
+        selector: "#clientMessageContext",
+        isValid: () => Boolean(inferProjectIdForContext(parseWorkspaceContext(document.querySelector("#clientMessageContext")?.value))),
+        message: "Choose the project or work item this message belongs to.",
+      },
+      {
+        selector: "#clientMessageBody",
+        isValid: () => Boolean(document.querySelector("#clientMessageBody")?.value.trim()),
+        message: "Add a message.",
+      },
+    ],
+  });
+  if (!messageFieldsValid) return;
   const status = document.querySelector("#clientMessageStatus");
   if (status) {
     status.textContent = "Sending your message.";
@@ -6054,15 +6157,20 @@ document.querySelector("#clientMessageForm")?.addEventListener("submit", async (
     }
     document.querySelector("#clientMessageBody").value = "";
     if (status) {
-      status.textContent = result.advisorNotified
-        ? "Message sent, attached, and shared with the advisory team."
-        : result.storedOnline
-          ? "Message sent and attached to the selected item. The advisory team will review it in the workspace."
-          : "Message saved in this workspace.";
+      status.textContent = result.storedOnline
+        ? "Message sent and attached to the selected item. The advisory team will review it in the workspace."
+        : "Message saved in this workspace.";
       status.classList.add("success");
     }
     render();
     showToast("Message added to the client workspace.");
+  } catch (error) {
+    const message = error.message || "Message could not be sent. Please try again or contact support.";
+    if (status) {
+      status.textContent = message;
+      status.classList.add("warning");
+    }
+    showPersistentNotice(message);
   } finally {
     setButtonBusy(submitButton, false);
   }
@@ -6072,6 +6180,26 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   event.preventDefault();
   const submitButton = event.submitter || document.querySelector("#clientUploadForm button[type='submit']");
   if (submitButton?.dataset.busy === "true") return;
+  const uploadFiles = Array.from(document.querySelector("#clientUploadFiles")?.files || []);
+  const uploadValidationError = validateWorkspaceFiles(uploadFiles);
+  const uploadFieldsValid = validateFieldSet({
+    containerSelector: "#clientUploadForm",
+    statusSelector: "#clientUploadStatus",
+    message: uploadValidationError || "Complete the highlighted upload fields before uploading files.",
+    fields: [
+      {
+        selector: "#clientUploadContext",
+        isValid: () => Boolean(inferProjectIdForContext(parseWorkspaceContext(document.querySelector("#clientUploadContext")?.value))),
+        message: "Choose the project or work item these files belong to.",
+      },
+      {
+        selector: "#clientUploadFiles",
+        isValid: () => uploadFiles.length > 0 && !uploadValidationError,
+        message: uploadValidationError || "Select at least one file.",
+      },
+    ],
+  });
+  if (!uploadFieldsValid) return;
   const status = document.querySelector("#clientUploadStatus");
   if (status) {
     status.textContent = "Uploading client files.";
@@ -6093,11 +6221,9 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
     document.querySelector("#clientUploadFileList").textContent = "No files selected yet.";
     if (status) {
       const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"}`;
-      status.textContent = result.advisorNotified
-        ? `${fileText} uploaded, attached, and shared with the advisory team.`
-        : result.storedOnline
-          ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
-          : `${fileText} recorded in this workspace.`;
+      status.textContent = result.storedOnline
+        ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
+        : `${fileText} recorded in this workspace.`;
       status.classList.add("success");
     }
     render();
@@ -6330,6 +6456,12 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       savedRequestId = data?.request_id || null;
       if (data?.request_code) request.id = data.request_code;
       if (data?.balance !== undefined) state.creditsLeft = Number(data.balance || 0);
+      if (!savedRequestId) {
+        result = {
+          ok: false,
+          reason: "The secure request reference was not returned. Please refresh the workspace and try again.",
+        };
+      }
     } else {
       result = await writeToSupabase("requests", requestPayload);
     }
@@ -6361,7 +6493,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       request.status = "File upload needs attention";
     }
     await loadClientWorkspaceData();
-    await notifyAdvisorEvent({
+    notifyAdvisorEventInBackground({
       eventType: "client_request_submitted",
       title: "New client request submitted",
       summary: `${request.id}: ${request.type}. Project: ${getProjectLabel(selectedProject)}. Desired output: ${desiredOutput}. Deadline: ${decisionDeadline}. Files uploaded: ${uploadResult.uploaded}.`,
@@ -6380,7 +6512,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
     const successMessage = `Request received. ${uploadResult.uploaded} file${uploadResult.uploaded === 1 ? "" : "s"} uploaded and attached to your workspace.`;
     setInlineStatus(statusSelector, successMessage, "success");
-    showToast(successMessage);
+    showPersistentNotice(successMessage);
     resetRequestIntakeForm();
     window.location.hash = "dashboard";
   } catch (error) {
@@ -6392,6 +6524,8 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
 document.querySelector("#quoteForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = event.submitter || document.querySelector("#quoteForm button[type='submit']");
+  if (submitButton?.dataset.busy === "true") return;
   const quoteStatus = document.querySelector("#quoteStatus");
   const workEmail = (document.querySelector("#quoteEmail").value || state.client.email || getUserEmail()).trim();
   const companyType = document.querySelector("#quoteCompanyType").value;
@@ -6423,35 +6557,42 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
     quoteStatus.textContent = "Sending your custom advisory request.";
     quoteStatus.classList.remove("warning", "success");
   }
-  const organizationId = await getProfileOrganizationId();
+  setButtonBusy(submitButton, true, "Sending Request");
+  try {
+    const organizationId = await getProfileOrganizationId();
 
-  const result = await fetchMaybeAuthedApi("/api/custom-quote", {
-    method: "POST",
-    body: {
-      organizationId,
-      workEmail,
-      organizationName: state.client.company,
-      companyType,
-      otherCompanyType,
-      headOfficeCountry: country,
-      estimatedBudget: budget,
-      requestSummary: summary,
-    },
-  });
+    const result = await fetchMaybeAuthedApi("/api/custom-quote", {
+      method: "POST",
+      body: {
+        organizationId,
+        workEmail,
+        organizationName: state.client.company,
+        companyType,
+        otherCompanyType,
+        headOfficeCountry: country,
+        estimatedBudget: budget,
+        requestSummary: summary,
+      },
+    });
 
-  const successMessage = result.data?.emailed
-    ? "Custom advisory request received. Our advisory team has been notified."
-    : "Custom advisory request received. We will review and follow up with next steps.";
-  const errorMessage = `Custom advisory request could not be submitted. Please try again or contact ${config.supportEmail}.`;
-  if (quoteStatus) {
-    quoteStatus.textContent = result.ok ? successMessage : errorMessage;
-    quoteStatus.classList.toggle("success", result.ok);
-    quoteStatus.classList.toggle("warning", !result.ok);
-  }
-  showToast(result.ok ? successMessage : errorMessage);
-  if (result.ok) {
-    addAuditEvent("Custom quote requested", summary.slice(0, 100));
-    saveState();
+    const successMessage = result.data?.emailed
+      ? "Custom advisory request received. Our advisory team has been notified."
+      : "Custom advisory request received. We will review and follow up with next steps.";
+    const errorMessage = `Custom advisory request could not be submitted. Please try again or contact ${config.supportEmail}.`;
+    if (quoteStatus) {
+      quoteStatus.textContent = result.ok ? successMessage : errorMessage;
+      quoteStatus.classList.toggle("success", result.ok);
+      quoteStatus.classList.toggle("warning", !result.ok);
+    }
+    if (result.ok) {
+      showPersistentNotice(successMessage);
+      addAuditEvent("Custom quote requested", summary.slice(0, 100));
+      saveState();
+    } else {
+      showPersistentNotice(errorMessage);
+    }
+  } finally {
+    setButtonBusy(submitButton, false);
   }
 });
 
@@ -6564,6 +6705,7 @@ document.querySelector("#clientUploadFiles")?.addEventListener("change", (event)
   if (!list) return;
   if (!files.length) {
     list.textContent = "No files selected yet.";
+    setInlineStatus("#clientUploadStatus", "Files are linked to the selected workspace item.");
     return;
   }
   const validationError = validateWorkspaceFiles(files);
@@ -6572,6 +6714,9 @@ document.querySelector("#clientUploadFiles")?.addEventListener("change", (event)
     .join("");
   if (validationError) {
     list.innerHTML = `<div class="file-warning">${escapeHtml(validationError)}</div>${list.innerHTML}`;
+    setInlineStatus("#clientUploadStatus", validationError, "warning");
+  } else {
+    setInlineStatus("#clientUploadStatus", `${files.length} file${files.length === 1 ? "" : "s"} selected. Add context, then upload when ready.`, "success");
   }
 });
 
