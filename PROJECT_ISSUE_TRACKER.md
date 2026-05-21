@@ -97,6 +97,7 @@ Last updated: 2026-05-21
 - [x] Admin credit alert status and portfolio credit labels now use available credits after reserved work, not just total credits.
 - [x] Client credit history now labels rows as client account level or project linked where the ledger has project context.
 - [x] Admin project-specific credit ledger view now hides credit rows from other projects while still showing client-level rows.
+- [x] Repeatable admin release live QA script added for prepare, private deliverable upload, finalize, admin download, client download, and client deliverable visibility.
 
 ## Addressed In Hosted Configuration
 
@@ -114,6 +115,9 @@ Last updated: 2026-05-21
 - [x] Production deployment for commit `fc85c7d` verified as READY on Vercel after the admin queue endpoint consolidation.
 - [x] Live admin QA verified clickable dossier metrics, hidden internal IDs, tracked message validation, release-field validation, and queue file review cleanup.
 - [x] Authenticated client QA verified profile update, project linkage, request files, revision upload, client message, deliverable visibility, signed download links, billing credit balance, and sign out behavior using safe QA records.
+- [x] Production deployment for commit `42743d8` verified as READY on Vercel after upload recovery and available-credit display updates.
+- [x] Live browser QA passed for client Messages And Files upload, billing view, sign out, and live file removal on 2026-05-21.
+- [x] Live admin release QA passed for controlled release preparation, private file upload, finalization, admin signed download, client signed download, and project-scoped client visibility on 2026-05-21.
 
 ## In Progress
 
