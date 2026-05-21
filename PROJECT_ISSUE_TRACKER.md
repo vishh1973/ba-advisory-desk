@@ -86,6 +86,12 @@ Last updated: 2026-05-21
 - [x] Accepted deliverables now render as approved status in the client workspace.
 - [x] Client file uploads now have stronger timeout handling, persistent failure notices, partial upload recovery guidance, and workspace refresh after successful upload.
 - [x] Repeatable authenticated live QA script added for safe client and admin account checks across request upload, signed download, admin review, client upload, and soft delete.
+- [x] Client and admin storage uploads now use an abortable browser upload helper instead of a non-cancelled upload race.
+- [x] Client upload record failures now attempt storage cleanup so uploaded files are less likely to remain orphaned.
+- [x] Partial client uploads now clear the selected file list after any successful files are attached, reducing duplicate retry risk.
+- [x] Request intake partial upload failures now clear the submitted form and move the client to Messages And Files to attach only remaining files to the created request.
+- [x] App asset version bumped to `v=14` so browsers fetch the corrected upload logic after deployment.
+- [x] Browser-level client journey QA added and passed locally for sign-in, Messages And Files upload, billing view, and sign out.
 
 ## Addressed In Hosted Configuration
 
@@ -140,7 +146,7 @@ Last updated: 2026-05-21
 - [x] Add soft delete and stronger audit retention for client source files.
 - [ ] Add admin restore workflow for source files removed by mistake.
 - [ ] Add server-side cleanup for orphaned storage files when a file row insert fails.
-- [ ] Move client file uploads to a server-mediated or signed-upload flow with idempotency keys and stronger abort handling.
+- [ ] Move client file uploads to a server-mediated or signed-upload flow with idempotency keys, checksum validation, and stronger orphan cleanup.
 - [ ] Require admin download APIs to receive and validate explicit client and project context.
 - [ ] Add client-scoped file pagination or a "show all files" path for large workspaces.
 - [ ] Add server-side file validation, checksum, and malware scan or quarantine status before admin download.
@@ -154,7 +160,7 @@ Last updated: 2026-05-21
 - [ ] Replace hash sitemap entries with real public routes or remove fragment URLs from the sitemap.
 - [ ] Add branded social preview image metadata, favicon links, and theme color.
 - [ ] Align stale JavaScript smoke tests with the current PowerShell smoke tests.
-- [ ] Add browser-level authenticated QA with Playwright or another browser runner once a browser runtime is available in the local test environment.
+- [x] Add browser-level authenticated QA with Playwright or another browser runner once a browser runtime is available in the local test environment.
 
 ## Configuration Links
 

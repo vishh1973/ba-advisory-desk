@@ -35,23 +35,47 @@ const supabaseClient =
     ? window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey)
     : null;
 
+const privateWorkspaceStorageKeys = [
+  "baad-client",
+  "baad-requests",
+  "baad-credits",
+  "baad-credit-threshold",
+  "baad-credit-history",
+  "baad-payment-history",
+  "baad-audit-events",
+  "baad-deliverables",
+  "baad-client-messages",
+  "baad-client-uploads",
+  "baad-request-files",
+  "baad-client-projects",
+  "baad-selected-project-id",
+  "baad-admin-client-id",
+  "baad-admin-project-id",
+];
+
+function clearPrivateWorkspaceStorage() {
+  privateWorkspaceStorageKeys.forEach((key) => localStorage.removeItem(key));
+}
+
+clearPrivateWorkspaceStorage();
+
 const state = {
-  client: JSON.parse(localStorage.getItem("baad-client") || "null") || {
+  client: {
     email: "",
     company: "Your organization",
   },
-  requests: JSON.parse(localStorage.getItem("baad-requests") || "null") || [],
-  creditsLeft: Number(localStorage.getItem("baad-credits") || 0),
-  creditThreshold: Number(localStorage.getItem("baad-credit-threshold") || config.lowCreditThreshold),
-  creditHistory: JSON.parse(localStorage.getItem("baad-credit-history") || "null") || [],
-  paymentHistory: JSON.parse(localStorage.getItem("baad-payment-history") || "null") || [],
-  auditEvents: JSON.parse(localStorage.getItem("baad-audit-events") || "null") || [],
-  deliverables: JSON.parse(localStorage.getItem("baad-deliverables") || "null") || [],
-  clientMessages: JSON.parse(localStorage.getItem("baad-client-messages") || "null") || [],
-  clientUploads: JSON.parse(localStorage.getItem("baad-client-uploads") || "null") || [],
-  requestFiles: JSON.parse(localStorage.getItem("baad-request-files") || "null") || [],
-  clientProjects: JSON.parse(localStorage.getItem("baad-client-projects") || "null") || [],
-  selectedProjectId: localStorage.getItem("baad-selected-project-id") || "",
+  requests: [],
+  creditsLeft: 0,
+  creditThreshold: Number(config.lowCreditThreshold),
+  creditHistory: [],
+  paymentHistory: [],
+  auditEvents: [],
+  deliverables: [],
+  clientMessages: [],
+  clientUploads: [],
+  requestFiles: [],
+  clientProjects: [],
+  selectedProjectId: "",
   adminDeliverables: [],
   adminDeliverableFiles: [],
   adminClientUploads: [],
@@ -66,8 +90,8 @@ const state = {
   adminStatusUserId: "",
   adminQueue: [],
   adminClients: [],
-  selectedAdminClientId: localStorage.getItem("baad-admin-client-id") || "",
-  selectedAdminProjectId: localStorage.getItem("baad-admin-project-id") || "",
+  selectedAdminClientId: "",
+  selectedAdminProjectId: "",
   adminUploadProjectId: null,
   adminQueueFocus: "",
   adminMessageContext: null,
@@ -76,6 +100,7 @@ const state = {
   passwordRecovery: false,
   profileOrganizationId: "",
   workspaceLoadIssue: "",
+  reservedCredits: 0,
 };
 
 const views = {
@@ -103,21 +128,7 @@ const routeAliases = {
 };
 
 function saveState() {
-  localStorage.setItem("baad-client", JSON.stringify(state.client));
-  localStorage.setItem("baad-requests", JSON.stringify(state.requests));
-  localStorage.setItem("baad-credits", String(state.creditsLeft));
-  localStorage.setItem("baad-credit-threshold", String(state.creditThreshold));
-  localStorage.setItem("baad-credit-history", JSON.stringify(state.creditHistory));
-  localStorage.setItem("baad-payment-history", JSON.stringify(state.paymentHistory));
-  localStorage.setItem("baad-audit-events", JSON.stringify(state.auditEvents));
-  localStorage.setItem("baad-deliverables", JSON.stringify(state.deliverables));
-  localStorage.setItem("baad-client-messages", JSON.stringify(state.clientMessages));
-  localStorage.setItem("baad-client-uploads", JSON.stringify(state.clientUploads));
-  localStorage.setItem("baad-request-files", JSON.stringify(state.requestFiles));
-  localStorage.setItem("baad-client-projects", JSON.stringify(state.clientProjects));
-  localStorage.setItem("baad-selected-project-id", state.selectedProjectId || "");
-  localStorage.setItem("baad-admin-client-id", state.selectedAdminClientId || "");
-  localStorage.setItem("baad-admin-project-id", state.selectedAdminProjectId || "");
+  clearPrivateWorkspaceStorage();
 }
 
 function showToast(message) {
@@ -333,7 +344,20 @@ function hasRescueSprintAccess() {
   return hasRecordedPayment("rescue sprint");
 }
 
-function getCreditAlertState(balance = state.creditsLeft, threshold = state.creditThreshold) {
+function getAvailableCredits(balance = state.creditsLeft, reserved = state.reservedCredits) {
+  return Math.max(0, Number(balance || 0) - Number(reserved || 0));
+}
+
+function getCreditBalanceLabel() {
+  const available = getAvailableCredits();
+  const reserved = Number(state.reservedCredits || 0);
+  if (reserved > 0) {
+    return `${available} available. ${reserved} reserved for active work.`;
+  }
+  return `${available}`;
+}
+
+function getCreditAlertState(balance = getAvailableCredits(), threshold = state.creditThreshold) {
   if (balance <= 0) {
     return {
       level: "depleted",
@@ -390,8 +414,8 @@ function getAdminClientByOrganization(organizationId) {
 
 function getAdminCreditBalanceForOrganization(organizationId) {
   const client = getAdminClientByOrganization(organizationId);
-  if (client.id) return Number(client.balance ?? 0);
-  return organizationId === state.selectedAdminClientId ? Number(state.creditsLeft || 0) : 0;
+  if (client.id) return getAvailableCredits(client.balance, client.reservedBalance);
+  return organizationId === state.selectedAdminClientId ? getAvailableCredits() : 0;
 }
 
 function getShortEntityId(prefix, id) {
@@ -518,6 +542,7 @@ function syncSelectedAdminClientToState() {
   const client = getSelectedAdminClient();
   state.selectedAdminClientId = client.selectionId || client.id || "";
   state.creditsLeft = Number(client.balance ?? 0);
+  state.reservedCredits = Number(client.reservedBalance ?? 0);
   state.creditThreshold = Number(client.lowCreditThreshold ?? config.lowCreditThreshold);
   syncSelectedAdminProjectToClient();
 }
@@ -531,6 +556,7 @@ function updateSelectedAdminClientCreditAccount(balance, lowCreditThreshold) {
   const client = getSelectedAdminClient();
   if (!state.adminClients.length || !client.id) return;
   client.balance = balance;
+  client.reservedBalance = state.reservedCredits;
   client.lowCreditThreshold = lowCreditThreshold;
 }
 
@@ -884,11 +910,15 @@ function getLowCreditMessage() {
 }
 
 function getCreditPromptHtml() {
-  if (state.creditsLeft <= 0) {
+  const availableCredits = getAvailableCredits();
+  if (availableCredits <= 0) {
     return `No Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before starting new credit based work.`;
   }
-  if (state.creditsLeft <= state.creditThreshold) {
-    return `${state.creditsLeft} Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before the next deliverable is scoped.`;
+  if (availableCredits <= state.creditThreshold) {
+    return `${availableCredits} Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before the next deliverable is scoped.`;
+  }
+  if (Number(state.reservedCredits || 0) > 0) {
+    return `${availableCredits} Advisory Credits are available after ${state.reservedCredits} reserved for active work.`;
   }
   return "Your workspace has enough Advisory Credits for the current delivery cycle.";
 }
@@ -941,8 +971,9 @@ function updateRequestReadinessStatus(files = []) {
     return;
   }
 
-  if (requestedCredits > 0 && Number(state.creditsLeft || 0) < requestedCredits) {
-    setInlineStatus(statusSelector, getInsufficientCreditMessage(requestedCredits), "warning");
+  const availableCredits = getAvailableCredits();
+  if (requestedCredits > 0 && availableCredits < requestedCredits) {
+    setInlineStatus(statusSelector, getInsufficientCreditMessage(requestedCredits, availableCredits), "warning");
     return;
   }
 
@@ -1010,6 +1041,7 @@ async function refreshCreditBalanceForSubmit(organizationId) {
   const reservedBalance = Number(data?.reserved_balance ?? 0);
   const availableBalance = Math.max(0, balance - reservedBalance);
   state.creditsLeft = balance;
+  state.reservedCredits = reservedBalance;
   state.creditThreshold = Number(data?.low_credit_threshold ?? config.lowCreditThreshold);
   saveState();
   render();
@@ -1119,7 +1151,7 @@ function getFriendlyAuthError(error, fallback = "Account access could not be com
   if (message.includes("rate") || message.includes("too many")) {
     return "Too many attempts were made. Please wait a few minutes and try again.";
   }
-  return rawMessage;
+  return fallback;
 }
 
 function validatePasswordPair(password, confirm) {
@@ -1279,27 +1311,12 @@ function resetClientWorkspaceState() {
   state.adminAuditEvents = [];
   state.selectedAdminClientId = "";
   state.creditsLeft = 0;
+  state.reservedCredits = 0;
   state.creditThreshold = 2;
   state.passwordRecovery = false;
   state.profileOrganizationId = "";
   state.selectedAdminProjectId = "";
-  [
-    "baad-client",
-    "baad-requests",
-    "baad-credits",
-    "baad-credit-threshold",
-    "baad-credit-history",
-    "baad-payment-history",
-    "baad-audit-events",
-    "baad-deliverables",
-    "baad-client-messages",
-    "baad-client-uploads",
-    "baad-request-files",
-    "baad-client-projects",
-    "baad-selected-project-id",
-    "baad-admin-client-id",
-    "baad-admin-project-id",
-  ].forEach((key) => localStorage.removeItem(key));
+  clearPrivateWorkspaceStorage();
   localStorage.removeItem("baad-post-auth-route");
   clearPendingCheckoutType();
   clearPendingCheckoutSessionId();
@@ -1439,7 +1456,9 @@ function getAuthErrorMessage() {
   const hashValue = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
   const hashParams = new URLSearchParams(hashValue);
   const error = params.get("error_description") || params.get("error") || hashParams.get("error_description") || hashParams.get("error");
-  return error ? decodeURIComponent(error).replace(/\+/g, " ") : "";
+  return error
+    ? getFriendlyAuthError(decodeURIComponent(error).replace(/\+/g, " "), "Sign in could not be completed. Please choose a sign in option and try again.")
+    : "";
 }
 
 function isPasswordRecoveryUrl() {
@@ -1606,12 +1625,14 @@ async function initAuth() {
 
   state.session = sessionData?.session || null;
   if (state.session?.user) {
-    await loadSignedInProfile();
-    await loadClientWorkspaceData();
-    await refreshAdminStatus(true);
     if (state.passwordRecovery) {
       window.history.replaceState(null, "", `${window.location.pathname}#login`);
+    } else if (!isEmailVerified()) {
+      setAuthStatus("Please verify your email before opening the secure workspace.");
     } else {
+      await loadSignedInProfile();
+      await loadClientWorkspaceData();
+      await refreshAdminStatus(true);
       await routeAfterAuth();
     }
   }
@@ -1619,7 +1640,7 @@ async function initAuth() {
 
   const authError = getAuthErrorMessage();
   if (authError) {
-    setAuthStatus(`Sign in could not be completed: ${authError}`);
+    setAuthStatus(authError);
   }
 
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -1632,12 +1653,16 @@ async function initAuth() {
       return;
     }
     updateAuthUi();
-    if (session?.user) {
+    if (session?.user && !state.passwordRecovery && isEmailVerified()) {
       await loadSignedInProfile();
       await loadClientWorkspaceData();
       await refreshAdminStatus(true);
       updateAuthUi();
       await routeAfterAuth();
+      render();
+    } else if (session?.user && !state.passwordRecovery) {
+      setAuthStatus("Please verify your email before opening the secure workspace.");
+      resetAdminAccessState();
       render();
     } else {
       const currentRoute = routeAliases[window.location.hash.replace("#", "")] || window.location.hash.replace("#", "");
@@ -1734,6 +1759,60 @@ async function fetchClientApi(path, options = {}) {
     return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: getFriendlyWorkspaceError(data.error, "The secure workspace request could not be completed.") };
   } catch (error) {
     return { ok: false, status: 0, error: getFriendlyWorkspaceError(error, "The secure workspace request could not be completed.") };
+  }
+}
+
+function encodeStorageObjectPath(path) {
+  return String(path || "")
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
+async function uploadFileToStorageBucket(bucketName, storagePath, file, timeoutMs) {
+  const token = await withClientTimeout(
+    getSessionAccessToken(),
+    10000,
+    "Your secure session could not be confirmed quickly enough. Please refresh the workspace and try again."
+  );
+  if (!token) {
+    return { error: new Error("Your secure session needs to be refreshed. Please sign out, then sign in again.") };
+  }
+  if (!config.supabaseUrl || !config.supabaseAnonKey) {
+    return { error: new Error("Secure file upload is not configured.") };
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${config.supabaseUrl}/storage/v1/object/${encodeURIComponent(bucketName)}/${encodeStorageObjectPath(storagePath)}`,
+      {
+        method: "POST",
+        headers: {
+          apikey: config.supabaseAnonKey,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": getUploadContentType(file),
+          "x-upsert": "false",
+        },
+        body: file,
+      },
+      timeoutMs,
+      `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
+    );
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (_error) {
+        data = { message: text };
+      }
+    }
+    if (!response.ok) {
+      return { error: new Error(data.error || data.message || "File could not be uploaded.") };
+    }
+    return { data };
+  } catch (error) {
+    return { error };
   }
 }
 
@@ -2239,7 +2318,7 @@ function normalizeClientUpload(row) {
     fileKind: "client_upload",
     ...project,
     uploadedBy,
-    canDelete: !uploadedBy || uploadedBy === getUserId(),
+    canDelete: uploadedBy === getUserId(),
     organizationId: row.organization_id || state.profileOrganizationId || "",
     contextType: row.deliverable_id ? "deliverable" : row.request_id ? "request" : row.context_type || "workspace",
     contextId: row.deliverable_id || row.request_id || row.context_id || "",
@@ -2263,7 +2342,7 @@ function normalizeRequestFile(row) {
     fileKind: "request_file",
     ...project,
     uploadedBy,
-    canDelete: !uploadedBy || uploadedBy === getUserId(),
+    canDelete: uploadedBy === getUserId(),
     requestId: row.request_id || "",
     organizationId: row.organization_id || "",
     contextType: "request",
@@ -2345,9 +2424,11 @@ async function loadClientWorkspaceData() {
 
     if (creditResult.data) {
       state.creditsLeft = Number(creditResult.data.balance ?? state.creditsLeft);
+      state.reservedCredits = Number(creditResult.data.reserved_balance ?? 0);
       state.creditThreshold = Number(creditResult.data.low_credit_threshold ?? state.creditThreshold);
     } else if (!creditResult.error) {
       state.creditsLeft = 0;
+      state.reservedCredits = 0;
       state.creditThreshold = config.lowCreditThreshold;
     }
 
@@ -2521,43 +2602,37 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
 
     for (const [index, file] of files.entries()) {
       const storagePath = createClientStoragePath(userId, requestId, file.name, index);
-      const uploadResponse = await withClientTimeout(
-        supabaseClient.storage.from("client-files").upload(storagePath, file, {
-          upsert: false,
-          contentType: getUploadContentType(file),
-        }),
-        45000,
-        `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
-      );
+      const uploadResponse = await uploadFileToStorageBucket("client-files", storagePath, file, getSingleFileUploadTimeoutMs());
       const uploadError = uploadResponse?.error;
 
       if (uploadError) {
         return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
       }
 
-      const fileRecordResponse = await withClientTimeout(
-        supabaseClient.from("request_files").insert({
-          request_id: requestId,
-          organization_id: organizationId,
-          project_id: projectId || null,
-          storage_path: storagePath,
-          file_name: file.name,
-          file_size_bytes: file.size,
-          mime_type: getUploadContentType(file),
-          uploaded_by: userId,
-        }),
-        15000,
-        `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
-      );
-      const fileRecordError = fileRecordResponse?.error;
+      try {
+        const fileRecordResponse = await withClientTimeout(
+          supabaseClient.from("request_files").insert({
+            request_id: requestId,
+            organization_id: organizationId,
+            project_id: projectId || null,
+            storage_path: storagePath,
+            file_name: file.name,
+            file_size_bytes: file.size,
+            mime_type: getUploadContentType(file),
+            uploaded_by: userId,
+          }),
+          15000,
+          `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
+        );
+        const fileRecordError = fileRecordResponse?.error;
 
-      if (fileRecordError) {
-        await withClientTimeout(
-          supabaseClient.storage.from("client-files").remove([storagePath]),
-          8000,
-          "File cleanup took too long."
-        ).then(() => null, () => null);
-        return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
+        if (fileRecordError) {
+          await removeStorageObjectQuietly("client-files", storagePath);
+          return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
+        }
+      } catch (error) {
+        await removeStorageObjectQuietly("client-files", storagePath);
+        return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, error.message), uploaded };
       }
 
       uploaded += 1;
@@ -2643,12 +2718,25 @@ function createClientStoragePath(userId, folder, fileName, index = 0) {
 function getPartialUploadError(fileName, uploaded, total, reason) {
   const countText = `${uploaded} of ${total} file${total === 1 ? "" : "s"}`;
   const recovery = uploaded > 0
-    ? "The uploaded files remain attached. Please retry the remaining files from Messages and Files."
+    ? "The uploaded files remain attached. Please select and upload only the remaining files from Messages and Files."
     : "No files were attached. Please try again with fewer or smaller files.";
   return `Upload stopped at ${fileName}. ${countText} were uploaded before the issue. ${getFriendlyWorkspaceError(reason, "Please review the file and try again.")} ${recovery}`;
 }
 
-function getUploadOperationTimeoutMs(files, perFileMs = 60000, maximumMs = 180000) {
+async function removeStorageObjectQuietly(bucketName, storagePath) {
+  if (!supabaseClient || !storagePath) return;
+  await withClientTimeout(
+    supabaseClient.storage.from(bucketName).remove([storagePath]),
+    10000,
+    "File cleanup took too long."
+  ).then(() => null, () => null);
+}
+
+function getSingleFileUploadTimeoutMs() {
+  return 120000;
+}
+
+function getUploadOperationTimeoutMs(files, perFileMs = getSingleFileUploadTimeoutMs(), maximumMs = 900000) {
   const count = Math.max(1, Array.from(files || []).length);
   return Math.min(maximumMs, 30000 + count * perFileMs);
 }
@@ -2828,14 +2916,7 @@ async function saveClientUpload() {
 
     if (organizationId && userId && supabaseClient) {
       const storagePath = createClientStoragePath(userId, `workspace-uploads/${context.type}-${context.id || "workspace"}`, file.name, index);
-      const uploadResponse = await withClientTimeout(
-        supabaseClient.storage.from("client-files").upload(storagePath, file, {
-          upsert: false,
-          contentType: getUploadContentType(file),
-        }),
-        45000,
-        `${file.name} took too long to upload. Please try again with a smaller file or contact ${config.supportEmail}.`
-      );
+      const uploadResponse = await uploadFileToStorageBucket("client-files", storagePath, file, getSingleFileUploadTimeoutMs());
       const uploadError = uploadResponse?.error;
 
       if (uploadError) {
@@ -2844,47 +2925,53 @@ async function saveClientUpload() {
           saveState();
           render();
         }
-        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message || "File could not be uploaded.") };
+        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message || "File could not be uploaded."), uploaded };
       }
 
-      const recordResponse = await withClientTimeout(
-        supabaseClient
-          .from("client_uploads")
-          .insert({
-            organization_id: organizationId,
-            project_id: projectId || null,
-            uploaded_by: userId,
-            deliverable_id: context.deliverableId,
-            request_id: context.requestId,
-            upload_type: purpose,
-            original_file_name: file.name,
-            file_size_bytes: file.size,
-            storage_bucket: "client-files",
-            storage_path: storagePath,
-            note,
-            status: "received",
-          })
-          .select("id")
-          .single(),
-        15000,
-        `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
-      );
-      const uploadRecord = recordResponse?.data;
-      const recordError = recordResponse?.error;
-      if (recordError) {
-        await withClientTimeout(
-          supabaseClient.storage.from("client-files").remove([storagePath]),
-          8000,
-          "File cleanup took too long."
-        ).then(() => null, () => null);
+      try {
+        const recordResponse = await withClientTimeout(
+          supabaseClient
+            .from("client_uploads")
+            .insert({
+              organization_id: organizationId,
+              project_id: projectId || null,
+              uploaded_by: userId,
+              deliverable_id: context.deliverableId,
+              request_id: context.requestId,
+              upload_type: purpose,
+              original_file_name: file.name,
+              file_size_bytes: file.size,
+              storage_bucket: "client-files",
+              storage_path: storagePath,
+              note,
+              status: "received",
+            })
+            .select("id")
+            .single(),
+          15000,
+          `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
+        );
+        const uploadRecord = recordResponse?.data;
+        const recordError = recordResponse?.error;
+        if (recordError) {
+          await removeStorageObjectQuietly("client-files", storagePath);
+          if (uploaded > 0) {
+            addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} could not be recorded.`);
+            saveState();
+            render();
+          }
+          return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, recordError.message || "File record could not be saved to the workspace."), uploaded };
+        }
+        entry.fileId = uploadRecord?.id || "";
+      } catch (error) {
+        await removeStorageObjectQuietly("client-files", storagePath);
         if (uploaded > 0) {
           addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} could not be recorded.`);
           saveState();
           render();
         }
-        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, recordError.message || "File record could not be saved to the workspace.") };
+        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, error.message || "File record could not be saved to the workspace."), uploaded };
       }
-      entry.fileId = uploadRecord?.id || "";
       storedOnline = true;
     }
 
@@ -3048,14 +3135,7 @@ async function uploadAdminDeliverable() {
     setAdminReleaseStatus(`Uploading deliverable file ${uploaded + 1} of ${files.length}: ${file.name}`);
     const safeName = getSafeFileName(file.name);
     const storagePath = `${storagePrefix}${Date.now()}-${uploaded + 1}-${safeName}`;
-    const uploadResponse = await withClientTimeout(
-      supabaseClient.storage.from("private-deliverables").upload(storagePath, file, {
-        upsert: false,
-        contentType: getUploadContentType(file),
-      }),
-      45000,
-      `${file.name} took too long to upload. Please try again with a smaller file.`
-    );
+    const uploadResponse = await uploadFileToStorageBucket("private-deliverables", storagePath, file, getSingleFileUploadTimeoutMs());
     const uploadError = uploadResponse?.error;
 
     if (uploadError) {
@@ -3582,9 +3662,12 @@ function renderCreditControls() {
   if (state.adminClients.length && state.selectedAdminClientId) {
     syncSelectedAdminClientToState();
   }
-  const availableCredits = Math.max(0, Number(state.creditsLeft || 0));
-  const usageText = `${availableCredits} Advisory Credit${availableCredits === 1 ? "" : "s"} available. Low credit threshold: ${state.creditThreshold}.`;
-  const usageBase = Math.max(config.starterCredits, availableCredits, Number(state.creditThreshold || 0), 1);
+  const availableCredits = getAvailableCredits();
+  const totalCredits = Math.max(0, Number(state.creditsLeft || 0));
+  const reservedCredits = Math.max(0, Number(state.reservedCredits || 0));
+  const reservedText = reservedCredits > 0 ? ` ${reservedCredits} reserved for active work.` : "";
+  const usageText = `${availableCredits} Advisory Credit${availableCredits === 1 ? "" : "s"} available.${reservedText} Low credit threshold: ${state.creditThreshold}.`;
+  const usageBase = Math.max(config.starterCredits, totalCredits, availableCredits, Number(state.creditThreshold || 0), 1);
   const usagePercent = Math.min(100, Math.round((availableCredits / usageBase) * 100));
   const creditAlertState = getCreditAlertState();
   const summary = document.querySelector("#creditUsageSummary");
@@ -3628,7 +3711,7 @@ function renderCreditControls() {
   }
   const accountBalance = document.querySelector("#accountCreditBalance");
   const accountPrompt = document.querySelector("#accountCreditPrompt");
-  if (accountBalance) accountBalance.textContent = state.creditsLeft;
+  if (accountBalance) accountBalance.textContent = getCreditBalanceLabel();
   if (accountPrompt) {
     accountPrompt.innerHTML = getCreditPromptHtml();
     accountPrompt.classList.toggle("warning", creditAlertState.level !== "healthy");
@@ -3751,7 +3834,7 @@ function renderCreditControls() {
   const queueMessageClient = document.querySelector("#adminQueueMessageClient");
   if (selectedName) selectedName.textContent = hasAdminClient ? selectedClient.name || "Client workspace" : "Select a client";
   if (selectedEmail) selectedEmail.textContent = hasAdminClient ? getClientEmail(selectedClient) || "No billing email recorded." : "Choose a client before taking action.";
-  if (selectedCredits) selectedCredits.textContent = hasAdminClient ? state.creditsLeft : "0";
+  if (selectedCredits) selectedCredits.textContent = hasAdminClient ? getCreditBalanceLabel() : "0";
   if (selectedStatus) selectedStatus.textContent = hasAdminClient ? creditAlertState.summary : "No client selected";
   if (dueDeliverables) dueDeliverables.textContent = dueCount;
   if (pendingRequests) pendingRequests.textContent = pendingCount;
@@ -3783,10 +3866,10 @@ function renderCreditControls() {
   }
   if (deliveryCreditStatus) {
     deliveryCreditStatus.textContent =
-      state.creditsLeft <= 0
+      availableCredits <= 0
         ? "The selected client has no Advisory Credits available. Status can be updated, but new credit work should remain paused."
-        : `${state.creditsLeft} client-level Advisory Credits available. Status updates do not consume credits.`;
-    deliveryCreditStatus.classList.toggle("warning", state.creditsLeft <= state.creditThreshold);
+        : `${availableCredits} client-level Advisory Credits available. Status updates do not consume credits.${reservedText}`;
+    deliveryCreditStatus.classList.toggle("warning", availableCredits <= state.creditThreshold);
   }
   updateAdminReleaseReadiness();
 }
@@ -3880,9 +3963,9 @@ function setAdminReleaseStatus(message, level = "") {
 
 function render() {
   document.querySelector("#clientName").textContent = state.client.company || "Your organization";
-  document.querySelector("#creditsLeft").textContent = state.creditsLeft;
+  document.querySelector("#creditsLeft").textContent = getAvailableCredits();
   const billingCreditBalance = document.querySelector("#billingCreditBalance");
-  if (billingCreditBalance) billingCreditBalance.textContent = state.creditsLeft;
+  if (billingCreditBalance) billingCreditBalance.textContent = getCreditBalanceLabel();
   document.querySelector("#activeCount").textContent = getVisibleRequests().filter((request) => !isShippedStatus(request.status)).length;
   renderClientProjectControls();
   renderClientWorkspaceSummary();
@@ -3941,6 +4024,7 @@ function getClientNextStep() {
     : Boolean(state.client.email && state.client.company);
   const visibleRequests = getVisibleRequests();
   const visibleDeliverables = getVisibleDeliverables();
+  const availableCredits = getAvailableCredits();
   const reviewCount = visibleDeliverables.filter((deliverable) => getVerificationLevel(deliverable.verificationStatus) !== "approved").length;
   if (!hasProfile) {
     return {
@@ -3950,7 +4034,7 @@ function getClientNextStep() {
       cta: "Complete Profile",
     };
   }
-  if (state.creditsLeft <= 0 && !visibleRequests.length) {
+  if (availableCredits <= 0 && !visibleRequests.length) {
     if (hasRescueSprintAccess()) {
       return {
         title: "Submit your Rescue Sprint intake",
@@ -3984,7 +4068,7 @@ function getClientNextStep() {
       cta: "Review Work",
     };
   }
-  if (state.creditsLeft <= state.creditThreshold) {
+  if (availableCredits <= state.creditThreshold) {
     return {
       title: "Add advisory credits",
       body: "Your balance is low. Add credits before approving new work so delivery does not pause.",
@@ -4850,6 +4934,7 @@ function applyAdminQueueData(data) {
       workingStyle: profile.preferred_working_style || "",
       primaryBusinessNeed: profile.primary_business_need || "",
       balance: Number(account.balance ?? account.credit_balance ?? 0),
+      reservedBalance: Number(account.reserved_balance ?? account.reservedBalance ?? 0),
       lowCreditThreshold: Number(account.low_credit_threshold ?? account.lowCreditThreshold ?? state.creditThreshold),
       status: account.status || organization.status || "active",
       projects: state.adminProjects.filter((project) => project.organizationId === id && isActiveProject(project)),
@@ -4943,6 +5028,7 @@ function applyAdminQueueData(data) {
       creditAccounts.find((account) => account.id === state.selectedAdminClientId);
     if (creditAccount) {
       state.creditsLeft = Number(creditAccount.balance ?? state.creditsLeft);
+      state.reservedCredits = Number(creditAccount.reserved_balance ?? creditAccount.reservedBalance ?? 0);
       state.creditThreshold = Number(creditAccount.low_credit_threshold ?? creditAccount.lowCreditThreshold ?? state.creditThreshold);
     }
   }
@@ -5715,7 +5801,12 @@ document.addEventListener("click", async (event) => {
     const reason = document.querySelector("#adminCreditAdjustmentReason").value.trim();
     const currentBalance = Number(selectedClient.balance ?? state.creditsLeft);
     const currentThreshold = Number(selectedClient.lowCreditThreshold ?? state.creditThreshold);
-    const targetBalance = Math.max(0, balance + adjustment);
+    const balanceEdited = balance !== currentBalance;
+    if (balanceEdited && adjustment !== 0) {
+      showPersistentNotice("Use either Remaining Advisory Credits or Manual credit adjustment, not both in the same save.");
+      return;
+    }
+    const targetBalance = Math.max(0, adjustment !== 0 ? currentBalance + adjustment : balance);
     const ledgerAdjustment = targetBalance - currentBalance;
     const thresholdChanged = lowCreditThreshold !== currentThreshold;
     if (ledgerAdjustment !== 0 && !reason) {
@@ -6223,7 +6314,7 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   if (!uploadFieldsValid) return;
   const status = document.querySelector("#clientUploadStatus");
   if (status) {
-    status.textContent = `Uploading ${uploadFiles.length} file${uploadFiles.length === 1 ? "" : "s"}. Please keep this page open.`;
+    status.textContent = `Uploading ${uploadFiles.length} file${uploadFiles.length === 1 ? "" : "s"}. Larger files can take a few minutes. Please keep this page open.`;
     status.classList.remove("warning", "success");
   }
   setButtonBusy(submitButton, true, "Uploading Files");
@@ -6234,6 +6325,12 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
       `The upload is taking longer than expected. Please try again with fewer files, or contact ${config.supportEmail} if the issue continues.`
     );
     if (!result.ok) {
+      if (Number(result.uploaded || 0) > 0) {
+        document.querySelector("#clientUploadFiles").value = "";
+        document.querySelector("#clientUploadFileList").textContent = "Some files were uploaded. Select only the remaining files before retrying.";
+        await loadClientWorkspaceData().then(() => null, () => null);
+        render();
+      }
       if (status) {
         status.textContent = result.error || "Files could not be uploaded.";
         status.classList.add("warning");
@@ -6398,7 +6495,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
           "Credit balance refresh is taking longer than expected."
         );
       } catch (_balanceError) {
-        const fallbackBalance = Number(state.creditsLeft || 0);
+        const fallbackBalance = getAvailableCredits();
         creditResult = fallbackBalance >= requestedCredits
           ? { ok: true, balance: fallbackBalance, usedWorkspaceBalance: true }
           : { ok: false, balance: fallbackBalance };
@@ -6468,7 +6565,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       due_at: decisionDeadline || null,
     };
 
-    setInlineStatus(statusSelector, `Creating your request and preparing ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"} for upload.`);
+    setInlineStatus(statusSelector, `Creating your request and preparing ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"} for upload. Larger files can take a few minutes.`);
 
     let result;
     let savedRequestId = null;
@@ -6506,7 +6603,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       return;
     }
 
-    setInlineStatus(statusSelector, `Request created. Uploading ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"}.`);
+    setInlineStatus(statusSelector, `Request created. Uploading ${requestFiles.length} file${requestFiles.length === 1 ? "" : "s"}. Please keep this page open.`);
     const uploadResult = await withClientTimeout(
       uploadRequestFiles(savedRequestId, organizationId, selectedProject.id || ""),
       getUploadOperationTimeoutMs(requestFiles),
@@ -6547,8 +6644,10 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     });
     if (!uploadResult.ok) {
       const uploadAttentionMessage = `Request ${request.id} was created, but the file upload needs attention. Please open Messages and Files, choose ${request.id}, and attach the remaining files there. ${uploadResult.reason || ""}`.trim();
+      resetRequestIntakeForm();
       setInlineStatus(statusSelector, uploadAttentionMessage, "warning");
       showPersistentNotice(uploadAttentionMessage);
+      window.location.hash = "messages";
       render();
       return;
     }

@@ -30,6 +30,10 @@ function hasAdminRole(profile) {
   return ["admin", "owner", "ops_admin"].includes(normalize(profile?.role));
 }
 
+function hasVerifiedEmail(user) {
+  return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
+}
+
 function allowlistMatches(row, { userEmail, userDomain, provider }) {
   const rowEmail = normalize(row.email);
   const rowDomain = normalize(row.domain);
@@ -66,7 +70,7 @@ async function verifyAdminBearer(req) {
       ""
   ).toLowerCase();
 
-  if (error || !userId || !userEmail) {
+  if (error || !userId || !userEmail || !hasVerifiedEmail(data?.user)) {
     return false;
   }
 

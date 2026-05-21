@@ -28,6 +28,10 @@ function readExpirySeconds(value) {
   return Math.min(Math.floor(seconds), MAX_EXPIRY_SECONDS);
 }
 
+function hasVerifiedEmail(user) {
+  return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed." });
@@ -45,6 +49,10 @@ module.exports = async function handler(req, res) {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData?.user) {
       res.status(401).json({ error: "Please sign in again before downloading this file." });
+      return;
+    }
+    if (!hasVerifiedEmail(userData.user)) {
+      res.status(403).json({ error: "Please verify your email before opening deliverable files." });
       return;
     }
 

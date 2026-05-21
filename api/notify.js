@@ -37,6 +37,10 @@ function clientError(message, statusCode = 400) {
   return error;
 }
 
+function hasVerifiedEmail(user) {
+  return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
+}
+
 async function readOwnedProjectId(supabase, organizationId, projectId) {
   if (!projectId) return null;
   const { data, error } = await supabase
@@ -158,6 +162,10 @@ async function handleClientWorkspaceNotification(req, res) {
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData?.user?.id) {
     res.status(401).json({ error: "Please sign in again before sending workspace updates." });
+    return;
+  }
+  if (!hasVerifiedEmail(userData.user)) {
+    res.status(403).json({ error: "Please verify your email before sending workspace updates." });
     return;
   }
 
