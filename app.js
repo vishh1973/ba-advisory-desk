@@ -403,10 +403,31 @@ function getProjectDisplayId(project) {
   return "";
 }
 
+function getProjectDisplayRef(project) {
+  return getProjectDisplayId(project) || getShortEntityId("PRJ", project?.id || project?.projectId || project?.project_id || "");
+}
+
 function getProjectLabel(project) {
   if (!project) return "General advisory work";
   const name = project.name || project.projectName || project.title || "General advisory work";
   return name;
+}
+
+function getRequestDisplayRef(request) {
+  const explicit = cleanDisplayText(request?.requestCode || request?.request_code || request?.id, "");
+  if (explicit) return explicit;
+  return getShortEntityId("REQ", request?.requestId || request?.request_id || request?.relatedEntityId || "");
+}
+
+function getAdminItemDisplayRef(item) {
+  if (!item) return "ITEM-PENDING";
+  if (item.queueType === "request" || item.relatedEntityType === "request") return getRequestDisplayRef(item);
+  if (item.queueType === "quote") return getShortEntityId("QUOTE", item.requestId || item.id);
+  if (item.queueType === "payment") return getShortEntityId("PAY", item.requestId || item.id);
+  if (item.queueType === "notification") return getShortEntityId("NOTICE", item.relatedEntityId || item.requestId || item.id);
+  if (item.queueType === "client-message") return getShortEntityId("MSG", item.id || item.requestId);
+  if (item.queueType === "request-file" || item.queueType === "client-upload") return getShortEntityId("FILE", item.fileId || item.id);
+  return getShortEntityId("ITEM", item.id || item.requestId || item.relatedEntityId);
 }
 
 function getProjectById(projectId, projects = state.clientProjects) {
@@ -586,14 +607,17 @@ function getAdminWorkTitle(item) {
 
 function getAdminWorkDetail(item) {
   if (!item) return "";
-  if (item.summarySnippet) return cleanDisplayText(item.summarySnippet, "Review the client context.");
-  if (item.note) return cleanDisplayText(item.note, "Review the uploaded file note.");
-  if (item.businessGoal) return cleanDisplayText(item.businessGoal, "Review the client request.");
-  if (item.body) return cleanDisplayText(item.body, "Review the workspace message.");
-  if (item.attachmentDescription) return cleanDisplayText(item.attachmentDescription, "Review the attached files and intake details.");
-  if (item.budget) return `Budget: ${item.budget}`;
-  if (item.contextLabel) return cleanDisplayText(item.contextLabel, "Review the workspace context.");
-  return item.action || "Review this workspace item.";
+  const itemRef = getAdminItemDisplayRef(item);
+  let detail = "";
+  if (item.summarySnippet) detail = cleanDisplayText(item.summarySnippet, "Review the client context.");
+  else if (item.note) detail = cleanDisplayText(item.note, "Review the uploaded file note.");
+  else if (item.businessGoal) detail = cleanDisplayText(item.businessGoal, "Review the client request.");
+  else if (item.body) detail = cleanDisplayText(item.body, "Review the workspace message.");
+  else if (item.attachmentDescription) detail = cleanDisplayText(item.attachmentDescription, "Review the attached files and intake details.");
+  else if (item.budget) detail = `Budget: ${item.budget}`;
+  else if (item.contextLabel) detail = cleanDisplayText(item.contextLabel, "Review the workspace context.");
+  else detail = item.action || "Review this workspace item.";
+  return itemRef ? `${itemRef} | ${detail}` : detail;
 }
 
 function getAdminNextAction(item) {
@@ -987,7 +1011,7 @@ function normalizeVerificationStatus(value) {
 
 function getVerificationLevel(status) {
   const normalized = String(status || "").toLowerCase();
-  if (normalized.includes("approved") || normalized.includes("complete")) return "approved";
+  if (normalized.includes("approved") || normalized.includes("accepted") || normalized.includes("complete")) return "approved";
   if (normalized.includes("revision") || normalized.includes("change") || normalized.includes("review")) return "review";
   if (normalized.includes("blocked") || normalized.includes("issue")) return "blocked";
   return "ready";
@@ -1152,6 +1176,18 @@ function clearPendingCheckoutType() {
   localStorage.removeItem("baad-pending-checkout");
 }
 
+function setPendingCheckoutSessionId(sessionId) {
+  if (sessionId) localStorage.setItem("baad-pending-checkout-session-id", sessionId);
+}
+
+function getPendingCheckoutSessionId() {
+  return localStorage.getItem("baad-pending-checkout-session-id") || "";
+}
+
+function clearPendingCheckoutSessionId() {
+  localStorage.removeItem("baad-pending-checkout-session-id");
+}
+
 function isEmailVerified() {
   const user = state.session?.user;
   if (!user) return false;
@@ -1209,6 +1245,7 @@ function resetClientWorkspaceState() {
   ].forEach((key) => localStorage.removeItem(key));
   localStorage.removeItem("baad-post-auth-route");
   clearPendingCheckoutType();
+  clearPendingCheckoutSessionId();
 }
 
 function clearSupabaseAuthStorage() {
@@ -1662,7 +1699,12 @@ let checkoutReconcileSessionId = "";
 let authStartupComplete = false;
 
 function getCheckoutSessionId() {
-  return new URLSearchParams(window.location.search).get("session_id") || "";
+  const sessionId = new URLSearchParams(window.location.search).get("session_id") || "";
+  if (sessionId) {
+    setPendingCheckoutSessionId(sessionId);
+    return sessionId;
+  }
+  return getPendingCheckoutSessionId();
 }
 
 function setCheckoutStatus({ title, body, status, level = "", panelHtml = "" }) {
@@ -1745,6 +1787,8 @@ async function handleCheckoutSuccessView() {
     render();
     const creditsNow = Number(state.creditsLeft || 0);
     if (creditsNow > priorCredits) {
+      clearPendingCheckoutType();
+      clearPendingCheckoutSessionId();
       setCheckoutStatus({
         title: "Payment confirmed.",
         body: `Your workspace billing has been updated. Your current Advisory Credit balance is ${creditsNow}.`,
@@ -1781,6 +1825,7 @@ async function handleCheckoutSuccessView() {
     addCreditHistory(productLabel(data.productType), `+${data.credits}`, state.creditsLeft);
   }
   clearPendingCheckoutType();
+  clearPendingCheckoutSessionId();
   saveState();
   await withClientTimeout(loadClientWorkspaceData(), 10000, "Workspace refresh is taking longer than expected.").catch(() => null);
   render();
@@ -2488,7 +2533,11 @@ function getPartialUploadError(fileName, uploaded, total, reason) {
 }
 
 function getWorkspaceItems() {
-  const projectItems = getActiveClientProjects().map((project) => ({
+  const selectedProjectId = state.selectedProjectId && state.selectedProjectId !== ADMIN_ALL_PROJECTS_VALUE ? state.selectedProjectId : "";
+  const activeProjects = selectedProjectId
+    ? getActiveClientProjects().filter((project) => String(project.id) === String(selectedProjectId))
+    : getActiveClientProjects();
+  const projectItems = activeProjects.map((project) => ({
     type: "project",
     id: project.id,
     projectId: project.id,
@@ -2504,7 +2553,7 @@ function getWorkspaceItems() {
     type: "request",
     id: request.requestId || request.id,
     projectId: request.projectId || "",
-    label: `${request.projectLabel || getClientProjectLabel(request.projectId)} | ${request.id} | ${request.type}`,
+    label: `${request.projectLabel || getClientProjectLabel(request.projectId)} | ${getRequestDisplayRef(request)} | ${request.type}`,
   }));
   return [...projectItems, ...deliverableItems, ...requestItems];
 }
@@ -3463,7 +3512,7 @@ function renderCreditControls() {
     deliverableSelect.innerHTML = source
       .map((request) => {
         const value = request.requestId || request.id;
-        const label = `${request.id || request.requestCode || value} - ${request.type || "Client request"}`;
+        const label = `${getRequestDisplayRef(request)} | ${request.type || "Client request"}`;
         return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
       })
       .join("") || `<option value="">Select a client request</option>`;
@@ -3522,7 +3571,7 @@ function renderCreditControls() {
     uploadRequestSelect.innerHTML =
       `<option value="">No linked request</option>` +
       requests
-        .map((request) => `<option value="${escapeHtml(request.requestId || request.id)}">${escapeHtml(request.id)} - ${escapeHtml(request.type)}</option>`)
+        .map((request) => `<option value="${escapeHtml(request.requestId || request.id)}">${escapeHtml(getRequestDisplayRef(request))} | ${escapeHtml(request.type)}</option>`)
         .join("");
   }
   if (existingDeliverableSelect) {
@@ -4052,11 +4101,13 @@ function renderAdminClientDossier() {
     const projectMessages = client.id ? getAdminMessagesForClient(client) : [];
     const activeProjectCount = (client.projects || []).filter((project) => !["archived", "closed"].includes(normalizeStatusValue(project.status))).length;
     const profileRows = [
+      ["Client reference", getClientDisplayId(client)],
       ["Email", getClientEmail(client) || "Not recorded"],
       ["Primary contact", [client.firstName, client.lastName].filter(Boolean).join(" ") || "Not recorded"],
       ["Job title", client.jobTitle || "Not recorded"],
       ["Phone", client.phone || "Not recorded"],
       ["Workspace status", client.id ? "Client workspace active" : "Inquiry without workspace"],
+      ["Project reference", activeProject ? getProjectDisplayRef(activeProject) : `${activeProjectCount} active projects`],
       ["Active project", activeProject ? getProjectLabel(activeProject) : "No project selected"],
       ["Industry", client.industry || "Not recorded"],
       ["Country", client.country || "Not recorded"],
@@ -4090,7 +4141,7 @@ function renderAdminClientDossier() {
             (request) => `
               <article class="admin-dossier-row">
                 <div>
-                  <strong>${escapeHtml(request.type || "Client request")}</strong>
+                  <strong>${escapeHtml(getRequestDisplayRef(request))} | ${escapeHtml(request.type || "Client request")}</strong>
                   <span>${escapeHtml(getClientProjectLabel(request))} | ${escapeHtml(normalizeVerificationStatus(request.status))} | ${escapeHtml(request.dueLabel || "No due date set")}</span>
                   <small>${escapeHtml(request.businessGoal || request.attachmentDescription || "Review intake details and source files before delivery.")}</small>
                 </div>
@@ -4971,7 +5022,9 @@ async function signInWithPassword() {
   }
 
   state.client.email = email;
-  setPendingPostAuthRoute("dashboard");
+  if (!getPendingPostAuthRoute()) {
+    setPendingPostAuthRoute(window.location.hash.replace("#", "") === "checkout-success" ? "checkout-success" : "dashboard");
+  }
   saveState();
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -4989,7 +5042,11 @@ async function signInWithPassword() {
     return { ok: false, error: "Please verify your email before opening the client workspace." };
   }
   const organizationId = await getProfileOrganizationId();
-  window.location.hash = isAdmin ? "admin" : organizationId ? "dashboard" : "profile";
+  if (!isAdmin) {
+    await routeAfterAuth(organizationId ? "dashboard" : "profile");
+  } else {
+    window.location.hash = "admin";
+  }
   return { ok: true, message: isAdmin ? "Signed in. Admin access is available." : "Signed in. Your workspace is ready." };
 }
 

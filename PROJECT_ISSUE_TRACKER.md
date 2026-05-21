@@ -79,6 +79,11 @@ Last updated: 2026-05-21
 - [x] Client deliverable acceptance messages now retain the related project link.
 - [x] Resend email failures now return a controlled failure result instead of causing duplicate business records through retry confusion.
 - [x] Low credit reminder cron route now accepts Vercel cron authorization through `CRON_SECRET`.
+- [x] Checkout success now preserves the Stripe session reference through sign-in so payment reconciliation can continue after OAuth or password login.
+- [x] Password sign-in now respects pending protected routes instead of always forcing the dashboard.
+- [x] Admin dossier and queue labels now use safe client, project, and request references instead of raw internal IDs.
+- [x] Client workspace message and upload selectors now respect the selected project view.
+- [x] Accepted deliverables now render as approved status in the client workspace.
 
 ## Addressed In Hosted Configuration
 
@@ -136,6 +141,13 @@ Last updated: 2026-05-21
 - [ ] Add proper handling for expired checkout sessions, refunds, disputes, and failed payments.
 - [ ] Add provider message IDs and first-class email reference IDs to notification records for stronger reply tracking.
 - [ ] Expand FAQ schema and social preview image metadata for stronger AI and search discovery.
+- [ ] Add inbound email parsing so replies with BA Advisory Desk reference IDs attach to the right client, project, and message thread.
+- [ ] Add client confirmation email for custom quote submissions.
+- [ ] Add a proper mobile navigation drawer instead of relying on wrapped desktop navigation.
+- [ ] Split protected client and admin workspace markup from the public root HTML, or lazy load it after authentication.
+- [ ] Replace hash sitemap entries with real public routes or remove fragment URLs from the sitemap.
+- [ ] Add branded social preview image metadata, favicon links, and theme color.
+- [ ] Align stale JavaScript smoke tests with the current PowerShell smoke tests.
 
 ## Configuration Links
 
