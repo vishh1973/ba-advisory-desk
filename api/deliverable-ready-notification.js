@@ -1,6 +1,7 @@
 const { requireAdmin } = require("./_lib/adminAuth");
 const { handleAdminDeliverableAction } = require("./_lib/adminDeliverableReleaseActions");
 const { sendEmail } = require("./_lib/email");
+const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./_lib/emailReference");
 const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 
@@ -150,6 +151,10 @@ module.exports = async function handler(req, res) {
     }
 
     const email = buildEmail({ deliverable, version, files: files || [] });
+    const emailReference = createEmailReference();
+    const subject = subjectWithReference(email.subject, emailReference);
+    const emailBody = textWithReference(email.body, emailReference);
+    const html = htmlWithReference(email.html, emailReference);
     const { data: notification, error: notificationError } = await supabase
       .from("notifications")
       .insert({
@@ -157,8 +162,8 @@ module.exports = async function handler(req, res) {
         project_id: deliverable.project_id || version.project_id || null,
         recipient_email: recipientEmail,
         template_key: "deliverable_ready",
-        subject: email.subject,
-        body: email.body,
+        subject,
+        body: emailBody,
         status: "queued",
         related_entity_type: "deliverable",
         related_entity_id: deliverable.id,
@@ -183,8 +188,8 @@ module.exports = async function handler(req, res) {
 
     const result = await sendEmail({
       to: recipientEmail,
-      subject: email.subject,
-      html: email.html,
+      subject,
+      html,
     });
 
     await updateNotificationDeliveryStatus(supabase, notification.id, result);

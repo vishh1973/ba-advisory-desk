@@ -2430,11 +2430,45 @@ input[type="file"]::file-selector-button:hover {
   margin-bottom: 12px;
 }
 
-.dossier-project-strip article {
+.dossier-project-strip article,
+.dossier-metric {
   background: #effaf8;
   border: 1px solid #bfe7df;
   border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
   padding: 10px;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.dossier-metric:hover,
+.dossier-metric:focus-visible {
+  border-color: var(--teal);
+  box-shadow: 0 10px 24px rgba(11, 92, 86, 0.12);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.dossier-metric.requests {
+  background: #eef6ff;
+  border-color: #bfdbfe;
+}
+
+.dossier-metric.files {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.dossier-metric.deliverables {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.dossier-metric.messages {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .dossier-project-strip strong,
@@ -2481,6 +2515,28 @@ input[type="file"]::file-selector-button:hover {
 
 .dossier-mini-list span {
   color: var(--slate);
+}
+
+.admin-dossier-row {
+  align-items: start;
+  border-top: 1px solid #dce9ee;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr auto;
+  padding: 12px 0;
+}
+
+.admin-dossier-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.admin-dossier-row small,
+.admin-dossier-row span {
+  color: var(--slate);
+  display: block;
+  line-height: 1.4;
+  margin-top: 4px;
 }
 
 .admin-client-summary {
@@ -2596,6 +2652,51 @@ input[type="file"]::file-selector-button:hover {
   background: #ecfdf5;
   border-color: #bbf7d0;
   color: #166534;
+}
+
+.field-error {
+  background: #fff7ed !important;
+  border-color: #ea580c !important;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12) !important;
+}
+
+.field-error-note {
+  color: #9a3412 !important;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin-top: 6px;
+}
+
+.not-ready {
+  opacity: 0.78;
+}
+
+.admin-message-composer {
+  align-items: flex-start;
+  background: rgba(4, 18, 34, 0.55);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 48px 20px;
+  position: fixed;
+  z-index: 80;
+}
+
+.admin-message-composer.hidden {
+  display: none;
+}
+
+.admin-message-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 28px 70px rgba(4, 18, 34, 0.26);
+  max-width: 720px;
+  padding: 24px;
+  width: min(720px, 100%);
 }
 
 .billing-grid article,
@@ -2907,6 +3008,22 @@ input[type="file"]::file-selector-button:hover {
 
   .admin-client-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .admin-dossier-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-dossier-row .table-actions {
+    justify-content: stretch;
+  }
+
+  .admin-dossier-row .table-actions button {
+    flex: 1 1 100%;
+  }
+
+  .admin-message-composer {
+    padding: 18px 12px;
   }
 
   .site-footer {

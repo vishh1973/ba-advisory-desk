@@ -1,4 +1,5 @@
 const { sendEmail } = require("./email");
+const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./emailReference");
 const templates = require("./emailTemplates");
 
 const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
@@ -78,12 +79,23 @@ async function updateNotificationDeliveryStatus(supabase, notificationId, result
 async function sendAndRecordEmail(supabase, payload) {
   if (!payload.to) return { skipped: true, reason: "No recipient email." };
 
+  const emailReference = payload.emailReference || createEmailReference();
+  const subject = subjectWithReference(payload.subject, emailReference);
+  const body = textWithReference(payload.body, emailReference);
+  const html = htmlWithReference(payload.html, emailReference);
   const queued = await queueNotification(supabase, payload);
+  if (queued?.data?.id) {
+    await supabase
+      .from("notifications")
+      .update({ subject, body })
+      .eq("id", queued.data.id)
+      .then(() => null, () => null);
+  }
   if (queued?.duplicate) {
     return { skipped: true, duplicate: true, reason: "Notification already queued or sent." };
   }
 
-  const sent = await sendEmail({ to: payload.to, subject: payload.subject, html: payload.html });
+  const sent = await sendEmail({ to: payload.to, subject, html });
   await updateNotificationDeliveryStatus(supabase, queued?.data?.id, sent);
 
   return sent;

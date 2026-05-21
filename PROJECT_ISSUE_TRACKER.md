@@ -54,6 +54,12 @@ Last updated: 2026-05-20
 - [x] Client credit balance display now shows available credits instead of calculating cycle usage as starter credits minus balance.
 - [x] Client profile save and client message submit now use busy-state guards to reduce duplicate submissions.
 - [x] Admin file download APIs now validate selected client and project context when provided by the admin UI.
+- [x] Admin dossier metric cards are clickable and jump to the related request, file, deliverable, or message section.
+- [x] Admin portfolio and queue views hide raw internal UUIDs from the normal operating view.
+- [x] Admin work queue now supports clearing items by marking requests complete, files reviewed, messages addressed, quotes addressed, and notifications dismissed.
+- [x] Admin tracked message composer added so client messages can be sent in-app, emailed through Resend, and logged in the client workspace.
+- [x] Admin and client-facing forms now highlight missing required fields instead of silently failing or showing only a generic message.
+- [x] Outbound system emails now add a BA Advisory Desk support reference to the subject and body for future threading.
 
 ## Addressed In Hosted Configuration
 
@@ -86,7 +92,7 @@ Last updated: 2026-05-20
 
 ## Pending Architecture Work
 
-- [ ] Add server-backed client message notification to admin.
+- [x] Add server-backed client message notification to admin.
 - [ ] Add client confirmation email for custom quote requests.
 - [x] Move admin deliverable release to a protected server route.
 - [x] Add protected deliverable release flow for prepare, upload, finalize, cleanup, status update, optional credit use, and client notification.

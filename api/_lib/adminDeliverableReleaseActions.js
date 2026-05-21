@@ -1,4 +1,5 @@
 const { sendEmail } = require("./email");
+const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./emailReference");
 const { detectAndNotifyCreditStatus, updateNotificationDeliveryStatus } = require("./paymentAndCredit");
 const { getSupabaseAdmin } = require("./supabaseAdmin");
 
@@ -366,6 +367,10 @@ async function finalizeRelease({ supabase, req, body }) {
         releaseNote: body.releaseNote,
         files: files.map((file) => ({ fileName: file.fileName })),
       });
+      const emailReference = createEmailReference();
+      const subject = subjectWithReference(email.subject, emailReference);
+      const emailBody = textWithReference(email.body, emailReference);
+      const emailHtml = htmlWithReference(email.html, emailReference);
       const { data: row, error: notificationError } = await supabase
         .from("notifications")
         .insert({
@@ -373,8 +378,8 @@ async function finalizeRelease({ supabase, req, body }) {
           project_id: projectId,
           recipient_email: recipientEmail,
           template_key: "deliverable_ready",
-          subject: email.subject,
-          body: email.body,
+          subject,
+          body: emailBody,
           status: "queued",
           related_entity_type: "deliverable",
           related_entity_id: deliverableId,
@@ -390,7 +395,7 @@ async function finalizeRelease({ supabase, req, body }) {
       }
       notification.queued = true;
       if (row?.id) {
-        const sent = await sendEmail({ to: recipientEmail, subject: email.subject, html: email.html });
+        const sent = await sendEmail({ to: recipientEmail, subject, html: emailHtml });
         await updateNotificationDeliveryStatus(supabase, row.id, sent);
         notification.sent = Boolean(sent.sent);
         if (!sent.sent && !sent.skipped) {

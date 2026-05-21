@@ -1,5 +1,6 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
+const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./_lib/emailReference");
 const { requireAdmin } = require("./_lib/adminAuth");
 const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 
@@ -122,6 +123,21 @@ function buildAdminEmail({ eventType, title, summary, organization, profile, rel
   `;
 }
 
+function buildClientMessageEmail({ subject, message, emailReference }) {
+  const workspaceUrl = `${process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com"}/#dashboard`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:640px;">
+      <h1 style="font-size:20px;line-height:1.3;margin:0 0 14px;">New workspace message</h1>
+      <p style="margin:0 0 14px;">A BA Advisory Desk message has been added to your secure workspace.</p>
+      <p style="margin:0 0 14px;"><strong>${escapeHtml(subject)}</strong></p>
+      <p style="margin:0 0 18px;">${escapeHtml(message).replace(/\n/g, "<br />")}</p>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open your workspace</a></p>
+      <p style="margin:8px 0 0;color:#5c6670;font-size:13px;">BA Advisory Desk</p>
+    </div>
+  `;
+  return htmlWithReference(html, emailReference);
+}
+
 async function handleClientWorkspaceNotification(req, res) {
   const token = readBearerToken(req);
   if (!token) {
@@ -204,8 +220,10 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const body = parseBody(req);
   const token = readBearerToken(req);
-  if (token) {
+  const isAdminClientMessage = body.type === "admin_client_message";
+  if (token && !isAdminClientMessage) {
     try {
       await handleClientWorkspaceNotification(req, res);
     } catch (error) {
@@ -220,27 +238,66 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const body = parseBody(req);
     const to = body.email;
     const type = body.type || "general";
-    const subject = body.subject || "BA Advisory Desk update";
-    const message = body.message || "There is an update in your BA Advisory Desk workspace.";
+    const subject = String(body.subject || "BA Advisory Desk update").trim();
+    const message = String(body.message || "There is an update in your BA Advisory Desk workspace.").trim();
+    const organizationId = body.organizationId || null;
+    const relatedEntityType = body.relatedEntityType || "workspace";
+    const relatedEntityId = body.relatedEntityId || null;
 
     if (!to) {
       res.status(400).json({ error: "Recipient email is required." });
       return;
     }
+    if (!message) {
+      res.status(400).json({ error: "Message is required." });
+      return;
+    }
 
     const supabase = getSupabaseAdmin();
+    const scope = organizationId
+      ? await validateClientNotificationScope(supabase, organizationId, {
+          projectId: body.projectId || null,
+          relatedEntityType,
+          relatedEntityId,
+        })
+      : { projectId: null, relatedEntityType, relatedEntityId: null };
+    const projectId = scope.projectId;
+    const emailReference = createEmailReference();
+    const finalSubject = subjectWithReference(subject, emailReference);
+    const finalBody = textWithReference(message, emailReference);
+    const messagePayload = organizationId
+      ? {
+          organization_id: organizationId,
+          project_id: projectId,
+          request_id: relatedEntityType === "request" ? relatedEntityId : null,
+          deliverable_id: relatedEntityType === "deliverable" ? relatedEntityId : null,
+          subject: finalSubject,
+          body: message,
+          status: "queued",
+        }
+      : null;
+    let messageRecordId = "";
+
+    if (messagePayload) {
+      const { data: messageRecord, error: messageError } = await supabase.from("client_deliverable_messages").insert(messagePayload).select("id").single();
+      if (messageError) throw messageError;
+      messageRecordId = messageRecord?.id || "";
+    }
+
     const { data: notification, error } = await supabase
       .from("notifications")
       .insert({
-        organization_id: body.organizationId || null,
+        organization_id: organizationId,
+        project_id: projectId,
         recipient_email: to,
         template_key: type,
-        subject,
-        body: message,
+        subject: finalSubject,
+        body: finalBody,
         status: "queued",
+        related_entity_type: scope.relatedEntityType,
+        related_entity_id: scope.relatedEntityId,
       })
       .select("id")
       .single();
@@ -249,13 +306,30 @@ module.exports = async function handler(req, res) {
 
     const result = await sendEmail({
       to,
-      subject,
-      html: `<p>${String(message).replace(/\n/g, "</p><p>")}</p>`,
+      subject: finalSubject,
+      html: buildClientMessageEmail({ subject, message, emailReference }),
     });
 
     await updateNotificationDeliveryStatus(supabase, notification.id, result);
+    if (messageRecordId) {
+      await supabase
+        .from("client_deliverable_messages")
+        .update({ status: result.sent ? "sent" : "queued" })
+        .eq("id", messageRecordId)
+        .then(() => null, () => null);
+    }
 
-    res.status(200).json({ queued: true, sent: Boolean(result.sent), error: result.error || "" });
+    if (!result.sent) {
+      res.status(502).json({
+        queued: true,
+        sent: false,
+        error: result.error || result.reason || "Message was saved in the workspace, but email delivery was not confirmed.",
+        emailReference,
+      });
+      return;
+    }
+
+    res.status(200).json({ queued: true, sent: true, emailReference });
   } catch (error) {
     res.status(500).json({ error: error.message || "Notification failed." });
   }

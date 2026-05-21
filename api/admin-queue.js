@@ -87,6 +87,18 @@ module.exports = async function handler(req, res) {
 
     const firstError = [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
+    const reviewedRequestFileIds = new Set(
+      (auditEvents.data || [])
+        .filter((entry) => {
+          const detail = typeof entry.event_detail === "string" ? entry.event_detail : JSON.stringify(entry.event_detail || "");
+          return entry.event_type === "admin_queue_action" &&
+            entry.related_entity_type === "request-file" &&
+            /marked\s+(reviewed|addressed|dismissed)/i.test(detail);
+        })
+        .map((entry) => entry.related_entity_id)
+        .filter(Boolean)
+    );
+    const visibleRequestFiles = (requestFiles.data || []).filter((file) => !reviewedRequestFileIds.has(file.id));
 
     const { data: deliverables, error: deliverablesError } = await supabase
       .from("deliverables")
@@ -119,7 +131,7 @@ module.exports = async function handler(req, res) {
       auditEvents: auditEvents.data || [],
       clientMessages: clientMessages.data || [],
       clientUploads: clientUploads.data || [],
-      requestFiles: requestFiles.data || [],
+      requestFiles: visibleRequestFiles,
       clientProfiles: clientProfiles.data || [],
       deliverables: deliverables || [],
       deliverableFiles: deliverableFiles || [],

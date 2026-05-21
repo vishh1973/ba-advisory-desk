@@ -67,6 +67,7 @@ const state = {
   adminClients: [],
   selectedAdminClientId: localStorage.getItem("baad-admin-client-id") || "",
   selectedAdminProjectId: localStorage.getItem("baad-admin-project-id") || "",
+  adminMessageContext: null,
   adminNewCount: 0,
   quoteCount: 0,
   passwordRecovery: false,
@@ -147,6 +148,54 @@ function setInlineStatus(selector, message, level = "") {
   status.textContent = message;
   status.classList.remove("warning", "success");
   if (level) status.classList.add(level);
+}
+
+function clearFieldErrors(containerSelector) {
+  const container = document.querySelector(containerSelector) || document;
+  container.querySelectorAll(".field-error").forEach((field) => {
+    field.classList.remove("field-error");
+    field.removeAttribute("aria-invalid");
+  });
+  container.querySelectorAll(".field-error-note").forEach((note) => note.remove());
+}
+
+function markFieldError(selector, message = "Required") {
+  const field = document.querySelector(selector);
+  if (!field) return null;
+  field.classList.add("field-error");
+  field.setAttribute("aria-invalid", "true");
+  const label = field.closest("label");
+  if (label && !label.querySelector(".field-error-note")) {
+    const note = document.createElement("small");
+    note.className = "field-error-note";
+    note.textContent = message;
+    label.appendChild(note);
+  }
+  return field;
+}
+
+function focusFirstField(selectors) {
+  const field = selectors.map((selector) => document.querySelector(selector)).find(Boolean);
+  if (!field) return;
+  field.scrollIntoView({ block: "center", behavior: "smooth" });
+  window.requestAnimationFrame(() => field.focus());
+}
+
+function validateFieldSet({ fields, containerSelector, statusSelector, message }) {
+  clearFieldErrors(containerSelector);
+  const missing = fields
+    .filter((field) => !field.when || field.when())
+    .filter((field) => !field.isValid())
+    .map((field) => {
+      markFieldError(field.selector, field.message || "Required");
+      return field.selector;
+    });
+
+  if (!missing.length) return true;
+  setInlineStatus(statusSelector, message, "warning");
+  showPersistentNotice(message);
+  focusFirstField(missing);
+  return false;
 }
 
 function setButtonBusy(button, busy, labelWhenBusy = "Working") {
@@ -327,6 +376,20 @@ function getShortEntityId(prefix, id) {
   return compact ? `${prefix}-${compact.slice(0, 8)}` : `${prefix}-PENDING`;
 }
 
+function looksLikeInternalId(value) {
+  const source = String(value || "").trim();
+  if (!source) return false;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(source)) return true;
+  if (/^[0-9a-f]{24,}$/i.test(source)) return true;
+  return false;
+}
+
+function cleanDisplayText(value, fallback = "") {
+  const source = String(value || "").trim();
+  if (!source || looksLikeInternalId(source)) return fallback;
+  return source;
+}
+
 function getClientDisplayId(client) {
   return getShortEntityId("CL", client?.id || client?.organizationId || client?.selectionId || "");
 }
@@ -334,13 +397,14 @@ function getClientDisplayId(client) {
 function getProjectDisplayId(project) {
   const code = String(project?.projectCode || project?.project_code || "").trim();
   if (code && code.toUpperCase() !== "GEN") return code;
-  return getShortEntityId("PRJ", project?.id || project?.projectId || project?.project_id || "");
+  return "";
 }
 
 function getProjectLabel(project) {
   if (!project) return "General advisory work";
   const name = project.name || project.projectName || project.title || "General advisory work";
-  return `${getProjectDisplayId(project)} | ${name}`;
+  const displayId = getProjectDisplayId(project);
+  return displayId ? `${displayId} | ${name}` : name;
 }
 
 function getProjectById(projectId, projects = state.clientProjects) {
@@ -430,7 +494,18 @@ function isShippedStatus(status) {
 
 function isPendingStatus(status) {
   const normalized = normalizeStatusValue(status);
-  return !isShippedStatus(status) && !isPausedStatus(status) && normalized !== "sent" && normalized !== "paid";
+  return (
+    !isShippedStatus(status) &&
+    !isPausedStatus(status) &&
+    !["sent", "paid", "addressed", "reviewed", "dismissed", "archived", "closed", "completed"].includes(normalized)
+  );
+}
+
+function isAdminQueueOpenItem(item) {
+  if (!item) return false;
+  if (["request-file", "client-upload"].includes(item.queueType)) return !["reviewed", "addressed", "dismissed"].includes(normalizeStatusValue(item.status));
+  if (item.queueType === "payment") return !["paid", "addressed", "dismissed"].includes(normalizeStatusValue(item.status));
+  return isPendingStatus(item.status);
 }
 
 function isDueSoon(value) {
@@ -450,6 +525,75 @@ function getClientEmail(client) {
 function getClientMailto(client, subject = "BA Advisory Desk follow up") {
   const email = getClientEmail(client) || config.supportEmail;
   return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}`;
+}
+
+function buildAdminQueueKey(item) {
+  return [item.queueType || "item", item.requestId || item.fileId || item.id || item.dueAt || "unknown"].join(":");
+}
+
+function getAdminQueueItemByKey(key) {
+  return state.adminQueue.find((item) => buildAdminQueueKey(item) === key);
+}
+
+function getAdminStatusLevel(status) {
+  const normalized = normalizeStatusValue(status);
+  if (normalized.includes("pause") || normalized.includes("blocked") || normalized.includes("failed")) return "blocked";
+  if (normalized.includes("deliver") || normalized.includes("complete") || normalized.includes("sent") || normalized.includes("paid")) return "delivered";
+  if (normalized.includes("review") || normalized.includes("progress") || normalized.includes("received")) return "review";
+  if (normalized.includes("approved")) return "approved";
+  return "new";
+}
+
+function getAdminWorkTitle(item) {
+  if (!item) return "Workspace item";
+  if (item.queueType === "request") return cleanDisplayText(item.type, "Client request");
+  if (item.queueType === "request-file" || item.queueType === "client-upload") return cleanDisplayText(item.fileName || item.type, "Source file");
+  if (item.queueType === "client-message") return cleanDisplayText(item.type, "Client message");
+  if (item.queueType === "notification") return cleanDisplayText(item.type, "Workspace notice");
+  if (item.queueType === "payment") return cleanDisplayText(item.type, "Payment activity");
+  if (item.queueType === "quote") return cleanDisplayText(item.type, "Custom scope inquiry");
+  return cleanDisplayText(item.type, "Workspace item");
+}
+
+function getAdminWorkDetail(item) {
+  if (!item) return "";
+  if (item.businessGoal) return cleanDisplayText(item.businessGoal, "Review the client request.");
+  if (item.body) return cleanDisplayText(item.body, "Review the workspace message.");
+  if (item.attachmentDescription) return cleanDisplayText(item.attachmentDescription, "Review the attached files and intake details.");
+  if (item.contextLabel) return cleanDisplayText(item.contextLabel, "Review the workspace context.");
+  return item.action || "Review this workspace item.";
+}
+
+function getAdminNextAction(item) {
+  if (!item) return "Review";
+  if (item.queueType === "request") {
+    if (isShippedStatus(item.status)) return "Confirm client review";
+    if (isPausedStatus(item.status)) return "Resolve pause";
+    return "Scope or release work";
+  }
+  if (item.queueType === "client-message") return "Respond";
+  if (item.queueType === "request-file" || item.queueType === "client-upload") return "Review file";
+  if (item.queueType === "payment") return "Confirm billing";
+  if (item.queueType === "quote") return "Follow up";
+  if (item.queueType === "notification") return "Check notice";
+  return item.action || "Review";
+}
+
+function getAdminQueueResolution(item) {
+  if (!item) return { action: "addressed", label: "Mark Addressed" };
+  if (item.queueType === "request") return { action: "completed", label: "Complete" };
+  if (item.queueType === "request-file" || item.queueType === "client-upload") return { action: "reviewed", label: "Reviewed" };
+  if (item.queueType === "client-message") return { action: "addressed", label: "Addressed" };
+  if (item.queueType === "quote") return { action: "addressed", label: "Addressed" };
+  if (item.queueType === "notification") return { action: "dismissed", label: "Dismiss" };
+  return { action: "addressed", label: "Mark Addressed" };
+}
+
+function scrollToAdminSection(sectionId) {
+  const section = document.querySelector(`#${sectionId}`);
+  if (!section) return;
+  if (section.tagName === "DETAILS") section.open = true;
+  section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function getAuditDetailText(detail) {
@@ -485,9 +629,9 @@ function isSelectedAdminScopedRecord(record, client = getSelectedAdminClient(), 
 
 function getSelectedAdminQueueItems() {
   const selectedClient = getSelectedAdminClient();
-  if (!state.selectedAdminClientId) return state.adminQueue;
+  if (!state.selectedAdminClientId) return state.adminQueue.filter(isAdminQueueOpenItem);
   if (!selectedClient.id && !selectedClient.email && !selectedClient.name) return [];
-  return state.adminQueue.filter((item) => isSelectedAdminScopedRecord(item, selectedClient));
+  return state.adminQueue.filter((item) => isSelectedAdminScopedRecord(item, selectedClient) && isAdminQueueOpenItem(item));
 }
 
 function escapeHtml(value) {
@@ -2456,10 +2600,10 @@ async function uploadAdminDeliverable() {
     ? state.adminDeliverables.find((deliverable) => deliverable.id === existingDeliverableId && deliverable.organizationId === organizationId)
     : null;
   const projectId = linkedRequest?.projectId || existingDeliverable?.projectId || document.querySelector("#adminUploadProjectSelect")?.value || state.selectedAdminProjectId || "";
-  const title = document.querySelector("#adminDeliverableTitle")?.value.trim() || "Client deliverable";
+  const title = document.querySelector("#adminDeliverableTitle")?.value.trim() || "";
   const deliverableType = document.querySelector("#adminDeliverableType")?.value || "Business Analysis deliverable";
   const summary = document.querySelector("#adminDeliverableSummary")?.value.trim() || "";
-  const releaseNote = document.querySelector("#adminDeliverableReleaseNote")?.value.trim() || "Released to client workspace.";
+  const releaseNote = document.querySelector("#adminDeliverableReleaseNote")?.value.trim() || "";
   const creditsUsed = Math.max(0, Number(document.querySelector("#adminReleaseCreditsUsed")?.value || 0));
   const notifyClient = Boolean(document.querySelector("#adminNotifyClient")?.checked);
   const files = getAdminUploadFiles();
@@ -2470,6 +2614,15 @@ async function uploadAdminDeliverable() {
 
   if (!state.adminClients.some((client) => client.id === organizationId)) {
     return { ok: false, error: "The selected client workspace is not available for upload." };
+  }
+  if (!title) {
+    return { ok: false, error: "Add a deliverable title before releasing files." };
+  }
+  if (!summary) {
+    return { ok: false, error: "Add a release summary before releasing files." };
+  }
+  if (!releaseNote) {
+    return { ok: false, error: "Add a version note before releasing files." };
   }
   if (!projectId || !state.adminProjects.some((project) => project.id === projectId && project.organizationId === organizationId)) {
     return { ok: false, error: "Select the project workspace before releasing a deliverable." };
@@ -2496,6 +2649,9 @@ async function uploadAdminDeliverable() {
     !state.adminDeliverables.some((deliverable) => deliverable.id === existingDeliverableId && deliverable.organizationId === organizationId)
   ) {
     return { ok: false, error: "The selected deliverable does not belong to this client." };
+  }
+  if (existingDeliverableId && existingDeliverable?.projectId && existingDeliverable.projectId !== projectId) {
+    return { ok: false, error: "The selected deliverable belongs to a different project. Choose the matching project or create a new deliverable." };
   }
 
   if (!files.length) {
@@ -2752,20 +2908,30 @@ function renderRequests() {
       (item) => {
         const canUpload = item.queueType === "request" && item.organizationId && item.requestId;
         const canDownload = ["client-upload", "request-file"].includes(item.queueType) && item.fileId;
+        const queueKey = buildAdminQueueKey(item);
+        const statusLevel = getAdminStatusLevel(item.status);
+        const projectLabel = item.projectLabel || "General advisory work";
+        const detail = getAdminWorkDetail(item);
+        const nextAction = getAdminNextAction(item);
+        const resolution = getAdminQueueResolution(item);
         return `
         <tr>
-          <td>${escapeHtml(item.client)}</td>
-          <td>${escapeHtml(item.dueLabel || item.due || "Not dated")}</td>
           <td>
-            <strong>${escapeHtml(item.id || "Request")}</strong>
-            <span>${escapeHtml(item.type)}</span>
-            <small>${escapeHtml(item.projectLabel || "General advisory work")}</small>
-            <small>${escapeHtml(item.action)}</small>
+            <strong class="queue-next-action">${escapeHtml(nextAction)}</strong>
+            <small>${escapeHtml(item.dueLabel || item.due || "No due date set")}</small>
           </td>
-          <td>${escapeHtml(item.status)}</td>
+          <td>
+            <strong>${escapeHtml(item.client)}</strong>
+            <small>${escapeHtml(projectLabel)}</small>
+          </td>
+          <td>
+            <strong>${escapeHtml(getAdminWorkTitle(item))}</strong>
+            <span>${escapeHtml(detail)}</span>
+          </td>
+          <td><span class="status-pill ${escapeHtml(statusLevel)}">${escapeHtml(normalizeVerificationStatus(item.status))}</span></td>
           <td>
             <div class="table-actions">
-              <a class="secondary small" href="${escapeHtml(getClientMailto({ email: item.clientEmail }, `Follow up on ${item.id || "request"}`))}" data-mailto="admin-row">Message</a>
+              <button class="secondary small" type="button" data-admin-action="open-message-client" data-queue-key="${escapeHtml(queueKey)}">Message</button>
               ${
                 canUpload
                   ? `<button class="small" type="button" data-admin-action="prepare-upload" data-request-id="${escapeHtml(item.requestId)}" data-organization-id="${escapeHtml(item.organizationId)}" data-project-id="${escapeHtml(item.projectId || "")}">Upload</button>`
@@ -2776,6 +2942,7 @@ function renderRequests() {
                   ? `<button class="secondary small" type="button" data-download-source-file="${escapeHtml(item.fileId)}" data-source-kind="${escapeHtml(item.fileKind || "request_file")}">Download</button>`
                   : ""
               }
+              <button class="secondary small" type="button" data-admin-action="mark-queue-item" data-queue-key="${escapeHtml(queueKey)}" data-queue-status-action="${escapeHtml(resolution.action)}">${escapeHtml(resolution.label)}</button>
               ${!canUpload && !canDownload ? `<span class="status-pill muted">No file action</span>` : ""}
             </div>
           </td>
@@ -3242,17 +3409,17 @@ function renderCreditControls() {
   if (pendingRequests) pendingRequests.textContent = pendingCount;
   if (shippedDeliverables) shippedDeliverables.textContent = shippedCount;
   if (pausedDeliverables) pausedDeliverables.textContent = pausedCount;
-  [messageClient, queueMessageClient].forEach((link) => {
-    if (!link) return;
+  [messageClient, queueMessageClient].forEach((button) => {
+    if (!button) return;
     const clientEmail = getClientEmail(selectedClient);
     if (hasAdminClient && clientEmail) {
-      link.href = getClientMailto(selectedClient, link === messageClient ? "BA Advisory Desk follow up" : "BA Advisory Desk request follow up");
-      link.classList.remove("disabled");
-      link.removeAttribute("aria-disabled");
+      button.disabled = false;
+      button.classList.remove("disabled");
+      button.removeAttribute("aria-disabled");
     } else {
-      link.href = "#";
-      link.classList.add("disabled");
-      link.setAttribute("aria-disabled", "true");
+      button.disabled = true;
+      button.classList.add("disabled");
+      button.setAttribute("aria-disabled", "true");
     }
   });
   if (adminAlertCount) adminAlertCount.textContent = creditAlertState.count;
@@ -3314,7 +3481,31 @@ function updateAdminReleaseReadiness() {
   status.textContent = message;
   status.classList.toggle("warning", !ready);
   status.classList.toggle("success", ready);
-  button.disabled = !ready;
+  button.dataset.ready = ready ? "true" : "false";
+  button.classList.toggle("not-ready", !ready);
+}
+
+function validateAdminReleaseForm() {
+  const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
+  const projectId = document.querySelector("#adminUploadProjectSelect")?.value || state.selectedAdminProjectId;
+  const title = document.querySelector("#adminDeliverableTitle")?.value.trim();
+  const summary = document.querySelector("#adminDeliverableSummary")?.value.trim();
+  const releaseNote = document.querySelector("#adminDeliverableReleaseNote")?.value.trim();
+  const files = getAdminUploadFiles();
+
+  return validateFieldSet({
+    containerSelector: ".admin-primary-release",
+    statusSelector: "#adminDeliverableUploadStatus",
+    message: "Complete the highlighted release fields before uploading files.",
+    fields: [
+      { selector: "#adminUploadClientSelect", isValid: () => Boolean(organizationId), message: "Select a client." },
+      { selector: "#adminUploadProjectSelect", isValid: () => Boolean(projectId), message: "Select a project." },
+      { selector: "#adminDeliverableTitle", isValid: () => Boolean(title), message: "Add a deliverable title." },
+      { selector: "#adminDeliverableSummary", isValid: () => Boolean(summary), message: "Add a short release summary." },
+      { selector: "#adminDeliverableReleaseNote", isValid: () => Boolean(releaseNote), message: "Add a version note." },
+      { selector: "#adminDeliverableFiles", isValid: () => Boolean(files.length), message: "Choose at least one file." },
+    ],
+  });
 }
 
 function setAdminReleaseStatus(message, level = "") {
@@ -3563,7 +3754,7 @@ function renderClientFileRoom() {
 function getAdminOpenItemsForClient(client) {
   const selectedClient = getSelectedAdminClient();
   const project = client?.id && client.id === selectedClient.id ? getSelectedAdminProject() : null;
-  return state.adminQueue.filter((item) => isSelectedAdminRecord(item, client) && isSelectedAdminProjectRecord(item, project) && isPendingStatus(item.status));
+  return state.adminQueue.filter((item) => isSelectedAdminRecord(item, client) && isSelectedAdminProjectRecord(item, project) && isAdminQueueOpenItem(item));
 }
 
 function getAdminFilesForClient(client) {
@@ -3577,6 +3768,10 @@ function getAdminFilesForClient(client) {
         fileId: item.fileId || item.id,
         fileKind: "client_upload",
         organizationId: item.organizationId,
+        projectId: item.projectId,
+        projectName: item.projectName,
+        projectCode: item.projectCode,
+        projectLabel: item.projectLabel,
         clientEmail: item.clientEmail,
         client: item.client,
         fileName: item.type,
@@ -3648,13 +3843,13 @@ function renderAdminClientPortfolio() {
   table.innerHTML = clients
     .map((client) => {
       const openItems = getAdminOpenItemsForClient(client).length;
+      const activeProjects = (client.projects || []).filter((project) => !["archived", "closed"].includes(normalizeStatusValue(project.status))).length;
       return `
         <tr>
           <td>
             <strong>${escapeHtml(client.name || "Client workspace")}</strong>
             <span>${escapeHtml(getClientEmail(client) || "No email recorded")}</span>
-            <small>Client ID: ${escapeHtml(getClientDisplayId(client))}</small>
-            <small>${escapeHtml((client.projects?.length || 0) ? `${client.projects.length} project${client.projects.length === 1 ? "" : "s"}` : "No project yet")}</small>
+            <small>${escapeHtml(activeProjects ? `${activeProjects} active project${activeProjects === 1 ? "" : "s"}` : "No active project yet")}</small>
             <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">View dossier</button>
           </td>
           <td>${escapeHtml(getAdminClientHealth(client))}</td>
@@ -3670,12 +3865,14 @@ function renderAdminClientPortfolio() {
 function renderAdminClientDossier() {
   const client = getSelectedAdminClient();
   const profile = document.querySelector("#adminDossierProfile");
+  const requests = document.querySelector("#adminDossierRequests");
   const files = document.querySelector("#adminDossierFiles");
   const deliverables = document.querySelector("#adminDossierDeliverables");
   const messages = document.querySelector("#adminDossierMessages");
   if (!state.selectedAdminClientId) {
     const empty = `<p class="muted">Select a client to open their complete file.</p>`;
     if (profile) profile.innerHTML = empty;
+    if (requests) requests.innerHTML = empty;
     if (files) files.innerHTML = empty;
     if (deliverables) deliverables.innerHTML = empty;
     if (messages) messages.innerHTML = empty;
@@ -3684,18 +3881,17 @@ function renderAdminClientDossier() {
 
   if (profile) {
     const activeProject = getSelectedAdminProject();
-    const projectRequests = client.id ? state.adminQueue.filter((item) => item.queueType === "request" && isSelectedAdminScopedRecord(item, client, activeProject)) : [];
+    const projectRequests = client.id ? state.adminQueue.filter((item) => item.queueType === "request" && isSelectedAdminScopedRecord(item, client, activeProject) && isAdminQueueOpenItem(item)) : [];
     const projectFiles = client.id ? getAdminFilesForClient(client) : [];
     const projectDeliverables = client.id ? state.adminDeliverables.filter((deliverable) => isSelectedAdminScopedRecord(deliverable, client, activeProject)) : [];
     const projectMessages = client.id ? getAdminMessagesForClient(client) : [];
+    const activeProjectCount = (client.projects || []).filter((project) => !["archived", "closed"].includes(normalizeStatusValue(project.status))).length;
     const profileRows = [
-      ["Client ID", getClientDisplayId(client)],
       ["Email", getClientEmail(client) || "Not recorded"],
       ["Primary contact", [client.firstName, client.lastName].filter(Boolean).join(" ") || "Not recorded"],
       ["Job title", client.jobTitle || "Not recorded"],
       ["Phone", client.phone || "Not recorded"],
       ["Workspace status", client.id ? "Client workspace active" : "Inquiry without workspace"],
-      ["Project ID", activeProject ? getProjectDisplayId(activeProject) : "No project selected"],
       ["Active project", activeProject ? getProjectLabel(activeProject) : "No project selected"],
       ["Industry", client.industry || "Not recorded"],
       ["Country", client.country || "Not recorded"],
@@ -3705,27 +3901,39 @@ function renderAdminClientDossier() {
     ];
     const projectSummary = `
       <div class="dossier-project-strip">
-        <article><strong>${escapeHtml(projectRequests.length)}</strong><span>Open requests</span></article>
-        <article><strong>${escapeHtml(projectFiles.length)}</strong><span>Source files</span></article>
-        <article><strong>${escapeHtml(projectDeliverables.length)}</strong><span>Released deliverables</span></article>
-        <article><strong>${escapeHtml(projectMessages.length)}</strong><span>Messages and notices</span></article>
+        <button type="button" class="dossier-metric projects" data-admin-action="jump-admin-section" data-target-id="adminProjectFilter"><strong>${escapeHtml(activeProjectCount)}</strong><span>Active projects</span></button>
+        <button type="button" class="dossier-metric requests" data-admin-action="jump-admin-section" data-target-id="adminDossierRequestsBlock"><strong>${escapeHtml(projectRequests.length)}</strong><span>Open requests</span></button>
+        <button type="button" class="dossier-metric files" data-admin-action="jump-admin-section" data-target-id="adminDossierFilesBlock"><strong>${escapeHtml(projectFiles.length)}</strong><span>Source files</span></button>
+        <button type="button" class="dossier-metric deliverables" data-admin-action="jump-admin-section" data-target-id="adminDossierDeliverablesBlock"><strong>${escapeHtml(projectDeliverables.length)}</strong><span>Released deliverables</span></button>
+        <button type="button" class="dossier-metric messages" data-admin-action="jump-admin-section" data-target-id="adminDossierMessagesBlock"><strong>${escapeHtml(projectMessages.length)}</strong><span>Messages and notices</span></button>
       </div>
     `;
-    const requestSummary = projectRequests.length
-      ? `<div class="dossier-mini-list">
-          <strong>Active request context</strong>
-          ${projectRequests
-            .slice(0, 3)
-            .map(
-              (request) => `
-                <p>${escapeHtml(request.id || request.type)} | ${escapeHtml(request.status || "Open")}<br />
-                <span>${escapeHtml(request.businessGoal || request.targetAudience || request.attachmentDescription || "Intake details available in the request file.")}</span></p>
-              `
-            )
-            .join("")}
-        </div>`
-      : "";
-    profile.innerHTML = projectSummary + profileRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("") + requestSummary;
+    profile.innerHTML = projectSummary + profileRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("");
+  }
+
+  if (requests) {
+    const activeProject = getSelectedAdminProject();
+    const requestRows = client.id ? state.adminQueue.filter((item) => item.queueType === "request" && isSelectedAdminScopedRecord(item, client, activeProject) && isAdminQueueOpenItem(item)) : [];
+    requests.innerHTML = requestRows.length
+      ? requestRows
+          .slice(0, 10)
+          .map(
+            (request) => `
+              <article class="admin-dossier-row">
+                <div>
+                  <strong>${escapeHtml(request.type || "Client request")}</strong>
+                  <span>${escapeHtml(getClientProjectLabel(request))} | ${escapeHtml(normalizeVerificationStatus(request.status))} | ${escapeHtml(request.dueLabel || "No due date set")}</span>
+                  <small>${escapeHtml(request.businessGoal || request.attachmentDescription || "Review intake details and source files before delivery.")}</small>
+                </div>
+                <div class="table-actions">
+                  <button class="secondary small" type="button" data-admin-action="open-message-client" data-queue-key="${escapeHtml(buildAdminQueueKey(request))}">Message</button>
+                  <button class="small" type="button" data-admin-action="prepare-upload" data-request-id="${escapeHtml(request.requestId)}" data-organization-id="${escapeHtml(request.organizationId)}" data-project-id="${escapeHtml(request.projectId || "")}">Release Work</button>
+                </div>
+              </article>
+            `
+          )
+          .join("")
+      : `<p class="muted">${client.id ? "No open requests for the active project." : "Create or link a client workspace before request handling."}</p>`;
   }
 
   if (files) {
@@ -3749,7 +3957,8 @@ function renderAdminClientDossier() {
   }
 
   if (deliverables) {
-    const rows = client.id ? state.adminDeliverables.filter((deliverable) => isSelectedAdminScopedRecord(deliverable, client)) : [];
+    const activeProject = getSelectedAdminProject();
+    const rows = client.id ? state.adminDeliverables.filter((deliverable) => isSelectedAdminScopedRecord(deliverable, client, activeProject)) : [];
     deliverables.innerHTML = rows.length
       ? rows
           .slice(0, 8)
@@ -3781,6 +3990,157 @@ function renderAdminClientDossier() {
           .join("")
       : `<p class="muted">No client messages need review.</p>`;
   }
+}
+
+function resolveAdminMessageContext(queueItem = null) {
+  const selectedClient = getSelectedAdminClient();
+  const client = queueItem?.organizationId
+    ? state.adminClients.find((item) => item.id === queueItem.organizationId) || selectedClient
+    : selectedClient;
+  const project = queueItem?.projectId
+    ? state.adminProjects.find((item) => item.id === queueItem.projectId) || getSelectedAdminProject()
+    : getSelectedAdminProject();
+  const relatedEntityType = queueItem?.queueType === "request" || queueItem?.queueType === "request-file" ? "request" : "workspace";
+  const relatedEntityId = relatedEntityType === "request" ? queueItem?.requestId || null : null;
+
+  return {
+    client,
+    project,
+    queueItem,
+    organizationId: client?.id || queueItem?.organizationId || "",
+    projectId: project?.id || queueItem?.projectId || "",
+    email: getClientEmail(client) || queueItem?.clientEmail || "",
+    relatedEntityType,
+    relatedEntityId,
+  };
+}
+
+function openAdminMessageComposer(queueItem = null) {
+  const composer = document.querySelector("#adminMessageComposer");
+  const contextText = document.querySelector("#adminMessageComposerContext");
+  const subject = document.querySelector("#adminMessageSubject");
+  const body = document.querySelector("#adminMessageBody");
+  if (!composer) return;
+
+  const context = resolveAdminMessageContext(queueItem);
+  state.adminMessageContext = context;
+  const clientName = context.client?.name || queueItem?.client || "Selected client";
+  const projectName = context.project ? getProjectLabel(context.project) : queueItem?.projectLabel || "General advisory work";
+  if (contextText) {
+    contextText.textContent = context.email
+      ? `${clientName} | ${projectName} | ${context.email}`
+      : "Select a client with an email address before sending a message.";
+  }
+  if (subject) subject.value = queueItem ? `BA Advisory Desk update: ${getAdminWorkTitle(queueItem)}` : "BA Advisory Desk workspace update";
+  if (body) body.value = "";
+  setInlineStatus("#adminMessageStatus", "The email subject will include a support reference, and the message will be saved in the client workspace.");
+  composer.classList.remove("hidden");
+  window.requestAnimationFrame(() => body?.focus());
+}
+
+function closeAdminMessageComposer() {
+  document.querySelector("#adminMessageComposer")?.classList.add("hidden");
+  state.adminMessageContext = null;
+  clearFieldErrors("#adminMessageComposer");
+}
+
+async function sendAdminClientMessage() {
+  const context = state.adminMessageContext || resolveAdminMessageContext();
+  const subjectField = document.querySelector("#adminMessageSubject");
+  const bodyField = document.querySelector("#adminMessageBody");
+  const subject = subjectField?.value.trim() || "";
+  const message = bodyField?.value.trim() || "";
+
+  if (!context.organizationId || !context.email) {
+    const error = "Select a client with an email address before sending a message.";
+    setInlineStatus("#adminMessageStatus", error, "warning");
+    showPersistentNotice(error);
+    return { ok: false, error };
+  }
+
+  const valid = validateFieldSet({
+    containerSelector: "#adminMessageComposer",
+    statusSelector: "#adminMessageStatus",
+    message: "Complete the message subject and body before sending.",
+    fields: [
+      { selector: "#adminMessageSubject", isValid: () => Boolean(subject), message: "Add a subject." },
+      { selector: "#adminMessageBody", isValid: () => Boolean(message), message: "Write the message." },
+    ],
+  });
+  if (!valid) return { ok: false };
+
+  setInlineStatus("#adminMessageStatus", "Sending the tracked workspace message.");
+  const result = await fetchAdminApi("/api/notify", {
+    method: "POST",
+    body: {
+      type: "admin_client_message",
+      organizationId: context.organizationId,
+      projectId: context.projectId || null,
+      email: context.email,
+      subject,
+      message,
+      relatedEntityType: context.relatedEntityType || "workspace",
+      relatedEntityId: context.relatedEntityId || null,
+    },
+  });
+
+  if (!result.ok) {
+    setInlineStatus("#adminMessageStatus", result.error || "Message could not be sent.", "warning");
+    return result;
+  }
+
+  setInlineStatus(
+    "#adminMessageStatus",
+    result.data?.emailReference
+      ? `Message sent and tracked with support reference ${result.data.emailReference}.`
+      : "Message sent and tracked in the client workspace.",
+    "success"
+  );
+  await loadAdminQueue();
+  closeAdminMessageComposer();
+  showToast("Tracked client message sent.");
+  return result;
+}
+
+async function markAdminQueueItem(queueItem, action = "addressed") {
+  if (!queueItem) {
+    showToast("Queue item could not be found.");
+    return { ok: false };
+  }
+  if (!(await ensureAdminAccess())) {
+    showToast("Please sign in with the administrator email before updating the queue.");
+    return { ok: false };
+  }
+
+  const id =
+    queueItem.queueType === "request"
+      ? queueItem.requestId || queueItem.id
+      : queueItem.queueType === "request-file" || queueItem.queueType === "client-upload"
+        ? queueItem.fileId || queueItem.id
+        : queueItem.id;
+  const result = await fetchAdminApi("/api/admin-queue-action", {
+    method: "POST",
+    body: {
+      queueType: queueItem.queueType,
+      id,
+      organizationId: queueItem.organizationId || null,
+      projectId: queueItem.projectId || null,
+      action,
+    },
+  });
+
+  if (!result.ok) {
+    showPersistentNotice(result.error || "Queue item could not be updated.");
+    return result;
+  }
+
+  queueItem.status = result.data?.status || action;
+  addAuditEvent("Admin queue updated", `${getAdminWorkTitle(queueItem)} marked ${queueItem.status}.`);
+  await loadAdminQueue();
+  saveState();
+  render();
+  showToast("Queue item updated.");
+  return result;
 }
 
 function normalizeAdminProject(project) {
@@ -4210,7 +4570,7 @@ async function loadAdminQueue() {
   if (!supabaseClient || !(await ensureAdminAccess())) return;
 
   setAdminStatus("Loading admin queue.");
-  const result = await fetchAdminApi("/api/admin-queue?limit=100");
+  const result = await fetchAdminApi("/api/admin-queue?limit=250");
 
   if (!result.ok) {
     setAdminStatus(result.error || "Admin queue could not be loaded.");
@@ -4787,7 +5147,7 @@ document.addEventListener("change", (event) => {
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-admin-action]");
   if (!target) return;
-  const lockedAdminActions = new Set(["save-credit-settings", "ship-deliverable", "upload-deliverable"]);
+  const lockedAdminActions = new Set(["save-credit-settings", "ship-deliverable", "upload-deliverable", "send-client-message", "mark-queue-item"]);
   const shouldLockAction = lockedAdminActions.has(target.dataset.adminAction);
   if (shouldLockAction && target.dataset.busy === "true") return;
   if (shouldLockAction) {
@@ -4796,6 +5156,38 @@ document.addEventListener("click", async (event) => {
   }
 
   try {
+
+  if (target.dataset.adminAction === "jump-admin-section") {
+    const targetId = target.dataset.targetId;
+    if (targetId) scrollToAdminSection(targetId);
+    return;
+  }
+
+  if (target.dataset.adminAction === "open-message-client") {
+    if (!(await ensureAdminAccess())) {
+      showToast("Please sign in with the administrator email before messaging clients.");
+      return;
+    }
+    const queueItem = target.dataset.queueKey ? getAdminQueueItemByKey(target.dataset.queueKey) : null;
+    openAdminMessageComposer(queueItem);
+    return;
+  }
+
+  if (target.dataset.adminAction === "close-message-client") {
+    closeAdminMessageComposer();
+    return;
+  }
+
+  if (target.dataset.adminAction === "send-client-message") {
+    await sendAdminClientMessage();
+    return;
+  }
+
+  if (target.dataset.adminAction === "mark-queue-item") {
+    const queueItem = getAdminQueueItemByKey(target.dataset.queueKey || "");
+    await markAdminQueueItem(queueItem, target.dataset.queueStatusAction || "addressed");
+    return;
+  }
 
   if (target.dataset.adminAction === "select-client") {
     const selectionId = target.dataset.clientSelection || "";
@@ -4967,6 +5359,9 @@ document.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.adminAction === "upload-deliverable") {
+    if (!validateAdminReleaseForm()) {
+      return;
+    }
     setAdminReleaseStatus("Uploading deliverable files and preparing the client release.");
 
     const result = await uploadAdminDeliverable();
@@ -5391,14 +5786,34 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     const desiredOutput = document.querySelector("#desiredOutput")?.value.trim() || "";
     const decisionDeadline = document.querySelector("#decisionDeadline")?.value || "";
     const attachmentDescription = document.querySelector("#attachmentDescription").value.trim();
-    if (selectedType === "Other" && !otherType) {
-      warn("Please describe the Business Analysis deliverable you need.");
-      return;
-    }
-    if (!businessGoal || !targetAudience || !desiredOutput || !decisionDeadline || !attachmentDescription) {
-      warn("Please complete the business goal, target audience, desired output, deadline, and attachment description before submitting.");
-      return;
-    }
+    const requestFiles = Array.from(document.querySelector("#fileUpload")?.files || []);
+    const requestFieldsValid = validateFieldSet({
+      containerSelector: "#requestForm",
+      statusSelector,
+      message: "Complete the highlighted request fields before submitting.",
+      fields: [
+        { selector: "#requestProjectSelect", isValid: () => Boolean(document.querySelector("#requestProjectSelect")?.value), message: "Select a project." },
+        {
+          selector: "#requestProjectName",
+          when: () => document.querySelector("#requestProjectSelect")?.value === "__new__",
+          isValid: () => Boolean(document.querySelector("#requestProjectName")?.value.trim()),
+          message: "Enter a project name.",
+        },
+        {
+          selector: "#requestOther",
+          when: () => selectedType === "Other",
+          isValid: () => Boolean(otherType),
+          message: "Describe the deliverable.",
+        },
+        { selector: "#businessGoal", isValid: () => Boolean(businessGoal), message: "Describe the business goal." },
+        { selector: "#targetAudience", isValid: () => Boolean(targetAudience), message: "Add the target audience." },
+        { selector: "#desiredOutput", isValid: () => Boolean(desiredOutput), message: "Describe the desired output." },
+        { selector: "#decisionDeadline", isValid: () => Boolean(decisionDeadline), message: "Choose a deadline." },
+        { selector: "#fileUpload", isValid: () => Boolean(requestFiles.length), message: "Attach at least one source file." },
+        { selector: "#attachmentDescription", isValid: () => Boolean(attachmentDescription), message: "Describe the files." },
+      ],
+    });
+    if (!requestFieldsValid) return;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const chosenDeadline = new Date(`${decisionDeadline}T00:00:00`);
@@ -5407,11 +5822,6 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       return;
     }
 
-    const requestFiles = Array.from(document.querySelector("#fileUpload")?.files || []);
-    if (!requestFiles.length) {
-      warn("Please attach at least one source file before submitting. This can be a PDF, Word, Excel, PowerPoint, PNG, or JPG file.");
-      return;
-    }
     const requestFileValidationError = validateWorkspaceFiles(requestFiles);
     if (requestFileValidationError) {
       warn(requestFileValidationError);
@@ -5578,26 +5988,37 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 document.querySelector("#quoteForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const quoteStatus = document.querySelector("#quoteStatus");
-  if (quoteStatus) {
-    quoteStatus.textContent = "Sending your custom advisory request.";
-    quoteStatus.classList.remove("warning", "success");
-  }
-  const organizationId = await getProfileOrganizationId();
   const workEmail = (document.querySelector("#quoteEmail").value || state.client.email || getUserEmail()).trim();
   const companyType = document.querySelector("#quoteCompanyType").value;
   const otherCompanyType = document.querySelector("#quoteOtherCompanyType").value.trim();
   const country = document.querySelector("#quoteCountry").value;
   const budget = document.querySelector("#quoteBudget").value;
   const summary = document.querySelector("#quoteSummary").value.trim();
-  if (!companyType || (companyType === "Other" && !otherCompanyType) || !country || !workEmail || !budget || summary.length < 25) {
-    const message = "Please complete company type, country, work email, budget range, and a clear request summary before sending.";
-    if (quoteStatus) {
-      quoteStatus.textContent = message;
-      quoteStatus.classList.add("warning");
-    }
-    showToast(message);
-    return;
+  const quoteFieldsValid = validateFieldSet({
+    containerSelector: "#quoteForm",
+    statusSelector: "#quoteStatus",
+    message: "Complete the highlighted custom scope fields before sending.",
+    fields: [
+      { selector: "#quoteCompanyType", isValid: () => Boolean(companyType), message: "Select organization type." },
+      {
+        selector: "#quoteOtherCompanyType",
+        when: () => companyType === "Other",
+        isValid: () => Boolean(otherCompanyType),
+        message: "Describe the organization type.",
+      },
+      { selector: "#quoteCountry", isValid: () => Boolean(country), message: "Select head office country." },
+      { selector: "#quoteEmail", isValid: () => Boolean(workEmail && workEmail.includes("@")), message: "Add a valid work email." },
+      { selector: "#quoteBudget", isValid: () => Boolean(budget), message: "Select a budget range." },
+      { selector: "#quoteSummary", isValid: () => summary.length >= 25, message: "Add at least 25 characters." },
+    ],
+  });
+  if (!quoteFieldsValid) return;
+
+  if (quoteStatus) {
+    quoteStatus.textContent = "Sending your custom advisory request.";
+    quoteStatus.classList.remove("warning", "success");
   }
+  const organizationId = await getProfileOrganizationId();
 
   const result = await fetchPublicApi("/api/custom-quote", {
     body: {
@@ -5632,6 +6053,21 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
   event.preventDefault();
   const submitButton = event.submitter || document.querySelector("#profileForm button[type='submit']");
   if (submitButton?.dataset.busy === "true") return;
+  const profileFieldsValid = validateFieldSet({
+    containerSelector: "#profileForm",
+    statusSelector: "#profileStatus",
+    message: "Complete the highlighted client profile fields before saving.",
+    fields: [
+      { selector: "#profileFirstName", isValid: () => Boolean(document.querySelector("#profileFirstName")?.value.trim()), message: "Add first name." },
+      { selector: "#profileLastName", isValid: () => Boolean(document.querySelector("#profileLastName")?.value.trim()), message: "Add last name." },
+      { selector: "#profileTitle", isValid: () => Boolean(document.querySelector("#profileTitle")?.value.trim()), message: "Add job title." },
+      { selector: "#profileCompany", isValid: () => Boolean(document.querySelector("#profileCompany")?.value.trim()), message: "Add company or agency." },
+      { selector: "#profileIndustry", isValid: () => Boolean(document.querySelector("#profileIndustry")?.value), message: "Select industry." },
+      { selector: "#profileCountry", isValid: () => Boolean(document.querySelector("#profileCountry")?.value), message: "Select country." },
+      { selector: "#profileTimezone", isValid: () => Boolean(document.querySelector("#profileTimezone")?.value), message: "Select time zone." },
+    ],
+  });
+  if (!profileFieldsValid) return;
   setButtonBusy(submitButton, true, "Saving Profile");
   try {
     state.client = {
@@ -5647,9 +6083,11 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
       if (!checkoutResumed) {
         await loadClientWorkspaceData();
         window.location.hash = "dashboard";
+        setInlineStatus("#profileStatus", "Client profile saved. Your workspace is ready.", "success");
         showToast("Client profile saved. Your workspace is ready.");
       }
     } else {
+      setInlineStatus("#profileStatus", orgResult.reason || `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`, "warning");
       showPersistentNotice(orgResult.reason || `Client profile could not be saved. Please try again or contact ${config.supportEmail}.`);
     }
   } finally {

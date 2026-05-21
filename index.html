@@ -27,7 +27,7 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk</title>
-    <link rel="stylesheet" href="./styles.css?v=10" />
+    <link rel="stylesheet" href="./styles.css?v=11" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js?v=7"></script>
     <script type="application/ld+json">
@@ -1178,6 +1178,7 @@
                 <option>Document review and written recommendations</option>
               </select>
             </label>
+            <p id="profileStatus" class="admin-inline-status">Complete the required profile fields once so your workspace stays connected.</p>
             <button type="submit">Save Client Profile</button>
           </form>
           <form id="accountSecurityForm" class="form-card">
@@ -1496,15 +1497,19 @@
                 <span>Client profile</span>
                 <div id="adminDossierProfile"></div>
               </div>
-              <div class="dossier-block">
+              <div class="dossier-block" id="adminDossierRequestsBlock">
+                <span>Open requests</span>
+                <div id="adminDossierRequests"></div>
+              </div>
+              <div class="dossier-block" id="adminDossierFilesBlock">
                 <span>Source files and uploads</span>
                 <div id="adminDossierFiles"></div>
               </div>
-              <div class="dossier-block">
+              <div class="dossier-block" id="adminDossierDeliverablesBlock">
                 <span>Released deliverables</span>
                 <div id="adminDossierDeliverables"></div>
               </div>
-              <div class="dossier-block">
+              <div class="dossier-block" id="adminDossierMessagesBlock">
                 <span>Messages and notes</span>
                 <div id="adminDossierMessages"></div>
               </div>
@@ -1545,8 +1550,32 @@
             </article>
           </div>
           <div class="admin-action-row">
-            <a id="adminMessageClient" class="secondary small" href="mailto:support@baadvisorydesk.com" data-mailto="admin-client">Message Client</a>
+            <button id="adminMessageClient" class="secondary small" type="button" data-admin-action="open-message-client">Message Client</button>
             <button class="small" type="button" data-admin-action="focus-upload">Release Deliverable</button>
+          </div>
+        </div>
+        <div id="adminMessageComposer" class="admin-message-composer hidden" role="dialog" aria-modal="true" aria-labelledby="adminMessageComposerTitle">
+          <div class="admin-message-card">
+            <div class="admin-panel-head">
+              <div>
+                <p class="eyebrow">Client message</p>
+                <h3 id="adminMessageComposerTitle">Send a tracked workspace message</h3>
+                <p id="adminMessageComposerContext">Choose a client before sending a message.</p>
+              </div>
+              <button class="secondary small" type="button" data-admin-action="close-message-client">Close</button>
+            </div>
+            <div class="admin-controls">
+              <label>
+                Subject
+                <input id="adminMessageSubject" placeholder="BA Advisory Desk workspace update" />
+              </label>
+              <label>
+                Message
+                <textarea id="adminMessageBody" rows="5" placeholder="Write the message the client should see in their workspace."></textarea>
+              </label>
+              <p id="adminMessageStatus" class="admin-inline-status">The email subject will include a support reference, and the message will be saved in the client workspace.</p>
+              <button type="button" data-admin-action="send-client-message">Send Tracked Message</button>
+            </div>
           </div>
         </div>
         <div class="admin-workbench">
@@ -1681,14 +1710,14 @@
           <div class="admin-panel-head">
             <div>
               <h3>Client work queue</h3>
-              <p>Requests, quote follow up, payment checks, notifications, and paused work. Select a client to narrow the queue.</p>
+              <p>Action list for the selected client and project. Internal record IDs are hidden from the normal operating view.</p>
             </div>
-            <a id="adminQueueMessageClient" class="secondary small" href="mailto:support@baadvisorydesk.com" data-mailto="admin-client-queue">Message Client</a>
+            <button id="adminQueueMessageClient" class="secondary small" type="button" data-admin-action="open-message-client">Message Client</button>
           </div>
           <p id="adminQueueStatus">Admin queue loads after administrator sign in.</p>
           <table id="adminTable">
             <thead>
-              <tr><th>Client</th><th>Due</th><th>Request</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Next action</th><th>Client and project</th><th>Work item</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -1816,7 +1845,7 @@
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
     <script src="./content.js?v=7"></script>
-    <script src="./app.js?v=10"></script>
+    <script src="./app.js?v=11"></script>
   </body>
 </html>
 
