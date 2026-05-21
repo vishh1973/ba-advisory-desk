@@ -418,6 +418,12 @@ function getAdminCreditBalanceForOrganization(organizationId) {
   return organizationId === state.selectedAdminClientId ? getAvailableCredits() : 0;
 }
 
+function getCreditBalanceLabelForAdmin(client) {
+  const available = getAvailableCredits(client?.balance, client?.reservedBalance);
+  const reserved = Number(client?.reservedBalance || 0);
+  return reserved > 0 ? `${available} available, ${reserved} reserved` : `${available}`;
+}
+
 function getShortEntityId(prefix, id) {
   const compact = String(id || "").replace(/[^a-z0-9]/gi, "").toUpperCase();
   return compact ? `${prefix}-${compact.slice(0, 8)}` : `${prefix}-PENDING`;
@@ -2379,7 +2385,7 @@ async function loadClientWorkspaceData() {
         .maybeSingle(),
       supabaseClient
         .from("credit_ledger")
-        .select("entry_type,entry_reason,credits,balance_after,created_at")
+        .select("entry_type,entry_reason,credits,balance_after,created_at,project_id,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(20),
@@ -2435,7 +2441,10 @@ async function loadClientWorkspaceData() {
     if (!ledgerResult.error && Array.isArray(ledgerResult.data)) {
       state.creditHistory = ledgerResult.data.map((item) => ({
         date: formatDisplayDate(item.created_at),
-        deliverable: item.entry_reason || item.entry_type || "Credit event",
+        deliverable: [
+          item.project_id ? getProjectLabel(item.client_projects) : "Client account",
+          item.entry_reason || item.entry_type || "Credit event",
+        ].filter(Boolean).join(" | "),
         credits: item.credits > 0 ? `+${item.credits}` : String(item.credits || 0),
         balance: item.balance_after ?? "",
       }));
@@ -3601,6 +3610,11 @@ function renderCreditHistory() {
   const adminCreditRows = state.adminCreditLedger.length
     ? state.adminCreditLedger
         .filter((item) => isSelectedAdminRecord(item, selectedClient))
+        .filter((item) => {
+          if (!selectedProject?.id) return isSelectedAdminProjectRecord(item, selectedProject);
+          const recordProjectId = item.projectId || item.project_id || "";
+          return !recordProjectId || isSelectedAdminProjectRecord(item, selectedProject);
+        })
         .map(
           (item) => `
         <tr>
@@ -4253,7 +4267,7 @@ function getAdminLastActivityForClient(client) {
 
 function getAdminClientHealth(client) {
   if (!client?.id) return "Inquiry";
-  const alert = getCreditAlertState(Number(client.balance || 0), Number(client.lowCreditThreshold || config.lowCreditThreshold));
+  const alert = getCreditAlertState(getAdminCreditBalanceForOrganization(client.id), Number(client.lowCreditThreshold || config.lowCreditThreshold));
   if (alert.level === "depleted") return "Blocked";
   if (alert.level === "low") return "Needs top up";
   if (getAdminOpenItemsForClient(client).length) return "Active";
@@ -4264,7 +4278,7 @@ function renderAdminSnapshot() {
   const clients = state.adminClients.filter((client) => client.id);
   const fileInbox = state.adminQueue.filter((item) => ["client-upload", "request-file"].includes(item.queueType) && isAdminQueueOpenItem(item)).length;
   const released = state.adminDeliverables.length;
-  const lowCreditClients = clients.filter((client) => getCreditAlertState(Number(client.balance || 0), Number(client.lowCreditThreshold || config.lowCreditThreshold)).level !== "healthy").length;
+  const lowCreditClients = clients.filter((client) => getCreditAlertState(getAdminCreditBalanceForOrganization(client.id), Number(client.lowCreditThreshold || config.lowCreditThreshold)).level !== "healthy").length;
   const openWork = state.adminQueue.filter(isAdminQueueOpenItem).length;
   const customInquiries = state.adminQueue.filter((item) => item.queueType === "quote" && isAdminQueueOpenItem(item)).length;
   const activeClientCount = document.querySelector("#adminActiveClientCount");
@@ -4305,7 +4319,7 @@ function renderAdminClientPortfolio() {
             <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">${selected ? "Viewing dossier" : "View dossier"}</button>
           </td>
           <td>${escapeHtml(getAdminClientHealth(client))}</td>
-          <td>${escapeHtml(client.balance ?? 0)}</td>
+          <td>${escapeHtml(getCreditBalanceLabelForAdmin(client))}</td>
           <td>${escapeHtml(openItems)}</td>
           <td>${escapeHtml(getAdminLastActivityForClient(client))}</td>
         </tr>
@@ -6325,17 +6339,26 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
       `The upload is taking longer than expected. Please try again with fewer files, or contact ${config.supportEmail} if the issue continues.`
     );
     if (!result.ok) {
+      const message = result.error || "Files could not be uploaded.";
       if (Number(result.uploaded || 0) > 0) {
         document.querySelector("#clientUploadFiles").value = "";
         document.querySelector("#clientUploadFileList").textContent = "Some files were uploaded. Select only the remaining files before retrying.";
-        await loadClientWorkspaceData().then(() => null, () => null);
-        render();
+        withClientTimeout(
+          loadClientWorkspaceData(),
+          15000,
+          "Some files were attached, but the workspace refresh took too long. Refresh the page before retrying."
+        )
+          .then(() => render())
+          .catch((error) => {
+            setInlineStatus("#clientUploadStatus", error.message, "warning");
+            showPersistentNotice(error.message);
+          });
       }
       if (status) {
-        status.textContent = result.error || "Files could not be uploaded.";
+        status.textContent = message;
         status.classList.add("warning");
       }
-      showPersistentNotice(result.error || "Files could not be uploaded.");
+      showPersistentNotice(message);
       return;
     }
     document.querySelector("#clientUploadFiles").value = "";

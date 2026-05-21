@@ -90,8 +90,13 @@ Last updated: 2026-05-21
 - [x] Client upload record failures now attempt storage cleanup so uploaded files are less likely to remain orphaned.
 - [x] Partial client uploads now clear the selected file list after any successful files are attached, reducing duplicate retry risk.
 - [x] Request intake partial upload failures now clear the submitted form and move the client to Messages And Files to attach only remaining files to the created request.
-- [x] App asset version bumped to `v=14` so browsers fetch the corrected upload logic after deployment.
+- [x] App asset version bumped to `v=15` so browsers fetch the corrected upload and credit display logic after deployment.
 - [x] Browser-level client journey QA added and passed locally for sign-in, Messages And Files upload, billing view, and sign out.
+- [x] Browser-level client journey QA now validates missing upload fields, confirms uploaded files render in the workspace, verifies file removal, and fails the PowerShell wrapper if the browser journey fails.
+- [x] Partial client upload failure handling now shows the failure immediately and refreshes the workspace in the background so the Upload Files button is not left hanging.
+- [x] Admin credit alert status and portfolio credit labels now use available credits after reserved work, not just total credits.
+- [x] Client credit history now labels rows as client account level or project linked where the ledger has project context.
+- [x] Admin project-specific credit ledger view now hides credit rows from other projects while still showing client-level rows.
 
 ## Addressed In Hosted Configuration
 
@@ -147,6 +152,10 @@ Last updated: 2026-05-21
 - [ ] Add admin restore workflow for source files removed by mistake.
 - [ ] Add server-side cleanup for orphaned storage files when a file row insert fails.
 - [ ] Move client file uploads to a server-mediated or signed-upload flow with idempotency keys, checksum validation, and stronger orphan cleanup.
+- [ ] Harden credit accounting for refunds, disputes, failed payments, same-day reservation expiry, grant expiry with open reservations, and admin adjustments below reserved credits.
+- [ ] Add transaction-level tests for Stripe webhook and checkout reconciliation idempotency.
+- [ ] Add durable client deliverable acceptance state instead of relying only on client messages.
+- [ ] Add release timeout reconciliation so a browser timeout cannot abort files after the server has already finalized the release.
 - [ ] Require admin download APIs to receive and validate explicit client and project context.
 - [ ] Add client-scoped file pagination or a "show all files" path for large workspaces.
 - [ ] Add server-side file validation, checksum, and malware scan or quarantine status before admin download.

@@ -101,6 +101,59 @@ async function pickFirstWorkspaceContext(page) {
   return value;
 }
 
+async function expectUploadValidation(page, pattern, label) {
+  await page.click("#clientUploadForm button[type='submit']");
+  await page.waitForTimeout(500);
+  const feedback = await page.evaluate(() => [
+    document.querySelector("#clientUploadStatus")?.textContent || "",
+    document.querySelector("#toastText")?.textContent || "",
+    ...Array.from(document.querySelectorAll("#clientUploadForm .field-error-note")).map((item) => item.textContent || ""),
+  ].join(" "));
+  if (!pattern.test(feedback)) {
+    throw new Error(`${label} did not show the expected validation message. Feedback: ${feedback || "none"}`);
+  }
+  const busy = await page.getAttribute("#clientUploadForm button[type='submit']", "data-busy");
+  if (busy === "true") {
+    throw new Error(`${label} left the upload button in a busy state.`);
+  }
+}
+
+async function removeUploadedFile(page, fileName) {
+  await page.evaluate((name) => {
+    const rows = Array.from(document.querySelectorAll(".workspace-file-row"));
+    const row = rows.find((item) => item.textContent.includes(name));
+    const button = row?.querySelector("[data-delete-source-file]");
+    if (!button) throw new Error(`Remove button was not available for ${name}.`);
+    button.click();
+  }, fileName);
+  try {
+    await page.waitForFunction((name) => {
+      const rows = Array.from(document.querySelectorAll(".workspace-file-row"));
+      return !rows.some((item) => item.textContent.includes(name));
+    }, fileName, { timeout: 30000 });
+  } catch (error) {
+    const rows = await page.evaluate(() => Array.from(document.querySelectorAll(".workspace-file-row")).map((item) => item.textContent.trim()));
+    const status = await page.textContent("#clientUploadStatus").catch(() => "");
+    throw new Error(`Removed file still appeared in the client file list: ${fileName}. Status: ${status || "none"}. Rows: ${rows.join(" | ") || "none"}`);
+  }
+}
+
+async function expectUploadedFileRows(page, fileNames) {
+  await page.evaluate(() => {
+    const filePanel = document.querySelector("#clientWorkspaceFiles");
+    if (filePanel) filePanel.open = true;
+  });
+  try {
+    await page.waitForFunction((names) => {
+      const rows = Array.from(document.querySelectorAll(".workspace-file-row"));
+      return names.every((name) => rows.some((item) => item.textContent.includes(name)));
+    }, fileNames, { timeout: 30000 });
+  } catch (error) {
+    const rows = await page.evaluate(() => Array.from(document.querySelectorAll(".workspace-file-row")).map((item) => item.textContent.trim()));
+    throw new Error(`Uploaded files did not appear in the client file list. Rows: ${rows.join(" | ") || "none"}`);
+  }
+}
+
 async function run() {
   const qa = parseQaFile();
   const email = requireValue(process.env.BAAD_QA_CLIENT_EMAIL || qa.client, "BAAD_QA_CLIENT_EMAIL");
@@ -110,14 +163,15 @@ async function run() {
   const server = configuredAppUrl ? null : await startStaticServer();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  page.on("dialog", (dialog) => dialog.accept());
 
   try {
     await page.goto(appRoute("login"), { waitUntil: "domcontentloaded", timeout: 30000 });
     await waitForApp(page);
 
     const appScript = await page.getAttribute("script[src*='app.js']", "src");
-    if (!appScript || !appScript.includes("v=14")) {
-      throw new Error(`Expected app.js cache version v=14, found ${appScript || "none"}.`);
+    if (!appScript || !appScript.includes("v=15")) {
+      throw new Error(`Expected app.js cache version v=15, found ${appScript || "none"}.`);
     }
 
     await page.fill("#passwordLoginEmail", email);
@@ -127,7 +181,9 @@ async function run() {
 
     await page.goto(appRoute("messages"), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector("#clientUploadForm", { timeout: 30000 });
+    await expectUploadValidation(page, /select at least one file|complete the highlighted upload fields/i, "Empty upload validation");
     await pickFirstWorkspaceContext(page);
+    await expectUploadValidation(page, /select at least one file/i, "Missing file validation");
     await page.selectOption("#clientUploadPurpose", "Revision notes");
     await page.fill("#clientUploadNotes", `Browser QA upload ${runId}`);
     await page.setInputFiles("#clientUploadFiles", files);
@@ -143,7 +199,11 @@ async function run() {
       throw new Error(`Client upload did not complete successfully. Status: ${uploadStatus}`);
     }
 
-    await page.waitForFunction((expected) => document.body.textContent.includes(expected), `baad-qa-upload-${runId}`, { timeout: 30000 });
+    await expectUploadedFileRows(page, [`baad-qa-upload-${runId}.png`, `baad-qa-upload-${runId}.docx`]);
+    if (configuredAppUrl) {
+      await removeUploadedFile(page, `baad-qa-upload-${runId}.png`);
+      await removeUploadedFile(page, `baad-qa-upload-${runId}.docx`);
+    }
 
     await page.goto(appRoute("billing"), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector("#billingCreditBalance", { timeout: 30000 });
