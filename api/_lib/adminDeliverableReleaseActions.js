@@ -181,7 +181,6 @@ async function prepareRelease({ supabase, req, body }) {
         title,
         deliverable_type: deliverableType,
         summary,
-        status: "draft",
         updated_at: now,
       })
       .eq("id", deliverableId)
@@ -265,6 +264,19 @@ async function finalizeRelease({ supabase, req, body }) {
     return { status: 400, data: { error: "Draft version belongs to a different project." } };
   }
 
+  const { data: latestVersion, error: latestVersionError } = await supabase
+    .from("deliverable_versions")
+    .select("id,version_number,status")
+    .eq("deliverable_id", deliverableId)
+    .eq("organization_id", organizationId)
+    .order("version_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestVersionError) throw latestVersionError;
+  if (latestVersion?.id && latestVersion.id !== versionId) {
+    return { status: 409, data: { error: "A newer deliverable version exists. Refresh the admin workspace and release the latest version." } };
+  }
+
   const storagePrefix = `clients/${organizationId}/deliverables/${deliverableId}/v${version.version_number}/`;
   const actorId = await readActorId(supabase, req);
   const safeFiles = files.map((file) => ({
@@ -282,6 +294,15 @@ async function finalizeRelease({ supabase, req, body }) {
 
   if (safeFiles.some((file) => file.storage_bucket !== "private-deliverables" || !file.storage_path.startsWith(storagePrefix))) {
     return { status: 400, data: { error: "Uploaded files do not match the prepared deliverable version." } };
+  }
+
+  for (const file of safeFiles) {
+    const { error: storageError } = await supabase.storage
+      .from(file.storage_bucket)
+      .createSignedUrl(file.storage_path, 60);
+    if (storageError) {
+      return { status: 400, data: { error: `Uploaded file could not be verified: ${file.file_name}` } };
+    }
   }
 
   const { data: account, error: accountError } = await supabase
@@ -324,17 +345,6 @@ async function finalizeRelease({ supabase, req, body }) {
     }
   }
 
-  const { error: versionUpdateError } = await supabase
-    .from("deliverable_versions")
-    .update({
-      status: "released",
-      released_at: now,
-      released_by: actorId,
-    })
-    .eq("id", versionId)
-    .eq("organization_id", organizationId);
-  if (versionUpdateError) throw versionUpdateError;
-
   const { error: deliverableUpdateError } = await supabase
     .from("deliverables")
     .update({
@@ -346,8 +356,19 @@ async function finalizeRelease({ supabase, req, body }) {
       updated_at: now,
     })
     .eq("id", deliverableId)
-    .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId);
   if (deliverableUpdateError) throw deliverableUpdateError;
+
+  const { error: versionUpdateError } = await supabase
+    .from("deliverable_versions")
+    .update({
+      status: "released",
+      released_at: now,
+      released_by: actorId,
+    })
+    .eq("id", versionId)
+    .eq("organization_id", organizationId);
+  if (versionUpdateError) throw versionUpdateError;
 
   if (requestId) {
     await supabase

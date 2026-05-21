@@ -697,6 +697,7 @@ h2 {
 .form-card,
 .billing-grid article,
 .admin-grid article,
+.admin-metric-card,
 .admin-alert-panel,
 .right-rail,
 .comparison {
@@ -2730,15 +2731,39 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .billing-grid article,
-.admin-grid article {
+.admin-grid article,
+.admin-metric-card {
   display: grid;
   gap: 12px;
   padding: 22px;
 }
 
 .billing-grid strong,
-.admin-grid strong {
+.admin-grid strong,
+.admin-metric-card strong {
   font-size: 30px;
+}
+
+.admin-metric-card {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.admin-metric-card:hover,
+.admin-metric-card:focus-visible {
+  border-color: var(--teal);
+  box-shadow: 0 18px 36px rgba(11, 92, 86, 0.14);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.admin-metric-card h3,
+.admin-metric-card strong,
+.admin-metric-card span {
+  display: block;
 }
 
 .toast {
@@ -2963,6 +2988,148 @@ input[type="file"]::file-selector-button:hover {
     grid-template-columns: minmax(92px, 0.45fr) minmax(0, 1fr);
   }
 
+  #adminTable,
+  #adminTable thead,
+  #adminTable tbody,
+  #adminTable tr,
+  #adminTable th,
+  #adminTable td,
+  #adminPaymentHistoryTable,
+  #adminPaymentHistoryTable thead,
+  #adminPaymentHistoryTable tbody,
+  #adminPaymentHistoryTable tr,
+  #adminPaymentHistoryTable th,
+  #adminPaymentHistoryTable td,
+  #adminCreditLedgerTable,
+  #adminCreditLedgerTable thead,
+  #adminCreditLedgerTable tbody,
+  #adminCreditLedgerTable tr,
+  #adminCreditLedgerTable th,
+  #adminCreditLedgerTable td,
+  #auditTable,
+  #auditTable thead,
+  #auditTable tbody,
+  #auditTable tr,
+  #auditTable th,
+  #auditTable td {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  #adminTable thead,
+  #adminPaymentHistoryTable thead,
+  #adminCreditLedgerTable thead,
+  #auditTable thead {
+    clip: rect(0 0 0 0);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  #adminTable tbody,
+  #adminPaymentHistoryTable tbody,
+  #adminCreditLedgerTable tbody,
+  #auditTable tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  #adminTable tr,
+  #adminPaymentHistoryTable tr,
+  #adminCreditLedgerTable tr,
+  #auditTable tr {
+    background: #ffffff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+  }
+
+  #adminTable td,
+  #adminPaymentHistoryTable td,
+  #adminCreditLedgerTable td,
+  #auditTable td {
+    border: 0;
+    padding: 8px 0;
+  }
+
+  #adminTable td::before,
+  #adminPaymentHistoryTable td::before,
+  #adminCreditLedgerTable td::before,
+  #auditTable td::before {
+    color: var(--teal-dark);
+    display: block;
+    font-size: 11px;
+    font-weight: 900;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  #adminTable td:nth-child(1)::before {
+    content: "Next action";
+  }
+
+  #adminTable td:nth-child(2)::before {
+    content: "Client and project";
+  }
+
+  #adminTable td:nth-child(3)::before {
+    content: "Work item";
+  }
+
+  #adminTable td:nth-child(4)::before {
+    content: "Status";
+  }
+
+  #adminTable td:nth-child(5)::before {
+    content: "Actions";
+  }
+
+  #adminPaymentHistoryTable td:nth-child(1)::before,
+  #adminCreditLedgerTable td:nth-child(1)::before,
+  #auditTable td:nth-child(1)::before {
+    content: "Date";
+  }
+
+  #adminPaymentHistoryTable td:nth-child(2)::before {
+    content: "Item";
+  }
+
+  #adminPaymentHistoryTable td:nth-child(3)::before {
+    content: "Amount";
+  }
+
+  #adminPaymentHistoryTable td:nth-child(4)::before {
+    content: "Status";
+  }
+
+  #adminCreditLedgerTable td:nth-child(4)::before {
+    content: "Balance";
+  }
+
+  #adminCreditLedgerTable td:nth-child(2)::before {
+    content: "Action";
+  }
+
+  #adminCreditLedgerTable td:nth-child(3)::before {
+    content: "Credits";
+  }
+
+  #auditTable td:nth-child(2)::before {
+    content: "Event";
+  }
+
+  #auditTable td:nth-child(3)::before {
+    content: "Client";
+  }
+
+  #auditTable td:nth-child(4)::before {
+    content: "Details";
+  }
+
   .admin-portfolio-panel td::before {
     color: var(--slate);
     font-size: 11px;
@@ -3155,6 +3322,7 @@ input[type="file"]::file-selector-button:hover {
   .comparison,
   .billing-grid article,
   .admin-grid article,
+  .admin-metric-card,
   .admin-alert-panel {
     padding: 18px;
   }

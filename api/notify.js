@@ -185,6 +185,7 @@ async function handleClientWorkspaceNotification(req, res) {
     to: supportEmail,
     subject,
     html: buildAdminEmail({ eventType, title, summary, organization, profile, relatedLabel }),
+    replyTo: profile.work_email || profile.auth_email || organization.billing_email || null,
   });
 
   await supabase

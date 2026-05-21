@@ -112,6 +112,21 @@ async function updateByTarget(supabase, target) {
     return finishUpdate(query);
   }
 
+  if (target.queueType === "payment") {
+    let query = supabase
+      .from("payment_orders")
+      .select("id")
+      .eq("id", target.id);
+    if (target.organizationId) query = query.eq("organization_id", target.organizationId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) {
+      return { ok: false, status: 404, error: "Payment record was not found or is not linked to the selected client." };
+    }
+    await insertAudit(supabase, target, "Payment record marked checked.");
+    return { ok: true, status: "checked", auditInserted: true };
+  }
+
   if (target.queueType === "request-file") {
     let query = supabase
       .from("request_files")
@@ -193,7 +208,7 @@ module.exports = async function handler(req, res) {
         .limit(limit),
       supabase
         .from("notifications")
-        .select("id,organization_id,project_id,recipient_email,channel,template_key,subject,status,related_entity_type,related_entity_id,sent_at,created_at,client_projects(id,name,project_code,status)")
+        .select("id,organization_id,project_id,recipient_email,channel,template_key,subject,body,status,failure_reason,related_entity_type,related_entity_id,sent_at,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
@@ -231,7 +246,9 @@ module.exports = async function handler(req, res) {
     const firstError = [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles].find((result) => result.error);
     if (firstError?.error) throw firstError.error;
     const requestFileRows = requestFiles.data || [];
+    const paymentOrderRows = paymentOrders.data || [];
     const requestFileIds = requestFileRows.map((file) => file.id).filter(Boolean);
+    const paymentOrderIds = paymentOrderRows.map((payment) => payment.id).filter(Boolean);
     const { data: requestFileAuditRows, error: requestFileAuditError } = requestFileIds.length
       ? await supabase
           .from("audit_events")
@@ -242,6 +259,16 @@ module.exports = async function handler(req, res) {
           .limit(Math.max(requestFileIds.length * 4, 20))
       : { data: [], error: null };
     if (requestFileAuditError) throw requestFileAuditError;
+    const { data: paymentAuditRows, error: paymentAuditError } = paymentOrderIds.length
+      ? await supabase
+          .from("audit_events")
+          .select("related_entity_id,event_detail")
+          .eq("event_type", "admin_queue_action")
+          .eq("related_entity_type", "payment")
+          .in("related_entity_id", paymentOrderIds)
+          .limit(Math.max(paymentOrderIds.length * 4, 20))
+      : { data: [], error: null };
+    if (paymentAuditError) throw paymentAuditError;
 
     const reviewedRequestFileIds = new Set(
       (requestFileAuditRows || [])
@@ -253,6 +280,16 @@ module.exports = async function handler(req, res) {
         .filter(Boolean)
     );
     const visibleRequestFiles = requestFileRows.filter((file) => !reviewedRequestFileIds.has(file.id));
+    const checkedPaymentIds = new Set(
+      (paymentAuditRows || [])
+        .filter((entry) => {
+          const detail = typeof entry.event_detail === "string" ? entry.event_detail : JSON.stringify(entry.event_detail || "");
+          return /marked\s+(checked|reviewed|addressed|dismissed|completed)/i.test(detail);
+        })
+        .map((entry) => entry.related_entity_id)
+        .filter(Boolean)
+    );
+    const visiblePaymentOrders = paymentOrderRows.filter((payment) => !checkedPaymentIds.has(payment.id));
 
     const { data: deliverables, error: deliverablesError } = await supabase
       .from("deliverables")
@@ -279,13 +316,15 @@ module.exports = async function handler(req, res) {
       requests: requests.data || [],
       customQuoteRequests: quoteRequests.data || [],
       creditAccounts: creditAccounts.data || [],
-      paymentOrders: paymentOrders.data || [],
+      paymentOrders: paymentOrderRows,
+      queuePaymentOrders: visiblePaymentOrders,
       notifications: notifications.data || [],
       creditLedger: creditLedger.data || [],
       auditEvents: auditEvents.data || [],
       clientMessages: clientMessages.data || [],
       clientUploads: clientUploads.data || [],
-      requestFiles: visibleRequestFiles,
+      requestFiles: requestFileRows,
+      queueRequestFiles: visibleRequestFiles,
       clientProfiles: clientProfiles.data || [],
       deliverables: deliverables || [],
       deliverableFiles: deliverableFiles || [],

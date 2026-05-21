@@ -68,6 +68,8 @@ const state = {
   adminClients: [],
   selectedAdminClientId: localStorage.getItem("baad-admin-client-id") || "",
   selectedAdminProjectId: localStorage.getItem("baad-admin-project-id") || "",
+  adminUploadProjectId: null,
+  adminQueueFocus: "",
   adminMessageContext: null,
   adminNewCount: 0,
   quoteCount: 0,
@@ -404,8 +406,7 @@ function getProjectDisplayId(project) {
 function getProjectLabel(project) {
   if (!project) return "General advisory work";
   const name = project.name || project.projectName || project.title || "General advisory work";
-  const displayId = getProjectDisplayId(project);
-  return displayId ? `${displayId} | ${name}` : name;
+  return name;
 }
 
 function getProjectById(projectId, projects = state.clientProjects) {
@@ -430,6 +431,12 @@ function getClientProjectLabel(projectOrId) {
 
 function getAdminProjectIdForApi(explicitProjectId = "") {
   const value = explicitProjectId || state.selectedAdminProjectId || "";
+  return value === ADMIN_ALL_PROJECTS_VALUE ? "" : value;
+}
+
+function getAdminUploadProjectId() {
+  const select = document.querySelector("#adminUploadProjectSelect");
+  const value = select ? select.value || "" : state.adminUploadProjectId || "";
   return value === ADMIN_ALL_PROJECTS_VALUE ? "" : value;
 }
 
@@ -505,7 +512,7 @@ function isPendingStatus(status) {
   return (
     !isShippedStatus(status) &&
     !isPausedStatus(status) &&
-    !["sent", "paid", "addressed", "reviewed", "dismissed", "archived", "closed", "completed"].includes(normalized)
+    !["sent", "paid", "addressed", "reviewed", "dismissed", "archived", "closed", "completed", "checked"].includes(normalized)
   );
 }
 
@@ -514,7 +521,7 @@ function isAdminQueueOpenItem(item) {
   const normalized = normalizeStatusValue(item.status);
   if (["admin sent", "admin email pending", "email queued"].includes(normalized)) return false;
   if (["request-file", "client-upload"].includes(item.queueType)) return !["reviewed", "addressed", "dismissed"].includes(normalizeStatusValue(item.status));
-  if (item.queueType === "payment") return !["paid", "addressed", "dismissed"].includes(normalizeStatusValue(item.status));
+  if (item.queueType === "payment") return !["paid", "addressed", "dismissed", "checked"].includes(normalizeStatusValue(item.status));
   return isPendingStatus(item.status);
 }
 
@@ -538,7 +545,15 @@ function getClientMailto(client, subject = "BA Advisory Desk follow up") {
 }
 
 function buildAdminQueueKey(item) {
-  return [item.queueType || "item", item.requestId || item.fileId || item.id || item.dueAt || "unknown"].join(":");
+  if (!item) return "item:unknown";
+  const queueType = item.queueType || "item";
+  const primary =
+    queueType === "request"
+      ? item.requestId || item.id
+      : queueType === "request-file" || queueType === "client-upload"
+        ? item.fileId || item.id
+        : item.id || item.relatedEntityId || item.fileId || item.requestId || item.dueAt;
+  return [queueType, item.organizationId || item.clientEmail || "no-client", item.projectId || "no-project", primary || "unknown"].join(":");
 }
 
 function getAdminQueueItemByKey(key) {
@@ -603,6 +618,7 @@ function getAdminQueueResolution(item) {
   if (item.queueType === "client-message") return { action: "addressed", label: "Addressed" };
   if (item.queueType === "quote") return { action: "addressed", label: "Addressed" };
   if (item.queueType === "notification") return { action: "dismissed", label: "Dismiss" };
+  if (item.queueType === "payment") return { action: "addressed", label: "Mark Checked" };
   return { action: "addressed", label: "Mark Addressed" };
 }
 
@@ -610,6 +626,8 @@ function scrollToAdminSection(sectionId) {
   const section = document.querySelector(`#${sectionId}`);
   if (!section) return;
   if (section.tagName === "DETAILS") section.open = true;
+  const parentDetails = section.closest("details");
+  if (parentDetails) parentDetails.open = true;
   section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -646,9 +664,13 @@ function isSelectedAdminScopedRecord(record, client = getSelectedAdminClient(), 
 
 function getSelectedAdminQueueItems() {
   const selectedClient = getSelectedAdminClient();
-  if (!state.selectedAdminClientId) return state.adminQueue.filter(isAdminQueueOpenItem);
+  const applyFocus = (items) =>
+    state.adminQueueFocus === "quote"
+      ? items.filter((item) => item.queueType === "quote")
+      : items;
+  if (!state.selectedAdminClientId) return applyFocus(state.adminQueue.filter(isAdminQueueOpenItem));
   if (!selectedClient.id && !selectedClient.email && !selectedClient.name) return [];
-  return state.adminQueue.filter((item) => isSelectedAdminScopedRecord(item, selectedClient) && isAdminQueueOpenItem(item));
+  return applyFocus(state.adminQueue.filter((item) => isSelectedAdminScopedRecord(item, selectedClient) && isAdminQueueOpenItem(item)));
 }
 
 function escapeHtml(value) {
@@ -904,7 +926,7 @@ function getStatusGroup(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete") || normalized.includes("delivered")) return "completed";
   if (normalized.includes("review")) return "inReview";
-  if (normalized.includes("pause") || normalized.includes("awaiting credit")) return "paused";
+  if (normalized.includes("pause") || normalized.includes("awaiting credit") || normalized.includes("attention") || normalized.includes("blocked")) return "paused";
   return "pending";
 }
 
@@ -920,6 +942,30 @@ function getStatusLabel(group) {
 function normalizeVerificationStatus(value) {
   const status = String(value || "").trim();
   if (!status) return "Released for client review";
+  const normalized = normalizeStatusValue(status);
+  const labels = {
+    pending_scope: "Ready for advisory scoping",
+    "pending scope": "Ready for advisory scoping",
+    file_upload_attention: "File upload needs attention",
+    "file upload attention": "File upload needs attention",
+    awaiting_credit: "Waiting for credit top up",
+    "awaiting credit": "Waiting for credit top up",
+    admin_email_pending: "Email delivery needs review",
+    "admin email pending": "Email delivery needs review",
+    queued: "Queued for delivery",
+    received: "Received",
+    approved: "Approved",
+    reviewed: "Reviewed",
+    addressed: "Addressed",
+    dismissed: "Dismissed",
+    checked: "Checked",
+    delivered: "Delivered",
+    completed: "Completed",
+    sent: "Sent",
+    paid: "Paid",
+    failed: "Needs review",
+  };
+  if (labels[normalized]) return labels[normalized];
   return status
     .replace(/_/g, " ")
     .replace(/\s+/g, " ")
@@ -1125,6 +1171,7 @@ function resetClientWorkspaceState() {
   state.adminCreditLedger = [];
   state.adminPaymentHistory = [];
   state.adminAuditEvents = [];
+  state.selectedAdminClientId = "";
   state.creditsLeft = 0;
   state.creditThreshold = 2;
   state.passwordRecovery = false;
@@ -1144,6 +1191,7 @@ function resetClientWorkspaceState() {
     "baad-request-files",
     "baad-client-projects",
     "baad-selected-project-id",
+    "baad-admin-client-id",
     "baad-admin-project-id",
   ].forEach((key) => localStorage.removeItem(key));
   localStorage.removeItem("baad-post-auth-route");
@@ -1915,7 +1963,7 @@ async function ensureClientProject(organizationId, projectName) {
       id: `project-${Date.now()}`,
       organization_id: organizationId,
       name,
-      project_code: getShortEntityId("PRJ", `${organizationId}${Date.now()}`),
+      project_code: getShortEntityId("PRJ", `${Date.now()}${Math.random()}${organizationId}`),
       status: "active",
       created_at: getIsoNow(),
     });
@@ -1928,7 +1976,7 @@ async function ensureClientProject(organizationId, projectName) {
     .insert({
       organization_id: organizationId,
       name,
-      project_code: getShortEntityId("PRJ", `${organizationId}${Date.now()}`),
+      project_code: getShortEntityId("PRJ", `${Date.now()}${Math.random()}${organizationId}`),
       status: "active",
       is_default: false,
       created_by: getUserId(),
@@ -2550,6 +2598,11 @@ async function saveClientUpload() {
       const uploadError = uploadResponse?.error;
 
       if (uploadError) {
+        if (uploaded > 0) {
+          addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} failed.`);
+          saveState();
+          render();
+        }
         return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message || "File could not be uploaded.") };
       }
 
@@ -2579,6 +2632,11 @@ async function saveClientUpload() {
       const recordError = recordResponse?.error;
       if (recordError) {
         await supabaseClient.storage.from("client-files").remove([storagePath]).then(() => null, () => null);
+        if (uploaded > 0) {
+          addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} could not be recorded.`);
+          saveState();
+          render();
+        }
         return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, recordError.message || "File record could not be saved to the workspace.") };
       }
       entry.fileId = uploadRecord?.id || "";
@@ -2630,7 +2688,7 @@ async function uploadAdminDeliverable() {
   const existingDeliverable = existingDeliverableId
     ? state.adminDeliverables.find((deliverable) => deliverable.id === existingDeliverableId && deliverable.organizationId === organizationId)
     : null;
-  const projectId = linkedRequest?.projectId || existingDeliverable?.projectId || document.querySelector("#adminUploadProjectSelect")?.value || state.selectedAdminProjectId || "";
+  const projectId = linkedRequest?.projectId || existingDeliverable?.projectId || getAdminUploadProjectId();
   const title = document.querySelector("#adminDeliverableTitle")?.value.trim() || "";
   const deliverableType = document.querySelector("#adminDeliverableType")?.value || "Business Analysis deliverable";
   const summary = document.querySelector("#adminDeliverableSummary")?.value.trim() || "";
@@ -2916,7 +2974,7 @@ function renderRequests() {
           <td>${escapeHtml(request.id)}</td>
           <td>${escapeHtml(request.projectLabel || getClientProjectLabel(request.projectId))}</td>
           <td>${escapeHtml(request.type)}</td>
-          <td>${escapeHtml(request.status)}</td>
+          <td>${escapeHtml(normalizeVerificationStatus(request.status))}</td>
           <td>${escapeHtml(request.due)}</td>
         </tr>
       `
@@ -3208,7 +3266,7 @@ function renderCreditHistory() {
   const selectedProject = getSelectedAdminProject();
   const adminCreditRows = state.adminCreditLedger.length
     ? state.adminCreditLedger
-        .filter((item) => isSelectedAdminScopedRecord(item, selectedClient, selectedProject))
+        .filter((item) => isSelectedAdminRecord(item, selectedClient))
         .map(
           (item) => `
         <tr>
@@ -3383,9 +3441,25 @@ function renderCreditControls() {
         })
         .join("");
   }
+  if (adminUploadProjectSelect) {
+    const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
+    const projects = selectedOrg ? state.adminProjects.filter((project) => project.organizationId === selectedOrg) : [];
+    const current =
+      state.adminUploadProjectId === null || state.adminUploadProjectId === undefined
+        ? state.selectedAdminProjectId
+        : state.adminUploadProjectId;
+    adminUploadProjectSelect.innerHTML =
+      `<option value="">Select a project</option>` +
+      projects
+        .map((project) => {
+          const selected = project.id === current ? " selected" : "";
+          return `<option value="${escapeHtml(project.id)}"${selected}>${escapeHtml(getProjectLabel(project))}</option>`;
+        })
+        .join("");
+  }
   if (uploadRequestSelect) {
     const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const selectedUploadProjectId = adminUploadProjectSelect?.value || state.selectedAdminProjectId;
+    const selectedUploadProjectId = getAdminUploadProjectId();
     const requests = selectedOrg
       ? state.adminQueue.filter((item) =>
           item.queueType === "request" &&
@@ -3399,22 +3473,9 @@ function renderCreditControls() {
         .map((request) => `<option value="${escapeHtml(request.requestId || request.id)}">${escapeHtml(request.id)} - ${escapeHtml(request.type)}</option>`)
         .join("");
   }
-  if (adminUploadProjectSelect) {
-    const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const projects = selectedOrg ? state.adminProjects.filter((project) => project.organizationId === selectedOrg) : [];
-    const current = adminUploadProjectSelect.value || state.selectedAdminProjectId;
-    adminUploadProjectSelect.innerHTML =
-      `<option value="">Select a project</option>` +
-      projects
-        .map((project) => {
-          const selected = project.id === current ? " selected" : "";
-          return `<option value="${escapeHtml(project.id)}"${selected}>${escapeHtml(getProjectLabel(project))}</option>`;
-        })
-        .join("");
-  }
   if (existingDeliverableSelect) {
     const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
-    const selectedUploadProjectId = adminUploadProjectSelect?.value || state.selectedAdminProjectId;
+    const selectedUploadProjectId = getAdminUploadProjectId();
     const deliverables = selectedOrg
       ? state.adminDeliverables.filter((deliverable) => deliverable.organizationId === selectedOrg && (!selectedUploadProjectId || deliverable.projectId === selectedUploadProjectId))
       : [];
@@ -3455,13 +3516,15 @@ function renderCreditControls() {
       button.setAttribute("aria-disabled", "true");
     }
   });
-  if (adminAlertCount) adminAlertCount.textContent = creditAlertState.count;
-  if (adminAlertSummary) adminAlertSummary.textContent = creditAlertState.summary;
   if (adminCreditAlertPanel) {
     adminCreditAlertPanel.classList.toggle("warning", creditAlertState.level === "low");
     adminCreditAlertPanel.classList.toggle("danger", creditAlertState.level === "depleted");
   }
-  if (adminCreditAlertText) adminCreditAlertText.textContent = creditAlertState.message;
+  if (adminCreditAlertText) {
+    adminCreditAlertText.textContent = hasAdminClient
+      ? creditAlertState.message
+      : adminAlertSummary?.textContent || "No client credit alerts require action.";
+  }
   if (deliveryCreditStatus) {
     deliveryCreditStatus.textContent =
       state.creditsLeft <= 0
@@ -3478,8 +3541,10 @@ function updateAdminReleaseReadiness() {
   if (!status || !button) return;
 
   const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
-  const projectId = document.querySelector("#adminUploadProjectSelect")?.value || state.selectedAdminProjectId;
+  const projectId = getAdminUploadProjectId();
   const title = document.querySelector("#adminDeliverableTitle")?.value.trim();
+  const summary = document.querySelector("#adminDeliverableSummary")?.value.trim();
+  const releaseNote = document.querySelector("#adminDeliverableReleaseNote")?.value.trim();
   const creditsUsed = Math.max(0, Number(document.querySelector("#adminReleaseCreditsUsed")?.value || 0));
   const availableCredits = getAdminCreditBalanceForOrganization(organizationId);
   const files = getAdminUploadFiles();
@@ -3497,8 +3562,14 @@ function updateAdminReleaseReadiness() {
   } else if (!title) {
     message = "Step 3: add a clear deliverable title.";
     ready = false;
+  } else if (!summary) {
+    message = "Step 4: add a short release summary.";
+    ready = false;
+  } else if (!releaseNote) {
+    message = "Step 5: add a version note.";
+    ready = false;
   } else if (!files.length) {
-    message = "Step 4: choose one or more deliverable files.";
+    message = "Step 6: choose one or more deliverable files.";
     ready = false;
   } else if (validationError) {
     message = validationError;
@@ -3520,7 +3591,7 @@ function updateAdminReleaseReadiness() {
 
 function validateAdminReleaseForm() {
   const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
-  const projectId = document.querySelector("#adminUploadProjectSelect")?.value || state.selectedAdminProjectId;
+  const projectId = getAdminUploadProjectId();
   const title = document.querySelector("#adminDeliverableTitle")?.value.trim();
   const summary = document.querySelector("#adminDeliverableSummary")?.value.trim();
   const releaseNote = document.querySelector("#adminDeliverableReleaseNote")?.value.trim();
@@ -3614,7 +3685,9 @@ function getClientNextStep() {
   const hasProfile = supabaseClient
     ? Boolean(state.profileOrganizationId)
     : Boolean(state.client.email && state.client.company);
-  const reviewCount = state.deliverables.filter((deliverable) => getVerificationLevel(deliverable.verificationStatus) !== "approved").length;
+  const visibleRequests = getVisibleRequests();
+  const visibleDeliverables = getVisibleDeliverables();
+  const reviewCount = visibleDeliverables.filter((deliverable) => getVerificationLevel(deliverable.verificationStatus) !== "approved").length;
   if (!hasProfile) {
     return {
       title: "Complete your client profile",
@@ -3623,7 +3696,7 @@ function getClientNextStep() {
       cta: "Complete Profile",
     };
   }
-  if (state.creditsLeft <= 0 && !state.requests.length) {
+  if (state.creditsLeft <= 0 && !visibleRequests.length) {
     if (hasRescueSprintAccess()) {
       return {
         title: "Submit your Rescue Sprint intake",
@@ -3639,7 +3712,7 @@ function getClientNextStep() {
       cta: "Open Billing",
     };
   }
-  if (!state.requests.length) {
+  if (!visibleRequests.length) {
     return {
       title: "Start your first request",
       body: "Send the business goal, desired output, deadline, and supporting files so the advisory team can scope the work.",
@@ -3831,7 +3904,7 @@ function getAdminLastActivityForClient(client) {
   const values = [
     ...state.adminQueue.filter((item) => isSelectedAdminRecord(item, client) && isSelectedAdminProjectRecord(item, project)).map((item) => item.dueAt),
     ...state.adminDeliverables.filter((item) => isSelectedAdminRecord(item, client) && isSelectedAdminProjectRecord(item, project)).map((item) => item.updatedAt || item.createdAt),
-    ...state.adminCreditLedger.filter((item) => isSelectedAdminRecord(item, client) && isSelectedAdminProjectRecord(item, project)).map((item) => item.rawDate || item.date),
+    ...state.adminCreditLedger.filter((item) => isSelectedAdminRecord(item, client)).map((item) => item.rawDate || item.date),
     ...state.adminPaymentHistory.filter((item) => isSelectedAdminRecord(item, client)).map((item) => item.rawDate || item.date),
   ]
     .map((value) => new Date(value || 0))
@@ -3860,11 +3933,13 @@ function renderAdminSnapshot() {
   const fileInboxCount = document.querySelector("#adminFileInboxCount");
   const readyCount = document.querySelector("#adminReadyCount");
   const alertCount = document.querySelector("#adminAlertCount");
+  const alertSummary = document.querySelector("#adminAlertSummary");
   if (activeClientCount) activeClientCount.textContent = clients.length;
   if (openWorkCount) openWorkCount.textContent = openWork || state.adminNewCount || 0;
   if (fileInboxCount) fileInboxCount.textContent = fileInbox;
   if (readyCount) readyCount.textContent = released;
   if (alertCount) alertCount.textContent = lowCreditClients;
+  if (alertSummary) alertSummary.textContent = lowCreditClients ? `${lowCreditClients} client${lowCreditClients === 1 ? "" : "s"} need review` : "No credit alerts";
 }
 
 function renderAdminClientPortfolio() {
@@ -3881,12 +3956,12 @@ function renderAdminClientPortfolio() {
       const activeProjects = (client.projects || []).filter((project) => !["archived", "closed"].includes(normalizeStatusValue(project.status))).length;
       const selected = state.selectedAdminClientId && (state.selectedAdminClientId === client.selectionId || state.selectedAdminClientId === client.id);
       return `
-        <tr class="${selected ? "selected-row" : ""}">
+        <tr class="${selected ? "selected-row" : ""}" aria-selected="${selected ? "true" : "false"}">
           <td>
             <strong>${escapeHtml(client.name || "Client workspace")}</strong>
             <span>${escapeHtml(getClientEmail(client) || "No email recorded")}</span>
             <small>${escapeHtml(activeProjects ? `${activeProjects} active project${activeProjects === 1 ? "" : "s"}` : "No active project yet")}</small>
-            <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">View dossier</button>
+            <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">${selected ? "Viewing dossier" : "View dossier"}</button>
           </td>
           <td>${escapeHtml(getAdminClientHealth(client))}</td>
           <td>${escapeHtml(client.balance ?? 0)}</td>
@@ -4037,12 +4112,31 @@ function resolveAdminMessageContext(queueItem = null) {
   const selectedClient = getSelectedAdminClient();
   const client = queueItem?.organizationId
     ? state.adminClients.find((item) => item.id === queueItem.organizationId) || selectedClient
+    : queueItem?.clientEmail
+      ? {
+          id: "",
+          name: queueItem.client || queueItem.clientEmail,
+          email: queueItem.clientEmail,
+          billingEmail: queueItem.clientEmail,
+        }
     : selectedClient;
   const project = queueItem?.projectId
     ? state.adminProjects.find((item) => item.id === queueItem.projectId) || getSelectedAdminProject()
     : getSelectedAdminProject();
-  const relatedEntityType = queueItem?.queueType === "request" || queueItem?.queueType === "request-file" ? "request" : "workspace";
-  const relatedEntityId = relatedEntityType === "request" ? queueItem?.requestId || null : null;
+  let relatedEntityType = ["request", "deliverable", "workspace"].includes(queueItem?.relatedEntityType) ? queueItem.relatedEntityType : "workspace";
+  let relatedEntityId = relatedEntityType === "workspace" ? null : queueItem?.relatedEntityId || null;
+  if (!queueItem?.relatedEntityType) {
+    if (queueItem?.queueType === "request" || queueItem?.queueType === "request-file") {
+      relatedEntityType = "request";
+      relatedEntityId = queueItem?.requestId || null;
+    } else if (queueItem?.queueType === "client-upload" && queueItem?.requestId) {
+      relatedEntityType = "request";
+      relatedEntityId = queueItem.requestId;
+    } else if ((queueItem?.queueType === "client-message" || queueItem?.queueType === "client-upload") && queueItem?.deliverableId) {
+      relatedEntityType = "deliverable";
+      relatedEntityId = queueItem.deliverableId;
+    }
+  }
 
   return {
     client,
@@ -4074,7 +4168,12 @@ function openAdminMessageComposer(queueItem = null) {
   }
   if (subject) subject.value = queueItem ? `BA Advisory Desk update: ${getAdminWorkTitle(queueItem)}` : "BA Advisory Desk workspace update";
   if (body) body.value = "";
-  setInlineStatus("#adminMessageStatus", "The email subject will include a support reference, and the message will be saved in the client workspace.");
+  setInlineStatus(
+    "#adminMessageStatus",
+    context.organizationId
+      ? "The email subject will include a support reference, and the message will be saved in the client workspace."
+      : "The email subject will include a support reference. Once this inquiry becomes a client, the workspace will hold the full message history."
+  );
   composer.classList.remove("hidden");
   window.requestAnimationFrame(() => body?.focus());
 }
@@ -4092,8 +4191,8 @@ async function sendAdminClientMessage() {
   const subject = subjectField?.value.trim() || "";
   const message = bodyField?.value.trim() || "";
 
-  if (!context.organizationId || !context.email) {
-    const error = "Select a client with an email address before sending a message.";
+  if (!context.email) {
+    const error = "Select a client or inquiry with an email address before sending a message.";
     setInlineStatus("#adminMessageStatus", error, "warning");
     showPersistentNotice(error);
     return { ok: false, error };
@@ -4244,6 +4343,8 @@ function normalizeAdminRequest(request) {
     queueType: "request",
     id: request.request_code || request.id || "Request",
     requestId: request.id || null,
+    relatedEntityType: "request",
+    relatedEntityId: request.id || null,
     organizationId: request.organization_id || null,
     ...project,
     clientEmail: request.client_organizations?.billing_email || "",
@@ -4251,7 +4352,8 @@ function normalizeAdminRequest(request) {
       request.organization_name ||
       request.client_organizations?.name ||
       request.organization?.name ||
-      (request.organization_id ? `Workspace ${String(request.organization_id).slice(0, 8)}` : "Client workspace"),
+      request.client_organizations?.billing_email ||
+      "Client workspace",
     type: request.request_type || request.request_code || "Client request",
     action: normalizeStatusValue(status) === "new" ? "Scope request" : "Review intake",
     status,
@@ -4272,7 +4374,7 @@ function normalizeCustomQuoteRequest(quote) {
     requestId: quote.id || null,
     organizationId: quote.organization_id || null,
     clientEmail: quote.work_email || "",
-    client: quote.work_email || "Custom inquiry",
+    client: quote.organization_name || quote.work_email || "Custom inquiry",
     type: `Custom quote${quote.company_type ? `: ${quote.company_type}` : ""}`,
     summarySnippet: quote.request_summary || "",
     budget: quote.estimated_budget || "",
@@ -4292,7 +4394,7 @@ function normalizePaymentOrder(order) {
     requestId: order.id || null,
     organizationId: order.organization_id || null,
     clientEmail: organization.billing_email || "",
-    client: organization.name || (order.organization_id ? `Workspace ${String(order.organization_id).slice(0, 8)}` : isRescueSprint ? "One time client" : "Client workspace"),
+    client: organization.name || organization.billing_email || (isRescueSprint ? "One time client" : "Client workspace"),
     type: isRescueSprint ? "BA Rescue Sprint buyer" : productLabel(order.product_type),
     action: isRescueSprint ? "Open intake follow up" : "Review payment",
     status: order.status || "Pending",
@@ -4303,15 +4405,20 @@ function normalizePaymentOrder(order) {
 
 function normalizeNotification(notification) {
   const project = getProjectFieldsFromRow(notification);
+  const relatedEntityType = notification.related_entity_type || "workspace";
+  const organization = notification.client_organizations || {};
   return {
     queueType: "notification",
     id: notification.id || "Notification",
     requestId: notification.related_entity_id || notification.id || null,
+    relatedEntityType,
+    relatedEntityId: notification.related_entity_id || null,
     organizationId: notification.organization_id || null,
     ...project,
-    clientEmail: notification.recipient_email || "",
-    client: notification.recipient_email || "Client workspace",
+    clientEmail: organization.billing_email || notification.recipient_email || "",
+    client: organization.name || organization.billing_email || notification.recipient_email || "Client workspace",
     type: notification.subject || notification.template_key || "Notification",
+    summarySnippet: notification.failure_reason || notification.body || "",
     action: normalizeStatusValue(notification.status) === "queued" ? "Check email delivery" : "Check notification",
     status: notification.status || "Queued",
     dueAt: notification.created_at || null,
@@ -4322,14 +4429,19 @@ function normalizeNotification(notification) {
 function normalizeAdminClientMessage(message) {
   const organization = message.client_organizations || {};
   const project = getProjectFieldsFromRow(message);
+  const relatedEntityType = message.request_id ? "request" : message.deliverable_id ? "deliverable" : "workspace";
+  const relatedEntityId = message.request_id || message.deliverable_id || null;
   return {
     queueType: "client-message",
     id: message.id || "Client message",
     requestId: message.request_id || message.deliverable_id || message.id || null,
+    deliverableId: message.deliverable_id || null,
+    relatedEntityType,
+    relatedEntityId,
     organizationId: message.organization_id || null,
     ...project,
     clientEmail: organization.billing_email || "",
-    client: organization.name || (message.organization_id ? `Workspace ${String(message.organization_id).slice(0, 8)}` : "Client workspace"),
+    client: organization.name || organization.billing_email || "Client workspace",
     type: message.subject || "Client workspace message",
     body: message.body || "",
     summarySnippet: message.body || "",
@@ -4343,16 +4455,21 @@ function normalizeAdminClientMessage(message) {
 function normalizeAdminClientUpload(upload) {
   const organization = upload.client_organizations || {};
   const project = getProjectFieldsFromRow(upload);
+  const relatedEntityType = upload.request_id ? "request" : upload.deliverable_id ? "deliverable" : "workspace";
+  const relatedEntityId = upload.request_id || upload.deliverable_id || null;
   return {
     queueType: "client-upload",
     id: upload.id || "Client upload",
     fileId: upload.id || "",
     fileKind: "client_upload",
     requestId: upload.request_id || upload.deliverable_id || upload.id || null,
+    deliverableId: upload.deliverable_id || null,
+    relatedEntityType,
+    relatedEntityId,
     organizationId: upload.organization_id || null,
     ...project,
     clientEmail: organization.billing_email || "",
-    client: organization.name || (upload.organization_id ? `Workspace ${String(upload.organization_id).slice(0, 8)}` : "Client workspace"),
+    client: organization.name || organization.billing_email || "Client workspace",
     type: upload.original_file_name || upload.upload_type || "Client upload",
     fileName: upload.original_file_name || upload.upload_type || "Client upload",
     fileSize: upload.file_size_bytes || 0,
@@ -4375,10 +4492,12 @@ function normalizeAdminRequestFile(file) {
     fileId: file.id || "",
     fileKind: "request_file",
     requestId: file.request_id || null,
+    relatedEntityType: "request",
+    relatedEntityId: file.request_id || null,
     organizationId: file.organization_id || null,
     ...project,
     clientEmail: organization.billing_email || "",
-    client: organization.name || (file.organization_id ? `Workspace ${String(file.organization_id).slice(0, 8)}` : "Client workspace"),
+    client: organization.name || organization.billing_email || "Client workspace",
     fileName: file.file_name || "Request source file",
     type: file.file_name || "Request source file",
     source: "Request source",
@@ -4396,10 +4515,12 @@ function applyAdminQueueData(data) {
   const requests = data.requests || [];
   const quoteItems = data.quotes || data.customQuoteRequests || [];
   const paymentOrders = data.paymentOrders || [];
+  const queuePaymentOrders = data.queuePaymentOrders || data.visiblePaymentOrders || paymentOrders;
   const notifications = data.notifications || [];
   const clientMessages = data.clientMessages || [];
   const clientUploads = data.clientUploads || [];
   const requestFiles = data.requestFiles || [];
+  const queueRequestFiles = data.queueRequestFiles || data.visibleRequestFiles || requestFiles;
   const deliverableFiles = data.deliverableFiles || [];
   const clientProfiles = data.clientProfiles || [];
   const profileByOrganization = new Map(
@@ -4414,8 +4535,8 @@ function applyAdminQueueData(data) {
     ...requests.map(normalizeAdminRequest),
     ...clientMessages.map(normalizeAdminClientMessage),
     ...clientUploads.map(normalizeAdminClientUpload),
-    ...requestFiles.map(normalizeAdminRequestFile),
-    ...paymentOrders.map(normalizePaymentOrder),
+    ...queueRequestFiles.map(normalizeAdminRequestFile),
+    ...queuePaymentOrders.map(normalizePaymentOrder),
     ...notifications.map(normalizeNotification),
     ...fallbackItems.map(normalizeAdminQueueItem),
   ];
@@ -4441,7 +4562,8 @@ function applyAdminQueueData(data) {
         account.client_name ||
         account.company ||
         organization.name ||
-        (id ? `Workspace ${String(id).slice(0, 8)}` : "Client workspace"),
+        profile.work_email ||
+        "Client workspace",
       email: organization.billing_email || account.billing_email || profile.work_email || "",
       industry: organization.industry || "",
       country: organization.country || "",
@@ -4493,7 +4615,7 @@ function applyAdminQueueData(data) {
     adminClientMap.set(key, {
       id: deliverable.organization_id,
       selectionId: deliverable.organization_id,
-      name: `Workspace ${String(deliverable.organization_id).slice(0, 8)}`,
+      name: "Client workspace",
       email: "",
       balance: 0,
       lowCreditThreshold: state.creditThreshold,
@@ -4508,7 +4630,7 @@ function applyAdminQueueData(data) {
     adminClientMap.set(id, {
       id,
       selectionId: id,
-      name: organization.name || profile.work_email || `Workspace ${String(id).slice(0, 8)}`,
+      name: organization.name || profile.work_email || "Client workspace",
       email: organization.billing_email || profile.work_email || "",
       industry: organization.industry || "",
       country: organization.country || "",
@@ -4578,7 +4700,7 @@ function applyAdminQueueData(data) {
     ...getProjectFieldsFromRow(entry),
     date: formatDisplayDate(entry.created_at),
     event: entry.event || entry.event_type || "Audit event",
-    client: entry.client_organizations?.name || (entry.organization_id ? `Workspace ${String(entry.organization_id).slice(0, 8)}` : "Client workspace"),
+    client: entry.client_organizations?.name || entry.client_organizations?.billing_email || "Client workspace",
     details: getAuditDetailText(entry.details || entry.event_detail),
   }));
 
@@ -5003,6 +5125,11 @@ async function openConfiguredCheckout(linkKey, fallbackMessage, options = {}) {
         window.location.href = data.url;
         return true;
       }
+      if (!response.ok) {
+        const message = data.error || `${fallbackMessage} Please try again or contact ${config.supportEmail}.`;
+        showPersistentNotice(message);
+        return false;
+      }
     } catch (error) {
       // Static local previews do not have API routes. The user sees the friendly fallback below.
     }
@@ -5167,6 +5294,7 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.id === "adminClientSelect" || event.target.id === "adminUploadClientSelect") {
     state.selectedAdminClientId = event.target.value;
+    state.adminUploadProjectId = null;
     syncSelectedAdminClientToState();
     saveState();
     render();
@@ -5177,18 +5305,18 @@ document.addEventListener("change", (event) => {
     render();
   }
   if (event.target.id === "adminUploadProjectSelect") {
-    state.selectedAdminProjectId = event.target.value || state.selectedAdminProjectId;
-    saveState();
-    render();
+    state.adminUploadProjectId = event.target.value || "";
+    renderCreditControls();
+    updateAdminReleaseReadiness();
   }
   if (event.target.id === "adminUploadRequestSelect") {
     const request = state.adminQueue.find((item) => item.queueType === "request" && (item.requestId === event.target.value || item.id === event.target.value));
     if (request?.projectId) {
       const projectSelect = document.querySelector("#adminUploadProjectSelect");
       if (projectSelect) projectSelect.value = request.projectId;
-      state.selectedAdminProjectId = request.projectId;
-      saveState();
-      render();
+      state.adminUploadProjectId = request.projectId;
+      renderCreditControls();
+      updateAdminReleaseReadiness();
     }
   }
 });
@@ -5207,6 +5335,9 @@ document.addEventListener("click", async (event) => {
   try {
 
   if (target.dataset.adminAction === "jump-admin-section") {
+    const previousQueueFocus = state.adminQueueFocus;
+    state.adminQueueFocus = target.dataset.queueFilter || "";
+    if (state.adminQueueFocus || previousQueueFocus) renderRequests();
     const targetId = target.dataset.targetId;
     if (targetId) scrollToAdminSection(targetId);
     return;
@@ -5245,6 +5376,8 @@ document.addEventListener("click", async (event) => {
       return;
     }
     state.selectedAdminClientId = selectionId;
+    state.adminUploadProjectId = null;
+    state.adminQueueFocus = "";
     syncSelectedAdminClientToState();
     syncSelectedAdminProjectToClient();
     saveState();
@@ -5797,6 +5930,21 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
   }
 });
 
+function resetRequestIntakeForm() {
+  const form = document.querySelector("#requestForm");
+  if (!form) return;
+  form.reset();
+  const fileList = document.querySelector("#fileList");
+  if (fileList) fileList.textContent = "No files selected yet.";
+  const status = document.querySelector("#requestStatus");
+  if (status) {
+    status.textContent = "Complete the required fields before submitting.";
+    status.classList.remove("warning", "success");
+  }
+  renderClientProjectControls();
+  updateRequestReadinessStatus([]);
+}
+
 document.querySelector("#requestForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const submitButton = document.querySelector("#requestSubmitButton") || event.submitter;
@@ -5837,6 +5985,8 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     const userId = getUserId();
     const selectedType = document.querySelector("#requestType").value;
     const otherType = document.querySelector("#requestOther").value.trim();
+    const requestProjectSelectValue = document.querySelector("#requestProjectSelect")?.value || "";
+    const requestProjectNameValue = document.querySelector("#requestProjectName")?.value.trim() || "";
     const businessGoal = document.querySelector("#businessGoal").value.trim();
     const targetAudience = document.querySelector("#targetAudience").value.trim();
     const desiredOutput = document.querySelector("#desiredOutput")?.value.trim() || "";
@@ -5848,10 +5998,10 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       statusSelector,
       message: "Complete the highlighted request fields before submitting.",
       fields: [
-        { selector: "#requestProjectSelect", isValid: () => Boolean(document.querySelector("#requestProjectSelect")?.value), message: "Select a project." },
+        { selector: "#requestProjectSelect", isValid: () => Boolean(requestProjectSelectValue || requestProjectNameValue), message: "Select an existing project or enter a new project name." },
         {
           selector: "#requestProjectName",
-          when: () => document.querySelector("#requestProjectSelect")?.value === "__new__",
+          when: () => requestProjectSelectValue === "__new__" || !requestProjectSelectValue,
           isValid: () => Boolean(document.querySelector("#requestProjectName")?.value.trim()),
           message: "Enter a project name.",
         },
@@ -5894,14 +6044,6 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       warn("Please complete your client profile before submitting a request. This keeps your files, payment, and deliverables connected.");
       return;
     }
-    const projectResult = await resolveRequestProject(organizationId);
-    if (!projectResult.ok) {
-      warn(projectResult.error || "Please choose or create a project before submitting this request.");
-      return;
-    }
-    const selectedProject = projectResult.project;
-    state.selectedProjectId = selectedProject.id || "";
-
     if (requestedCredits > 0) {
       let creditResult;
       try {
@@ -5946,6 +6088,14 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       render();
       return;
     }
+
+    const projectResult = await resolveRequestProject(organizationId);
+    if (!projectResult.ok) {
+      warn(projectResult.error || "Please choose or create a project before submitting this request.");
+      return;
+    }
+    const selectedProject = projectResult.project;
+    state.selectedProjectId = selectedProject.id || "";
 
     const request = {
       id: generateRequestCode(),
@@ -6033,6 +6183,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     const successMessage = `Request received. ${uploadResult.uploaded} file${uploadResult.uploaded === 1 ? "" : "s"} uploaded and attached to your workspace.`;
     setInlineStatus(statusSelector, successMessage, "success");
     showToast(successMessage);
+    resetRequestIntakeForm();
     window.location.hash = "dashboard";
   } catch (error) {
     warn(error.message || `Request could not be submitted. Please try again or contact ${config.supportEmail}.`);
@@ -6197,6 +6348,7 @@ document.querySelector("#fileUpload").addEventListener("change", (event) => {
   const list = document.querySelector("#fileList");
   if (!files.length) {
     list.textContent = "No files selected yet.";
+    updateRequestReadinessStatus([]);
     return;
   }
   const validationError = validateWorkspaceFiles(files);

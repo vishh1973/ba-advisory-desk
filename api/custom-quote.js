@@ -144,6 +144,7 @@ module.exports = async function handler(req, res) {
       to: supportEmail,
       subject: "New BA Advisory Desk custom advisory request",
       html: buildAdminEmail(payload, quote.id),
+      replyTo: payload.workEmail,
     });
 
     await supabase.from("notifications").insert({
