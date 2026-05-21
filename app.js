@@ -2231,6 +2231,7 @@ async function loadClientWorkspaceData() {
         .from("request_files")
         .select("id,request_id,project_id,organization_id,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
@@ -2307,6 +2308,7 @@ async function loadClientWorkspaceData() {
         .from("client_uploads")
         .select("id,project_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(20),
     ]);
@@ -3620,6 +3622,8 @@ function renderCreditControls() {
   if (adminCreditAlertPanel) {
     adminCreditAlertPanel.classList.toggle("warning", creditAlertState.level === "low");
     adminCreditAlertPanel.classList.toggle("danger", creditAlertState.level === "depleted");
+    const globalAlertCount = Number(adminAlertCount?.textContent || 0);
+    adminCreditAlertPanel.classList.toggle("hidden", hasAdminClient ? creditAlertState.level === "healthy" : globalAlertCount <= 0);
   }
   if (adminCreditAlertText) {
     adminCreditAlertText.textContent = hasAdminClient
@@ -3950,7 +3954,7 @@ function renderClientFileRoom() {
             }
             ${
               file.fileId
-                ? `<button class="secondary small danger-button" type="button" data-delete-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}" data-organization-id="${escapeHtml(file.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || "")}">Delete</button>`
+                ? `<button class="secondary small danger-button" type="button" data-delete-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}" data-organization-id="${escapeHtml(file.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || "")}">Remove</button>`
                 : ""
             }
           </div>
@@ -4104,15 +4108,17 @@ function renderAdminClientDossier() {
       ["Client reference", getClientDisplayId(client)],
       ["Email", getClientEmail(client) || "Not recorded"],
       ["Primary contact", [client.firstName, client.lastName].filter(Boolean).join(" ") || "Not recorded"],
+      ["Project reference", activeProject ? getProjectDisplayRef(activeProject) : `${activeProjectCount} active projects`],
+      ["Active project", activeProject ? getProjectLabel(activeProject) : "No project selected"],
+      ["Primary need", client.primaryBusinessNeed || "Not recorded"],
+    ];
+    const contextRows = [
       ["Job title", client.jobTitle || "Not recorded"],
       ["Phone", client.phone || "Not recorded"],
       ["Workspace status", client.id ? "Client workspace active" : "Inquiry without workspace"],
-      ["Project reference", activeProject ? getProjectDisplayRef(activeProject) : `${activeProjectCount} active projects`],
-      ["Active project", activeProject ? getProjectLabel(activeProject) : "No project selected"],
       ["Industry", client.industry || "Not recorded"],
       ["Country", client.country || "Not recorded"],
       ["Time zone", client.timezone || "Not recorded"],
-      ["Primary need", client.primaryBusinessNeed || "Not recorded"],
       ["Working style", client.workingStyle || "Not recorded"],
     ];
     const projectSummary = `
@@ -4128,7 +4134,13 @@ function renderAdminClientDossier() {
         <button type="button" class="dossier-metric messages" data-admin-action="jump-admin-section" data-target-id="adminDossierMessagesBlock"><strong>${escapeHtml(projectMessages.length)}</strong><span>Messages and notices</span></button>
       </div>
     `;
-    profile.innerHTML = projectSummary + profileRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("");
+    profile.innerHTML =
+      projectSummary +
+      profileRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("") +
+      `<details class="dossier-context-details">
+        <summary>More client context</summary>
+        ${contextRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}
+      </details>`;
   }
 
   if (requests) {
@@ -4167,7 +4179,8 @@ function renderAdminClientDossier() {
               <span>${escapeHtml(getClientProjectLabel(file))} | ${escapeHtml(file.source || "File")} | ${escapeHtml(file.contextLabel || file.status || "Received")} | ${escapeHtml(formatFileSize(file.fileSize))} | ${escapeHtml(formatDateTime(file.createdAt || file.dueAt))}</span>
               ${
                 file.fileId
-                  ? `<br /><button class="secondary small" type="button" data-download-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}" data-organization-id="${escapeHtml(file.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || "")}">Download</button>`
+                  ? `<br /><button class="secondary small" type="button" data-download-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}" data-organization-id="${escapeHtml(file.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || "")}">Download</button>
+                    <button class="secondary small danger-button" type="button" data-delete-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}" data-organization-id="${escapeHtml(file.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || "")}">Remove</button>`
                   : ""
               }</p>
             `
@@ -5904,7 +5917,7 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const confirmed = window.confirm("Delete this uploaded file from your workspace? This cannot be undone.");
+  const confirmed = window.confirm("Remove this uploaded file from the workspace view? The file record will be archived for audit history.");
   if (!confirmed) return;
 
   setButtonBusy(target, true, "Deleting");
@@ -5937,7 +5950,7 @@ document.addEventListener("click", async (event) => {
     await loadClientWorkspaceData();
   }
   render();
-  showToast("File deleted from the workspace.");
+  showToast("File removed from the workspace.");
 });
 
 document.addEventListener("click", (event) => {

@@ -53,6 +53,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (type === "adjust" && credits === 0 && thresholdProvided) {
+      await supabase.rpc("expire_credit_grants", { p_organization_id: organizationId }).then(() => null, () => null);
       const { data: account, error: accountError } = await supabase
         .from("credit_accounts")
         .select("id,balance,low_credit_threshold")

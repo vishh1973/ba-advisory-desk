@@ -1412,59 +1412,25 @@
         </div>
         <div class="admin-grid">
           <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminClientPortfolioTable" aria-label="Show client portfolio">
-            <h3>Active clients</h3>
-            <strong id="adminActiveClientCount">0</strong>
-            <span>Workspaces with activity</span>
-          </button>
-          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminTable" aria-label="Show open work queue">
-            <h3>Open work</h3>
+            <h3>Work to do</h3>
             <strong id="adminNewCount">1</strong>
-            <span>Requests, messages, and uploads</span>
+            <span><span id="adminQuoteCount">0</span> custom inquiries. <span id="adminActiveClientCount">0</span> active clients.</span>
           </button>
-          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminTable" data-queue-filter="quote" aria-label="Show custom inquiry follow ups">
-            <h3>Custom inquiries</h3>
-            <strong id="adminQuoteCount">0</strong>
-            <span>Discovery follow up needed</span>
-          </button>
-          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminDossierFilesBlock" aria-label="Show selected client file inbox">
-            <h3>File inbox</h3>
+          <button class="admin-metric-card files" type="button" data-admin-action="jump-admin-section" data-target-id="adminDossierFilesBlock" aria-label="Show selected client file inbox">
+            <h3>Files to review</h3>
             <strong id="adminFileInboxCount">0</strong>
-            <span>Client files needing review</span>
+            <span>Client source files and revision uploads.</span>
           </button>
-          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminDossierDeliverablesBlock" aria-label="Show released deliverables">
-            <h3>Released work</h3>
-            <strong id="adminReadyCount">0</strong>
-            <span>Deliverables in client workspaces</span>
-          </button>
-          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminCreditAlertPanel" aria-label="Show credit alerts">
-            <h3>Credit alerts</h3>
+          <button class="admin-metric-card credits" type="button" data-admin-action="jump-admin-section" data-target-id="adminCreditAlertPanel" aria-label="Show credit alerts">
+            <h3>Credit attention</h3>
             <strong id="adminAlertCount">0</strong>
             <span id="adminAlertSummary">No credit alerts</span>
           </button>
+          <span id="adminReadyCount" class="hidden">0</span>
         </div>
         <div id="adminCreditAlertPanel" class="admin-alert-panel">
           <strong>Credit account status</strong>
           <span id="adminCreditAlertText">Credit balance is healthy.</span>
-        </div>
-        <div class="admin-start-panel panel">
-          <div>
-            <p class="eyebrow">Simple operating flow</p>
-            <h3>Run each client file in three steps.</h3>
-          </div>
-          <div class="admin-start-steps">
-            <article>
-              <strong>1. Select client</strong>
-              <span>Open the client portfolio and choose the workspace you want to manage.</span>
-            </article>
-            <article>
-              <strong>2. Review the file</strong>
-              <span>Check profile, source files, messages, requests, payments, and prior deliverables.</span>
-            </article>
-            <article>
-              <strong>3. Release work</strong>
-              <span>Upload one or more deliverable files and send the client notification.</span>
-            </article>
-          </div>
         </div>
         <div class="admin-command-layout">
           <article class="panel admin-portfolio-panel">
@@ -1529,25 +1495,17 @@
               <small id="adminSelectedClientStatus">Healthy</small>
             </article>
             <article>
-              <span>Due deliverables</span>
-              <strong id="adminDueDeliverables">0</strong>
-              <small>Need date attention</small>
-            </article>
-            <article>
-              <span>Pending requests</span>
+              <span>Open work</span>
               <strong id="adminPendingCount">0</strong>
-              <small>Awaiting scope or work</small>
+              <small>Needs review, response, or release</small>
             </article>
             <article>
               <span>Released</span>
               <strong id="adminShippedCount">0</strong>
               <small>Released to client</small>
             </article>
-            <article>
-              <span>Paused</span>
-              <strong id="adminPausedCount">0</strong>
-              <small>No credits or blocked</small>
-            </article>
+            <span id="adminDueDeliverables" class="hidden">0</span>
+            <span id="adminPausedCount" class="hidden">0</span>
           </div>
           <div class="admin-action-row">
             <button id="adminMessageClient" class="secondary small" type="button" data-admin-action="open-message-client">Message Client</button>

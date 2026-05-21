@@ -99,6 +99,7 @@ async function updateByTarget(supabase, target) {
         .update({ status, updated_at: now })
         .eq("id", target.id)
         .eq("organization_id", target.organizationId)
+        .is("deleted_at", null)
     );
   }
 
@@ -132,7 +133,8 @@ async function updateByTarget(supabase, target) {
       .from("request_files")
       .select("id")
       .eq("id", target.id)
-      .eq("organization_id", target.organizationId);
+      .eq("organization_id", target.organizationId)
+      .is("deleted_at", null);
     if (target.projectId) query = query.eq("project_id", target.projectId);
     const { data, error } = await query;
     if (error) throw error;
@@ -229,11 +231,13 @@ module.exports = async function handler(req, res) {
       supabase
         .from("client_uploads")
         .select("id,organization_id,project_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
         .from("request_files")
         .select("id,request_id,project_id,organization_id,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase

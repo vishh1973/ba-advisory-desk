@@ -305,83 +305,35 @@ async function finalizeRelease({ supabase, req, body }) {
     }
   }
 
-  const { data: account, error: accountError } = await supabase
-    .from("credit_accounts")
-    .select("id,balance,low_credit_threshold")
-    .eq("organization_id", organizationId)
+  const { data: releaseResult, error: releaseError } = await supabase
+    .rpc("finalize_deliverable_release", {
+      p_organization_id: organizationId,
+      p_project_id: projectId,
+      p_request_id: requestId,
+      p_deliverable_id: deliverableId,
+      p_version_id: versionId,
+      p_version_number: versionNumber,
+      p_title: body.title || "Client deliverable",
+      p_release_note: body.releaseNote || "",
+      p_credits_used: creditsUsed,
+      p_files: safeFiles.map((file) => ({
+        storageBucket: file.storage_bucket,
+        storagePath: file.storage_path,
+        fileName: file.file_name,
+        contentType: file.content_type,
+        fileSizeBytes: file.file_size_bytes,
+      })),
+      p_actor_id: actorId,
+    })
     .maybeSingle();
-  if (accountError) throw accountError;
-  const currentBalance = Number(account?.balance || 0);
-  if (creditsUsed > currentBalance) {
-    return { status: 409, data: { error: `This client has ${currentBalance} Advisory Credits available.` } };
+
+  if (releaseError) throw releaseError;
+  if (!releaseResult) {
+    return { status: 500, data: { error: "Deliverable release could not be finalized." } };
   }
 
-  const { error: fileInsertError } = await supabase.from("deliverable_version_files").insert(safeFiles);
-  if (fileInsertError) throw fileInsertError;
-
-  const now = new Date().toISOString();
-  let balance = currentBalance;
-  let lowCreditThreshold = Number(account?.low_credit_threshold || 2);
-
-  if (creditsUsed > 0) {
-    const { data: ledgerResult, error: ledgerError } = await supabase
-      .rpc("apply_credit_change", {
-        p_organization_id: organizationId,
-        p_entry_type: "consume",
-        p_credits: creditsUsed,
-        p_entry_reason: `Released deliverable: ${body.title || "Client deliverable"}`,
-        p_related_request_id: requestId,
-        p_related_deliverable_id: deliverableId,
-        p_related_payment_id: null,
-        p_source: "admin",
-        p_idempotency_key: `admin-release-${organizationId}-${deliverableId}-${versionId}`,
-        p_actor_id: actorId,
-      })
-      .single();
-    if (ledgerError) throw ledgerError;
-    balance = Number(ledgerResult?.balance ?? currentBalance);
-    if (ledgerResult?.ledger_id) {
-      await supabase.from("credit_ledger").update({ project_id: projectId }).eq("id", ledgerResult.ledger_id).then(() => null, () => null);
-    }
-  }
-
-  const { error: deliverableUpdateError } = await supabase
-    .from("deliverables")
-    .update({
-      latest_version_id: versionId,
-      current_version_number: versionNumber,
-      status: "delivered",
-      shipped_at: now,
-      shipped_by: actorId,
-      updated_at: now,
-    })
-    .eq("id", deliverableId)
-      .eq("organization_id", organizationId);
-  if (deliverableUpdateError) throw deliverableUpdateError;
-
-  const { error: versionUpdateError } = await supabase
-    .from("deliverable_versions")
-    .update({
-      status: "released",
-      released_at: now,
-      released_by: actorId,
-    })
-    .eq("id", versionId)
-    .eq("organization_id", organizationId);
-  if (versionUpdateError) throw versionUpdateError;
-
-  if (requestId) {
-    await supabase
-      .from("requests")
-      .update({
-        status: "delivered",
-        shipped_at: now,
-        updated_at: now,
-      })
-      .eq("id", requestId)
-      .eq("organization_id", organizationId)
-      .then(() => null, () => null);
-  }
+  let balance = Number(releaseResult.balance ?? 0);
+  let lowCreditThreshold = Number(releaseResult.low_credit_threshold || 2);
 
   const notification = { requested: notifyClient, queued: false, sent: false, error: "" };
   if (notifyClient) {
@@ -465,8 +417,8 @@ async function finalizeRelease({ supabase, req, body }) {
     data: {
       deliverableId,
       versionId,
-      uploaded: safeFiles.length,
-      creditsUsed,
+      uploaded: Number(releaseResult.uploaded ?? safeFiles.length),
+      creditsUsed: Number(releaseResult.credits_used ?? creditsUsed),
       balance,
       lowCreditThreshold,
       notificationRequested: notification.requested,

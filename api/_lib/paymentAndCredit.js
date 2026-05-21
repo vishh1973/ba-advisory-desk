@@ -314,6 +314,21 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
 
 async function getCreditBalance(supabase, organizationId) {
   if (!organizationId) return { balance: 0, lowCreditThreshold: 2 };
+  const { data: refreshed, error: refreshError } = await supabase
+    .rpc("get_current_credit_balance", { p_organization_id: organizationId })
+    .maybeSingle();
+
+  if (!refreshError && refreshed) {
+    return {
+      balance: Number(refreshed.balance ?? 0),
+      lowCreditThreshold: Number(refreshed.low_credit_threshold ?? 2),
+      status: refreshed.status || "",
+      reservedBalance: Number(refreshed.reserved_balance ?? 0),
+      updatedAt: refreshed.updated_at || null,
+    };
+  }
+  if (refreshError && !shouldIgnoreOptionalSchemaError(refreshError)) throw refreshError;
+
   const { data, error } = await supabase
     .from("credit_balance_summary")
     .select("balance,low_credit_threshold,status,reserved_balance,updated_at")

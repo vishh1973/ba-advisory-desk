@@ -38,15 +38,24 @@ async function getUserOrganizationIds(supabase, userId) {
   return new Set((data || []).map((profile) => profile.organization_id).filter(Boolean));
 }
 
-async function readSourceFile(supabase, fileKind, fileId) {
+function isOptionalSoftDeleteSchemaError(error) {
+  return ["42703", "42883", "PGRST202", "PGRST204"].includes(error?.code);
+}
+
+async function readSourceFile(supabase, fileKind, fileId, options = {}) {
+  const includeDeleted = Boolean(options.includeDeleted);
   if (fileKind === "client_upload") {
-    const { data, error } = await supabase
+    let query = supabase
       .from("client_uploads")
-      .select("id,organization_id,project_id,request_id,deliverable_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes")
-      .eq("id", fileId)
-      .single();
+      .select("id,organization_id,project_id,request_id,deliverable_id,uploaded_by,storage_bucket,storage_path,original_file_name,file_size_bytes,deleted_at,deleted_by")
+      .eq("id", fileId);
+    if (!includeDeleted) query = query.is("deleted_at", null);
+    const { data, error } = await query.single();
 
     if (error) throw error;
+    if (data.deleted_at && !includeDeleted) {
+      throw new Error("This file has been removed from the workspace.");
+    }
     if (data.storage_bucket && data.storage_bucket !== "client-files") {
       throw new Error("This file is not available for workspace download.");
     }
@@ -82,17 +91,22 @@ async function readSourceFile(supabase, fileKind, fileId) {
       path: data.storage_path,
       fileName: data.original_file_name,
       fileSize: data.file_size_bytes,
+      deletedAt: data.deleted_at || null,
       sourceType: "client_upload",
     };
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("request_files")
-    .select("id,request_id,organization_id,project_id,uploaded_by,storage_path,file_name,file_size_bytes")
-    .eq("id", fileId)
-    .single();
+    .select("id,request_id,organization_id,project_id,uploaded_by,storage_path,file_name,file_size_bytes,deleted_at,deleted_by")
+    .eq("id", fileId);
+  if (!includeDeleted) query = query.is("deleted_at", null);
+  const { data, error } = await query.single();
 
   if (error) throw error;
+  if (data.deleted_at && !includeDeleted) {
+    throw new Error("This file has been removed from the workspace.");
+  }
   if (data.uploaded_by && !String(data.storage_path || "").startsWith(`${data.uploaded_by}/`)) {
     throw new Error("This file path is not available for this workspace.");
   }
@@ -115,7 +129,74 @@ async function readSourceFile(supabase, fileKind, fileId) {
     path: data.storage_path,
     fileName: data.file_name,
     fileSize: data.file_size_bytes,
+    deletedAt: data.deleted_at || null,
     sourceType: "request_file",
+  };
+}
+
+async function softDeleteSourceFile(supabase, { file, actorId, admin }) {
+  const deletedSource = admin ? "admin_workspace" : "client_workspace";
+  const { data, error } = await supabase
+    .rpc("soft_delete_source_file", {
+      p_file_kind: file.sourceType,
+      p_file_id: file.id,
+      p_actor_id: actorId || null,
+      p_deleted_source: deletedSource,
+      p_deleted_reason: "Removed from workspace",
+    })
+    .maybeSingle();
+
+  if (!error) {
+    return {
+      deleted: true,
+      alreadyDeleted: Boolean(data?.already_deleted || file.deletedAt),
+      fileId: data?.file_id || file.id,
+      fileKind: data?.file_kind || file.sourceType,
+      fileName: data?.file_name || file.fileName,
+    };
+  }
+
+  if (!isOptionalSoftDeleteSchemaError(error)) throw error;
+
+  const table = file.sourceType === "client_upload" ? "client_uploads" : "request_files";
+  const update = {
+    deleted_at: new Date().toISOString(),
+    deleted_by: actorId || null,
+    deleted_reason: "Removed from workspace",
+    deleted_source: deletedSource,
+  };
+  if (table === "client_uploads") {
+    update.status = "removed";
+    update.updated_at = update.deleted_at;
+  }
+  const { error: updateError } = await supabase.from(table).update(update).eq("id", file.id).is("deleted_at", null);
+  if (updateError) throw updateError;
+
+  await supabase
+    .from("audit_events")
+    .insert({
+      organization_id: file.organizationId,
+      project_id: file.projectId || null,
+      actor_id: actorId || null,
+      event_type: "source_file_removed",
+      related_entity_type: file.sourceType,
+      related_entity_id: file.id,
+      event_detail: {
+        file_name: file.fileName,
+        file_size_bytes: file.fileSize,
+        deletion_mode: "soft",
+        storage_retained: true,
+      },
+      source: deletedSource,
+    })
+    .then(() => null, () => null);
+
+  return {
+    deleted: true,
+    alreadyDeleted: false,
+    fileId: file.id,
+    fileKind: file.sourceType,
+    fileName: file.fileName,
   };
 }
 
@@ -152,7 +233,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const file = await readSourceFile(supabase, fileKind, fileId);
+    const file = await readSourceFile(supabase, fileKind, fileId, { includeDeleted: action === "delete" });
     const admin = await requireAdmin(req);
     if (admin) {
       if (requestedOrganizationId && requestedOrganizationId !== file.organizationId) {
@@ -178,33 +259,25 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      const { error: storageError } = await supabase.storage.from(file.bucket).remove([file.path]);
-      if (storageError) throw storageError;
+      if (file.deletedAt) {
+        res.status(200).json({
+          deleted: true,
+          alreadyDeleted: true,
+          fileId: file.id,
+          fileKind: file.sourceType,
+          fileName: file.fileName,
+        });
+        return;
+      }
 
-      const table = file.sourceType === "client_upload" ? "client_uploads" : "request_files";
-      const { error: deleteError } = await supabase.from(table).delete().eq("id", file.id);
-      if (deleteError) throw deleteError;
-
-      await supabase
-        .from("audit_events")
-        .insert({
-          organization_id: file.organizationId,
-          event_type: "source_file_deleted",
-          related_entity_type: file.sourceType,
-          related_entity_id: file.id,
-          event_detail: {
-            file_name: file.fileName,
-            file_size_bytes: file.fileSize,
-          },
-          source: admin ? "admin_workspace" : "client_workspace",
-        })
-        .then(() => null, () => null);
+      const deleted = await softDeleteSourceFile(supabase, {
+        file,
+        actorId: userData.user.id,
+        admin,
+      });
 
       res.status(200).json({
-        deleted: true,
-        fileId: file.id,
-        fileKind: file.sourceType,
-        fileName: file.fileName,
+        ...deleted,
       });
       return;
     }
@@ -240,6 +313,15 @@ module.exports = async function handler(req, res) {
       signedUrl: signed.signedUrl,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message || "Download link could not be created." });
+    const message = error.message || "Download link could not be created.";
+    if (error.code === "PGRST116" || /not found/i.test(message)) {
+      res.status(404).json({ error: "This file is no longer available in the workspace." });
+      return;
+    }
+    if (/removed from the workspace/i.test(message)) {
+      res.status(410).json({ error: message });
+      return;
+    }
+    res.status(500).json({ error: message });
   }
 };

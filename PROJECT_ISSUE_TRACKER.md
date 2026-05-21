@@ -112,7 +112,9 @@ Last updated: 2026-05-21
 - [x] Supabase configuration: enable Google sign-in after Google Cloud OAuth client is created.
 - [ ] Supabase configuration: enable Apple sign-in after Apple Developer service credentials are created.
 - [x] Supabase SQL: applied `supabase/20260520_security_qa_hardening.sql` to the hosted database on 2026-05-20 and verified the admin function plus client message policy.
+- [x] Supabase SQL: applied `supabase/20260521_operational_hardening.sql` to the hosted database on 2026-05-21 for soft file removal, current credit balance reads, and atomic deliverable release finalization.
 - [x] Admin QA pass: six parallel review agents completed admin UX, queue, project linkage, release, message, and checklist reviews on 2026-05-21.
+- [x] Admin dashboard simplification: reduced the top admin view to clearer work, file, and credit signals, shortened the selected client summary, and moved deeper context behind expandable sections.
 
 ## Pending External Configuration
 
@@ -132,8 +134,8 @@ Last updated: 2026-05-21
 - [x] Replace example values in forms with placeholders.
 - [x] Validate file type and size before upload.
 - [ ] Move request creation and credit validation into a server-side transaction or RPC so stale browser credit balances cannot create requests after credits are depleted.
-- [ ] Move deliverable finalization, file rows, and credit use into one database transaction or RPC.
-- [ ] Add soft delete, stronger audit, and recovery workflow for client source files.
+- [x] Move deliverable finalization, file rows, and credit use into one database transaction or RPC.
+- [x] Add soft delete, stronger audit, and recovery workflow for client source files.
 - [ ] Add server-side cleanup for orphaned storage files when a file row insert fails.
 - [ ] Require admin download APIs to receive and validate explicit client and project context.
 - [ ] Add client-scoped file pagination or a "show all files" path for large workspaces.
