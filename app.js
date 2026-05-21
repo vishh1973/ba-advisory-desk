@@ -4118,7 +4118,7 @@ async function markAdminQueueItem(queueItem, action = "addressed") {
       : queueItem.queueType === "request-file" || queueItem.queueType === "client-upload"
         ? queueItem.fileId || queueItem.id
         : queueItem.id;
-  const result = await fetchAdminApi("/api/admin-queue-action", {
+  const result = await fetchAdminApi("/api/admin-queue", {
     method: "POST",
     body: {
       queueType: queueItem.queueType,
