@@ -65,22 +65,30 @@ async function readSourceFile(supabase, fileKind, fileId, options = {}) {
     if (data.request_id) {
       const { data: request, error: requestError } = await supabase
         .from("requests")
-        .select("id,organization_id")
+        .select("id,organization_id,project_id")
         .eq("id", data.request_id)
         .single();
       if (requestError || request.organization_id !== data.organization_id) {
         throw new Error("This file is not available for workspace download.");
       }
+      if (data.project_id && request.project_id && data.project_id !== request.project_id) {
+        throw new Error("This file is attached to a different project workspace.");
+      }
+      data.project_id = data.project_id || request.project_id || null;
     }
     if (data.deliverable_id) {
       const { data: deliverable, error: deliverableError } = await supabase
         .from("deliverables")
-        .select("id,organization_id")
+        .select("id,organization_id,project_id")
         .eq("id", data.deliverable_id)
         .single();
       if (deliverableError || deliverable.organization_id !== data.organization_id) {
         throw new Error("This file is not available for workspace download.");
       }
+      if (data.project_id && deliverable.project_id && data.project_id !== deliverable.project_id) {
+        throw new Error("This file is attached to a different project workspace.");
+      }
+      data.project_id = data.project_id || deliverable.project_id || null;
     }
     return {
       id: data.id,
@@ -113,12 +121,16 @@ async function readSourceFile(supabase, fileKind, fileId, options = {}) {
   if (data.request_id) {
     const { data: request, error: requestError } = await supabase
       .from("requests")
-      .select("id,organization_id")
+      .select("id,organization_id,project_id")
       .eq("id", data.request_id)
       .single();
     if (requestError || request.organization_id !== data.organization_id) {
       throw new Error("This file is not available for workspace download.");
     }
+    if (data.project_id && request.project_id && data.project_id !== request.project_id) {
+      throw new Error("This file is attached to a different project workspace.");
+    }
+    data.project_id = data.project_id || request.project_id || null;
   }
   return {
     id: data.id,
@@ -236,8 +248,16 @@ module.exports = async function handler(req, res) {
     const file = await readSourceFile(supabase, fileKind, fileId, { includeDeleted: action === "delete" });
     const admin = await requireAdmin(req);
     if (admin) {
-      if (requestedOrganizationId && requestedOrganizationId !== file.organizationId) {
+      if (!requestedOrganizationId) {
+        res.status(400).json({ error: "Select a client dossier before opening this file." });
+        return;
+      }
+      if (requestedOrganizationId !== file.organizationId) {
         res.status(403).json({ error: "This file does not belong to the selected client dossier." });
+        return;
+      }
+      if (file.projectId && !requestedProjectId) {
+        res.status(400).json({ error: "Select the project dossier before opening this file." });
         return;
       }
       if (requestedProjectId && file.projectId && requestedProjectId !== file.projectId) {
@@ -249,6 +269,14 @@ module.exports = async function handler(req, res) {
       const organizationIds = await getUserOrganizationIds(supabase, userData.user.id);
       if (!organizationIds.has(file.organizationId)) {
         res.status(403).json({ error: "This file is not available for your workspace." });
+        return;
+      }
+      if (file.projectId && !requestedProjectId) {
+        res.status(400).json({ error: "Select the project workspace before opening this file." });
+        return;
+      }
+      if (requestedProjectId && file.projectId && requestedProjectId !== file.projectId) {
+        res.status(403).json({ error: "This file does not belong to the selected project workspace." });
         return;
       }
     }
@@ -294,6 +322,7 @@ module.exports = async function handler(req, res) {
       .from("audit_events")
       .insert({
         organization_id: file.organizationId,
+        project_id: file.projectId || null,
         event_type: "source_file_download_link_created",
         related_entity_type: file.sourceType,
         related_entity_id: file.id,

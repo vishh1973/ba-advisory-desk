@@ -10,7 +10,12 @@ async function sendEmail({ to, subject, html, replyTo }) {
   if (replyTo) payload.replyTo = replyTo;
   let result;
   try {
-    result = await resend.emails.send(payload);
+    result = await Promise.race([
+      resend.emails.send(payload),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Email provider response timed out.")), 10000)
+      ),
+    ]);
   } catch (error) {
     return {
       skipped: false,

@@ -504,7 +504,7 @@ function syncSelectedAdminClientToState() {
 
 function hasSelectedAdminClient() {
   const client = getSelectedAdminClient();
-  return Boolean(state.selectedAdminClientId && (client.id || client.email || client.name));
+  return Boolean(state.selectedAdminClientId && (client.id || client.email));
 }
 
 function updateSelectedAdminClientCreditAccount(balance, lowCreditThreshold) {
@@ -945,18 +945,21 @@ async function refreshCreditBalanceForSubmit(organizationId) {
   }
 
   const { data, error } = await supabaseClient
-    .from("credit_balance_summary")
-    .select("balance,low_credit_threshold,status,reserved_balance,updated_at")
-    .eq("organization_id", organizationId)
+    .rpc("get_current_credit_balance", {
+      p_organization_id: organizationId,
+    })
     .maybeSingle();
 
   if (error) return { ok: false, error: error.message };
 
-  state.creditsLeft = Number(data?.balance ?? 0);
+  const balance = Number(data?.balance ?? 0);
+  const reservedBalance = Number(data?.reserved_balance ?? 0);
+  const availableBalance = Math.max(0, balance - reservedBalance);
+  state.creditsLeft = balance;
   state.creditThreshold = Number(data?.low_credit_threshold ?? config.lowCreditThreshold);
   saveState();
   render();
-  return { ok: true, balance: state.creditsLeft };
+  return { ok: true, balance: availableBalance, totalBalance: balance, reservedBalance };
 }
 
 function getStatusGroup(status) {
@@ -1855,10 +1858,22 @@ async function notifyAdvisorEvent(payload) {
     return { ok: false, skipped: true, error: "Client workspace is not signed in." };
   }
 
-  return fetchClientApi("/api/notify", {
-    method: "POST",
-    body: payload,
-  });
+  try {
+    return await withClientTimeout(
+      fetchClientApi("/api/notify", {
+        method: "POST",
+        body: payload,
+      }),
+      10000,
+      "The workspace item was saved, but the advisor notification took too long to confirm."
+    );
+  } catch (error) {
+    return {
+      ok: false,
+      skipped: true,
+      error: error.message || "The workspace item was saved, but the advisor notification could not be confirmed.",
+    };
+  }
 }
 
 async function updateServerCreditLedger(payload) {
@@ -2144,11 +2159,15 @@ function normalizeClientMessage(row) {
 
 function normalizeClientUpload(row) {
   const project = getProjectFieldsFromRow(row);
+  const uploadedBy = row.uploaded_by || row.uploadedBy || "";
   return {
     id: row.id || `upload-${Date.now()}`,
     fileId: row.id || "",
     fileKind: "client_upload",
     ...project,
+    uploadedBy,
+    canDelete: !uploadedBy || uploadedBy === getUserId(),
+    organizationId: row.organization_id || state.profileOrganizationId || "",
     contextType: row.deliverable_id ? "deliverable" : row.request_id ? "request" : row.context_type || "workspace",
     contextId: row.deliverable_id || row.request_id || row.context_id || "",
     contextLabel: row.context_label || row.upload_type || "Workspace upload",
@@ -2164,11 +2183,14 @@ function normalizeClientUpload(row) {
 function normalizeRequestFile(row) {
   const requestLabel = row.requests?.request_code || row.request_code || row.request_id || "Request source file";
   const project = getProjectFieldsFromRow(row);
+  const uploadedBy = row.uploaded_by || row.uploadedBy || "";
   return {
     id: row.id || `request-file-${Date.now()}`,
     fileId: row.id || "",
     fileKind: "request_file",
     ...project,
+    uploadedBy,
+    canDelete: !uploadedBy || uploadedBy === getUserId(),
     requestId: row.request_id || "",
     organizationId: row.organization_id || "",
     contextType: "request",
@@ -2229,7 +2251,7 @@ async function loadClientWorkspaceData() {
         .limit(100),
       supabaseClient
         .from("request_files")
-        .select("id,request_id,project_id,organization_id,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_projects(id,name,project_code,status)")
+        .select("id,request_id,project_id,organization_id,uploaded_by,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -2306,7 +2328,7 @@ async function loadClientWorkspaceData() {
         .limit(20),
       supabaseClient
         .from("client_uploads")
-        .select("id,project_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
+        .select("id,organization_id,project_id,deliverable_id,request_id,uploaded_by,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -2658,7 +2680,16 @@ async function saveClientUpload() {
     return { ok: false, error: validationError };
   }
 
-  const organizationId = await getProfileOrganizationId();
+  let organizationId = "";
+  try {
+    organizationId = await withClientTimeout(
+      getProfileOrganizationId(),
+      10000,
+      "Profile verification took too long. Refresh the workspace and try again."
+    );
+  } catch (error) {
+    return { ok: false, error: error.message || "Profile verification could not be completed." };
+  }
   const userId = getUserId();
   let storedOnline = false;
   let uploaded = 0;
@@ -2671,6 +2702,7 @@ async function saveClientUpload() {
   }
 
   for (const [index, file] of files.entries()) {
+    setInlineStatus("#clientUploadStatus", `Uploading file ${index + 1} of ${files.length}: ${file.name}`);
     const entry = {
       id: `upload-${Date.now()}-${uploaded}`,
       fileId: "",
@@ -2734,7 +2766,11 @@ async function saveClientUpload() {
       const uploadRecord = recordResponse?.data;
       const recordError = recordResponse?.error;
       if (recordError) {
-        await supabaseClient.storage.from("client-files").remove([storagePath]).then(() => null, () => null);
+        await withClientTimeout(
+          supabaseClient.storage.from("client-files").remove([storagePath]),
+          8000,
+          "File cleanup took too long."
+        ).then(() => null, () => null);
         if (uploaded > 0) {
           addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} could not be recorded.`);
           saveState();
@@ -2782,7 +2818,7 @@ async function uploadAdminDeliverable() {
     return { ok: false, error: "Please sign in with the administrator email before uploading deliverables." };
   }
 
-  const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
+  const organizationId = state.selectedAdminClientId || document.querySelector("#adminUploadClientSelect")?.value || "";
   const requestId = document.querySelector("#adminUploadRequestSelect")?.value || null;
   const existingDeliverableId = document.querySelector("#adminExistingDeliverableSelect")?.value || "";
   const linkedRequest = requestId
@@ -2901,6 +2937,7 @@ async function uploadAdminDeliverable() {
     }).then(() => null, () => null);
   };
 
+  try {
   for (const file of files) {
     setAdminReleaseStatus(`Uploading deliverable file ${uploaded + 1} of ${files.length}: ${file.name}`);
     const safeName = getSafeFileName(file.name);
@@ -2977,6 +3014,14 @@ async function uploadAdminDeliverable() {
     notificationSent: notifyClient && finalizeResult.data?.notificationSent === true,
     notificationError: finalizeResult.data?.notificationError,
   };
+  } catch (error) {
+    await abortPreparedRelease();
+    return {
+      ok: false,
+      error: error.message || "Deliverable files could not be released. The prepared release was cleaned up.",
+      uploaded,
+    };
+  }
 }
 
 function setView() {
@@ -3196,7 +3241,7 @@ function renderClientDeliverables() {
                 <strong>${escapeHtml(version.fileName)}</strong>
                 <span>Version ${escapeHtml(version.versionNumber)} released ${escapeHtml(formatDisplayDate(version.uploadedAt))} | ${escapeHtml(formatFileSize(version.fileSize))}</span>
               </div>
-              <button class="secondary small" type="button" data-download-file="${escapeHtml(version.fileId)}">Download</button>
+              <button class="secondary small" type="button" data-download-file="${escapeHtml(version.fileId)}" data-organization-id="${escapeHtml(state.profileOrganizationId || "")}" data-project-id="${escapeHtml(deliverable.projectId || "")}">Download</button>
             </div>
           `
         )
@@ -3211,7 +3256,7 @@ function renderClientDeliverables() {
                     <span>${escapeHtml(version.fileName)} | ${escapeHtml(formatDisplayDate(version.uploadedAt))}</span>
                     ${version.releaseNote ? `<small>${escapeHtml(version.releaseNote)}</small>` : ""}
                   </div>
-                  <button class="secondary small" type="button" data-download-file="${escapeHtml(version.fileId)}">Download</button>
+                  <button class="secondary small" type="button" data-download-file="${escapeHtml(version.fileId)}" data-organization-id="${escapeHtml(state.profileOrganizationId || "")}" data-project-id="${escapeHtml(deliverable.projectId || "")}">Download</button>
                 </div>
               `
             )
@@ -3532,7 +3577,7 @@ function renderCreditControls() {
             .join("")
         : `<option value="">No project yet</option>`;
   }
-  const uploadClientId = uploadClientSelect?.value || state.selectedAdminClientId;
+  const uploadClientId = state.selectedAdminClientId || uploadClientSelect?.value || "";
   if (uploadClientSelect) {
     const clients = state.adminClients.filter((client) => client.id);
     uploadClientSelect.innerHTML =
@@ -3545,7 +3590,7 @@ function renderCreditControls() {
         .join("");
   }
   if (adminUploadProjectSelect) {
-    const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
+    const selectedOrg = state.selectedAdminClientId || uploadClientSelect?.value || "";
     const projects = selectedOrg ? state.adminProjects.filter((project) => project.organizationId === selectedOrg && isActiveProject(project)) : [];
     const current =
       state.adminUploadProjectId === null || state.adminUploadProjectId === undefined
@@ -3561,7 +3606,7 @@ function renderCreditControls() {
         .join("");
   }
   if (uploadRequestSelect) {
-    const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
+    const selectedOrg = state.selectedAdminClientId || uploadClientSelect?.value || "";
     const selectedUploadProjectId = getAdminUploadProjectId();
     const requests = selectedOrg
       ? state.adminQueue.filter((item) =>
@@ -3577,7 +3622,7 @@ function renderCreditControls() {
         .join("");
   }
   if (existingDeliverableSelect) {
-    const selectedOrg = uploadClientSelect?.value || state.selectedAdminClientId;
+    const selectedOrg = state.selectedAdminClientId || uploadClientSelect?.value || "";
     const selectedUploadProjectId = getAdminUploadProjectId();
     const deliverables = selectedOrg
       ? state.adminDeliverables.filter((deliverable) => deliverable.organizationId === selectedOrg && (!selectedUploadProjectId || deliverable.projectId === selectedUploadProjectId))
@@ -3645,7 +3690,7 @@ function updateAdminReleaseReadiness() {
   const button = document.querySelector("#adminReleaseFilesButton");
   if (!status || !button) return;
 
-  const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
+  const organizationId = state.selectedAdminClientId || document.querySelector("#adminUploadClientSelect")?.value || "";
   const projectId = getAdminUploadProjectId();
   const title = document.querySelector("#adminDeliverableTitle")?.value.trim();
   const summary = document.querySelector("#adminDeliverableSummary")?.value.trim();
@@ -3695,7 +3740,7 @@ function updateAdminReleaseReadiness() {
 }
 
 function validateAdminReleaseForm() {
-  const organizationId = document.querySelector("#adminUploadClientSelect")?.value || state.selectedAdminClientId;
+  const organizationId = state.selectedAdminClientId || document.querySelector("#adminUploadClientSelect")?.value || "";
   const projectId = getAdminUploadProjectId();
   const title = document.querySelector("#adminDeliverableTitle")?.value.trim();
   const summary = document.querySelector("#adminDeliverableSummary")?.value.trim();
@@ -3953,7 +3998,7 @@ function renderClientFileRoom() {
                 : ""
             }
             ${
-              file.fileId
+              file.fileId && (file.canDelete || isAdminUser())
                 ? `<button class="secondary small danger-button" type="button" data-delete-source-file="${escapeHtml(file.fileId)}" data-source-kind="${escapeHtml(file.fileKind || "request_file")}" data-organization-id="${escapeHtml(file.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || "")}">Remove</button>`
                 : ""
             }
@@ -4109,7 +4154,7 @@ function renderAdminClientDossier() {
       ["Email", getClientEmail(client) || "Not recorded"],
       ["Primary contact", [client.firstName, client.lastName].filter(Boolean).join(" ") || "Not recorded"],
       ["Project reference", activeProject ? getProjectDisplayRef(activeProject) : `${activeProjectCount} active projects`],
-      ["Active project", activeProject ? getProjectLabel(activeProject) : "No project selected"],
+      ["Active project", activeProject ? getProjectLabel(activeProject) : "All active projects"],
       ["Primary need", client.primaryBusinessNeed || "Not recorded"],
     ];
     const contextRows = [
@@ -4196,7 +4241,11 @@ function renderAdminClientDossier() {
       ? rows
           .slice(0, 8)
           .map((deliverable) => {
-            const files = state.adminDeliverableFiles.filter((file) => file.deliverableId === deliverable.id);
+            const files = state.adminDeliverableFiles.filter((file) => {
+              if (file.deliverableId !== deliverable.id) return false;
+              if (deliverable.projectId && file.projectId && file.projectId !== deliverable.projectId) return false;
+              return !activeProject || !file.projectId || file.projectId === activeProject.id;
+            });
             const fileHtml = files.length
               ? files
                   .slice(0, 5)
@@ -5634,20 +5683,22 @@ document.addEventListener("click", async (event) => {
     }
 
     const displayStatus = status === "Delivered" || status === "Completed" || status === "Completed and shipped" ? "Complete" : status;
-    if (supabaseClient && adminItem?.requestId && adminItem?.organizationId) {
-      const { error: statusUpdateError } = await supabaseClient
-        .from("requests")
-        .update({
+    if (adminItem?.requestId && adminItem?.organizationId) {
+      const statusUpdate = await fetchAdminApi("/api/admin-queue", {
+        method: "POST",
+        body: {
+          queueType: "request-status",
+          id: adminItem.requestId,
+          organizationId: adminItem.organizationId,
+          projectId: getAdminProjectIdForApi(adminItem.projectId || selectedProject?.id || ""),
           status: toRequestStorageStatus(displayStatus),
-          credits_approved: approvedCredits > 0 ? approvedCredits : null,
-          shipped_at: isShippedStatus(displayStatus) ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", adminItem.requestId)
-        .eq("organization_id", adminItem.organizationId);
+          creditsApproved: approvedCredits > 0 ? approvedCredits : null,
+          shipped: isShippedStatus(displayStatus),
+        },
+      });
 
-      if (statusUpdateError) {
-        showToast(statusUpdateError.message || "Request status could not be saved.");
+      if (!statusUpdate.ok) {
+        showToast(statusUpdate.error || "Request status could not be saved.");
         return;
       }
     }
@@ -5851,8 +5902,8 @@ document.addEventListener("click", async (event) => {
     method: "POST",
     body: {
       fileId,
-      organizationId: isAdminUser() ? target.dataset.organizationId || state.selectedAdminClientId : undefined,
-      projectId: isAdminUser() ? getAdminProjectIdForApi(target.dataset.projectId) : undefined,
+      organizationId: target.dataset.organizationId || (isAdminUser() ? state.selectedAdminClientId : state.profileOrganizationId || undefined),
+      projectId: target.dataset.projectId || (isAdminUser() ? getAdminProjectIdForApi() : state.selectedProjectId || undefined),
     },
   });
 
@@ -5888,8 +5939,8 @@ document.addEventListener("click", async (event) => {
     body: {
       fileId,
       fileKind,
-      organizationId: isAdminUser() ? target.dataset.organizationId || state.selectedAdminClientId : undefined,
-      projectId: isAdminUser() ? getAdminProjectIdForApi(target.dataset.projectId) : undefined,
+      organizationId: target.dataset.organizationId || (isAdminUser() ? state.selectedAdminClientId : state.profileOrganizationId || undefined),
+      projectId: target.dataset.projectId || (isAdminUser() ? getAdminProjectIdForApi() : state.selectedProjectId || undefined),
     },
   });
 
@@ -5927,8 +5978,8 @@ document.addEventListener("click", async (event) => {
       fileId,
       fileKind,
       action: "delete",
-      organizationId: isAdminUser() ? target.dataset.organizationId || state.selectedAdminClientId : undefined,
-      projectId: isAdminUser() ? getAdminProjectIdForApi(target.dataset.projectId) : undefined,
+      organizationId: target.dataset.organizationId || (isAdminUser() ? state.selectedAdminClientId : state.profileOrganizationId || undefined),
+      projectId: target.dataset.projectId || (isAdminUser() ? getAdminProjectIdForApi() : state.selectedProjectId || undefined),
     },
   });
   setButtonBusy(target, false);
@@ -6051,6 +6102,13 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
     }
     render();
     showToast("Client upload added to the workspace.");
+  } catch (error) {
+    const message = error.message || "Files could not be uploaded. Please try again or contact support.";
+    if (status) {
+      status.textContent = message;
+      status.classList.add("warning");
+    }
+    showPersistentNotice(message);
   } finally {
     setButtonBusy(submitButton, false);
   }
@@ -6254,9 +6312,24 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     let result;
     let savedRequestId = null;
     if (supabaseClient) {
-      const { data, error } = await supabaseClient.from("requests").insert(requestPayload).select("id").single();
+      const { data, error } = await supabaseClient
+        .rpc("create_client_request_intake_v2", {
+          p_request_code: requestPayload.request_code,
+          p_organization_id: requestPayload.organization_id,
+          p_project_id: requestPayload.project_id,
+          p_request_type: requestPayload.request_type,
+          p_business_goal: requestPayload.business_goal,
+          p_target_audience: requestPayload.target_audience,
+          p_attachment_description: requestPayload.attachment_description,
+          p_credits_estimated: requestPayload.credits_estimated,
+          p_due_at: decisionDeadline || null,
+          p_credit_scope: estimateValue,
+        })
+        .maybeSingle();
       result = error ? { ok: false, reason: error.message } : { ok: true };
-      savedRequestId = data?.id || null;
+      savedRequestId = data?.request_id || null;
+      if (data?.request_code) request.id = data.request_code;
+      if (data?.balance !== undefined) state.creditsLeft = Number(data.balance || 0);
     } else {
       result = await writeToSupabase("requests", requestPayload);
     }
@@ -6279,12 +6352,11 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     saveState();
     if (!uploadResult.ok && savedRequestId && supabaseClient) {
       await supabaseClient
-        .from("requests")
-        .update({
-          status: "file_upload_attention",
-          updated_at: new Date().toISOString(),
+        .rpc("mark_client_request_file_upload_attention", {
+          p_request_id: savedRequestId,
+          p_organization_id: organizationId,
+          p_note: uploadResult.reason || "Source file upload needs attention.",
         })
-        .eq("id", savedRequestId)
         .then(() => null, () => null);
       request.status = "File upload needs attention";
     }

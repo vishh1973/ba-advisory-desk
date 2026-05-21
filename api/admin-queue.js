@@ -21,6 +21,9 @@ function queueTarget(body) {
     organizationId: String(body.organizationId || "").trim(),
     projectId: String(body.projectId || "").trim() || null,
     action: String(body.action || "addressed").trim(),
+    status: String(body.status || "").trim(),
+    creditsApproved: body.creditsApproved === null || body.creditsApproved === "" ? null : Number(body.creditsApproved || 0),
+    shipped: Boolean(body.shipped),
   };
 }
 
@@ -54,23 +57,42 @@ async function updateByTarget(supabase, target) {
     return { ok: false, status: 400, error: "Queue item id is required." };
   }
 
-  async function finishUpdate(query) {
+  async function finishUpdate(query, resultStatus = status) {
     const { data, error } = await query.select("id");
     if (error) throw error;
     if (!data?.length) {
       return { ok: false, status: 404, error: "Queue item was not found or is not linked to the selected client." };
     }
-    return { ok: true, status };
+    return { ok: true, status: resultStatus };
   }
 
   if (target.queueType === "request") {
-    return finishUpdate(
-      supabase
+    let query = supabase
         .from("requests")
         .update({ status, updated_at: now, completed_at: status === "completed" ? now : null })
         .eq("id", target.id)
-        .eq("organization_id", target.organizationId)
-    );
+        .eq("organization_id", target.organizationId);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
+    return finishUpdate(query);
+  }
+
+  if (target.queueType === "request-status") {
+    if (!target.status) {
+      return { ok: false, status: 400, error: "Request status is required." };
+    }
+    const update = {
+      status: target.status,
+      credits_approved: target.creditsApproved > 0 ? target.creditsApproved : null,
+      shipped_at: target.shipped ? now : null,
+      updated_at: now,
+    };
+    let query = supabase
+      .from("requests")
+      .update(update)
+      .eq("id", target.id)
+      .eq("organization_id", target.organizationId);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
+    return finishUpdate(query, target.status);
   }
 
   if (target.queueType === "quote") {
@@ -83,24 +105,24 @@ async function updateByTarget(supabase, target) {
   }
 
   if (target.queueType === "client-message") {
-    return finishUpdate(
-      supabase
+    let query = supabase
         .from("client_deliverable_messages")
         .update({ status, updated_at: now })
         .eq("id", target.id)
-        .eq("organization_id", target.organizationId)
-    );
+        .eq("organization_id", target.organizationId);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
+    return finishUpdate(query);
   }
 
   if (target.queueType === "client-upload") {
-    return finishUpdate(
-      supabase
+    let query = supabase
         .from("client_uploads")
         .update({ status, updated_at: now })
         .eq("id", target.id)
         .eq("organization_id", target.organizationId)
-        .is("deleted_at", null)
-    );
+        .is("deleted_at", null);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
+    return finishUpdate(query);
   }
 
   if (target.queueType === "notification") {
@@ -260,6 +282,7 @@ module.exports = async function handler(req, res) {
           .eq("event_type", "admin_queue_action")
           .eq("related_entity_type", "request-file")
           .in("related_entity_id", requestFileIds)
+          .order("created_at", { ascending: false })
           .limit(Math.max(requestFileIds.length * 4, 20))
       : { data: [], error: null };
     if (requestFileAuditError) throw requestFileAuditError;
@@ -270,6 +293,7 @@ module.exports = async function handler(req, res) {
           .eq("event_type", "admin_queue_action")
           .eq("related_entity_type", "payment")
           .in("related_entity_id", paymentOrderIds)
+          .order("created_at", { ascending: false })
           .limit(Math.max(paymentOrderIds.length * 4, 20))
       : { data: [], error: null };
     if (paymentAuditError) throw paymentAuditError;

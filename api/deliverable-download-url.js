@@ -76,7 +76,7 @@ module.exports = async function handler(req, res) {
 
     const { data: version, error: versionError } = await supabase
       .from("deliverable_versions")
-      .select("id,status,version_number,deliverable_id,organization_id")
+      .select("id,status,version_number,deliverable_id,organization_id,project_id")
       .eq("id", file.deliverable_version_id)
       .single();
 
@@ -87,7 +87,7 @@ module.exports = async function handler(req, res) {
 
     const { data: deliverable, error: deliverableError } = await supabase
       .from("deliverables")
-      .select("id,organization_id,latest_version_id,current_version_number,archived_at")
+      .select("id,organization_id,project_id,latest_version_id,current_version_number,archived_at")
       .eq("id", version.deliverable_id)
       .single();
 
@@ -97,10 +97,14 @@ module.exports = async function handler(req, res) {
     }
 
     const expectedBucket = "private-deliverables";
+    const projectValues = [file.project_id, version.project_id, deliverable.project_id].filter(Boolean);
+    const effectiveProjectId = projectValues[0] || null;
+    const validProjectRelationship = projectValues.every((projectId) => projectId === effectiveProjectId);
     const validFileRelationship =
       file.deliverable_id === version.deliverable_id &&
       file.organization_id === version.organization_id &&
       deliverable.organization_id === version.organization_id &&
+      validProjectRelationship &&
       (file.storage_bucket || expectedBucket) === expectedBucket &&
       String(file.storage_path || "").startsWith(`clients/${file.organization_id}/deliverables/${file.deliverable_id}/`);
 
@@ -111,11 +115,19 @@ module.exports = async function handler(req, res) {
 
     const admin = await requireAdmin(req);
     if (admin) {
-      if (requestedOrganizationId && requestedOrganizationId !== file.organization_id) {
+      if (!requestedOrganizationId) {
+        res.status(400).json({ error: "Select a client dossier before opening this deliverable." });
+        return;
+      }
+      if (requestedOrganizationId !== file.organization_id) {
         res.status(403).json({ error: "This file does not belong to the selected client dossier." });
         return;
       }
-      if (requestedProjectId && file.project_id && requestedProjectId !== file.project_id) {
+      if (effectiveProjectId && !requestedProjectId) {
+        res.status(400).json({ error: "Select the project dossier before opening this deliverable." });
+        return;
+      }
+      if (requestedProjectId && effectiveProjectId && requestedProjectId !== effectiveProjectId) {
         res.status(403).json({ error: "This file does not belong to the selected project dossier." });
         return;
       }
@@ -131,6 +143,14 @@ module.exports = async function handler(req, res) {
       const organizationIds = new Set((profiles || []).map((profile) => profile.organization_id).filter(Boolean));
       if (!organizationIds.has(file.organization_id) || version.status !== "released") {
         res.status(403).json({ error: "This file is not available for your workspace." });
+        return;
+      }
+      if (effectiveProjectId && !requestedProjectId) {
+        res.status(400).json({ error: "Select the project workspace before opening this deliverable." });
+        return;
+      }
+      if (requestedProjectId && effectiveProjectId && requestedProjectId !== effectiveProjectId) {
+        res.status(403).json({ error: "This file does not belong to the selected project workspace." });
         return;
       }
     }
@@ -151,6 +171,7 @@ module.exports = async function handler(req, res) {
         deliverable_version_id: file.deliverable_version_id,
         deliverable_id: file.deliverable_id,
         organization_id: file.organization_id,
+        project_id: effectiveProjectId,
         user_id: userData.user.id,
         event_type: "download_link_created",
       })
@@ -161,6 +182,7 @@ module.exports = async function handler(req, res) {
       versionId: file.deliverable_version_id,
       deliverableId: file.deliverable_id,
       fileName: file.file_name,
+      projectId: effectiveProjectId,
       expiresIn,
       signedUrl: signed.signedUrl,
     });

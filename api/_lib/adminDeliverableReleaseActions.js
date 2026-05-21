@@ -306,7 +306,7 @@ async function finalizeRelease({ supabase, req, body }) {
   }
 
   const { data: releaseResult, error: releaseError } = await supabase
-    .rpc("finalize_deliverable_release", {
+    .rpc("finalize_deliverable_release_v3", {
       p_organization_id: organizationId,
       p_project_id: projectId,
       p_request_id: requestId,
