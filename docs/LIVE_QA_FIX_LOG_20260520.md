@@ -367,3 +367,25 @@ Verification:
 - Syntax checks passed for the changed public app file and API routes.
 - Local smoke test passed after the hardening patch.
 - Public asset version was bumped to `v=10`.
+
+### Admin Queue, Validation, And Deployment Hardening
+
+Fixes applied:
+
+- Added field-level validation for public custom scope, client request intake, client profile, admin message, and admin deliverable release flows.
+- Added an in-app admin message composer so admin messages are saved in the client workspace and emailed through Resend with a support reference in the subject.
+- Added admin queue cleanup actions for complete, reviewed, addressed, and dismissed work items.
+- Folded the admin queue cleanup route into the existing admin queue API so the hosted app stays within the current 12-function Vercel limit.
+- Hid raw internal UUIDs from the normal admin queue and dossier view.
+- Made dossier metric cards clickable so the admin can jump to open requests, files, deliverables, and messages.
+
+Verification:
+
+- Syntax checks passed for `app.js` and `api/admin-queue.js`.
+- Vercel production deployment for commit `fc85c7d` reached READY.
+- Live public asset check confirmed `app.js?v=11` and `styles.css?v=11`.
+- Live custom scope form validation highlights missing required fields with no console errors.
+- Live admin release form validation highlights missing title, summary, version note, and file upload fields.
+- Live admin message composer opens in-app, shows selected client context, and blocks empty message sends with field-level validation.
+- Live admin dossier metric cards jump to the correct sections.
+- Live admin queue hides internal UUIDs and cleared a safe QA file review item from the work queue.

@@ -60,6 +60,7 @@ Last updated: 2026-05-20
 - [x] Admin tracked message composer added so client messages can be sent in-app, emailed through Resend, and logged in the client workspace.
 - [x] Admin and client-facing forms now highlight missing required fields instead of silently failing or showing only a generic message.
 - [x] Outbound system emails now add a BA Advisory Desk support reference to the subject and body for future threading.
+- [x] Admin queue cleanup was folded into the existing admin queue API so the Vercel deployment stays within the current 12-function limit.
 
 ## Addressed In Hosted Configuration
 
@@ -74,6 +75,8 @@ Last updated: 2026-05-20
 - [x] Google OAuth client created in Google Cloud and Google sign-in enabled in Supabase.
 - [x] Live Google sign-in verified to reach the Google account chooser without provider errors.
 - [x] Live custom advisory request route verified with Supabase insert and Resend email delivery.
+- [x] Production deployment for commit `fc85c7d` verified as READY on Vercel after the admin queue endpoint consolidation.
+- [x] Live admin QA verified clickable dossier metrics, hidden internal IDs, tracked message validation, release-field validation, and queue file review cleanup.
 
 ## In Progress
 
