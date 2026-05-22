@@ -95,11 +95,38 @@ function validateStoragePaths(files, userId) {
   return files.every((file) => file.storagePath && file.storagePath.startsWith(prefix));
 }
 
+async function getLinkedStoragePaths(supabase, paths) {
+  const cleanPaths = Array.from(new Set((paths || []).filter(Boolean)));
+  if (!cleanPaths.length) return new Set();
+  const linked = new Set();
+
+  const { data: requestRows } = await supabase
+    .from("request_files")
+    .select("storage_path")
+    .in("storage_path", cleanPaths)
+    .is("deleted_at", null);
+  (requestRows || []).forEach((row) => {
+    if (row.storage_path) linked.add(row.storage_path);
+  });
+
+  const { data: uploadRows } = await supabase
+    .from("client_uploads")
+    .select("storage_path")
+    .in("storage_path", cleanPaths)
+    .is("deleted_at", null);
+  (uploadRows || []).forEach((row) => {
+    if (row.storage_path) linked.add(row.storage_path);
+  });
+
+  return linked;
+}
+
 async function abortUploadedFiles(supabase, userId, filesOrPaths) {
   const paths = (filesOrPaths || [])
     .map((item) => (typeof item === "string" ? item : item.storagePath || ""))
     .filter((path) => path && path.startsWith(`${userId}/`));
-  await removeStorageObjectsQuietly(supabase, BUCKET, paths);
+  const linkedPaths = await getLinkedStoragePaths(supabase, paths);
+  await removeStorageObjectsQuietly(supabase, BUCKET, paths.filter((path) => !linkedPaths.has(path)));
 }
 
 async function finalizeRequestFiles({ supabase, body, files, userId }) {

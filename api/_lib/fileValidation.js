@@ -7,32 +7,17 @@ const FILE_TYPES = {
     mimes: ["application/pdf"],
     signature: "pdf",
   },
-  doc: {
-    label: "Word",
-    mimes: ["application/msword"],
-    signature: "ole",
-  },
   docx: {
     label: "Word",
     mimes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
     signature: "zip",
     packageMarkers: ["[Content_Types].xml", "word/document.xml"],
   },
-  xls: {
-    label: "Excel",
-    mimes: ["application/vnd.ms-excel"],
-    signature: "ole",
-  },
   xlsx: {
     label: "Excel",
     mimes: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
     signature: "zip",
     packageMarkers: ["[Content_Types].xml", "xl/workbook.xml"],
-  },
-  ppt: {
-    label: "PowerPoint",
-    mimes: ["application/vnd.ms-powerpoint"],
-    signature: "ole",
   },
   pptx: {
     label: "PowerPoint",
@@ -123,13 +108,14 @@ function validateFileMetadata({ fileName, fileSizeBytes, contentType }) {
 async function fetchObjectHead(signedUrl) {
   try {
     const response = await fetch(signedUrl, { method: "HEAD" });
-    if (!response.ok) return {};
+    if (!response.ok) return { ok: false };
     return {
+      ok: true,
       contentLength: Number(response.headers.get("content-length") || 0),
       contentType: normalizeMime(response.headers.get("content-type")),
     };
   } catch (_error) {
-    return {};
+    return { ok: false };
   }
 }
 
@@ -169,6 +155,9 @@ async function validateStoredFile({ supabase, bucket, storagePath, fileName, fil
   }
 
   const head = await fetchObjectHead(signed.signedUrl);
+  if (!head.ok) {
+    return { ok: false, error: `${fileName || "This file"} could not be verified in secure storage.` };
+  }
   if (head.contentLength && head.contentLength !== Number(fileSizeBytes || 0)) {
     return { ok: false, error: `${fileName || "This file"} size changed during upload.` };
   }

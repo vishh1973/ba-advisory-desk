@@ -11,7 +11,7 @@ const {
 
 const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
 const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created"];
-const CHECKOUT_REUSE_WINDOW_MS = 30 * 60 * 1000;
+const CHECKOUT_REUSE_WINDOW_MS = 23 * 60 * 60 * 1000;
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase() || null;
@@ -173,7 +173,7 @@ async function findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKe
         await markOrderStatusQuietly(supabase, order.id, String(session.status || "").toLowerCase() === "complete" ? "checkout_completed" : "expired");
       }
     } catch (_error) {
-      await markOrderStatusQuietly(supabase, order.id, "checkout_lookup_failed");
+      return { order, lookupBlocked: true };
     }
   }
   return null;
@@ -524,6 +524,10 @@ module.exports = async function handler(req, res) {
       res.status(200).json({ url: reusableAttempt.session.url, reused: true });
       return;
     }
+    if (reusableAttempt?.lookupBlocked) {
+      res.status(409).json({ error: "Secure checkout is already open or being verified. Please wait a moment and try again." });
+      return;
+    }
 
     const orderPayload = {
       organization_id: organizationId,
@@ -541,6 +545,10 @@ module.exports = async function handler(req, res) {
         const waitingAttempt = await findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKey });
         if (waitingAttempt?.session?.url) {
           res.status(200).json({ url: waitingAttempt.session.url, reused: true });
+          return;
+        }
+        if (waitingAttempt?.lookupBlocked) {
+          res.status(409).json({ error: "Secure checkout is already open or being verified. Please wait a moment and try again." });
           return;
         }
       }

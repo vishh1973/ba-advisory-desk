@@ -2694,10 +2694,11 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
       fileRecords.push(buildUploadedSourceFile(file, storagePath));
     }
 
+    const finalizeTimeoutMs = getUploadOperationTimeoutMs(files, 30000, 180000);
     const finalizeResult = await withClientTimeout(
       fetchClientApi("/api/source-file-finalize", {
         method: "POST",
-        timeoutMs: getUploadOperationTimeoutMs(files, 30000, 180000),
+        timeoutMs: finalizeTimeoutMs,
         body: {
           action: "finalize",
           fileKind: "request_file",
@@ -2707,7 +2708,7 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
           files: fileRecords,
         },
       }),
-      30000,
+      finalizeTimeoutMs,
       "Files uploaded, but workspace validation took too long. Please refresh the workspace before retrying."
     );
 
@@ -2747,7 +2748,7 @@ function getSafeFileName(name) {
   return reserved.has(stem) ? `file_${fallback}` : fallback;
 }
 
-const allowedUploadExtensions = new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "png", "jpg", "jpeg"]);
+const allowedUploadExtensions = new Set(["pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"]);
 
 function getFileExtension(fileName) {
   return String(fileName || "").split(".").pop().toLowerCase();
@@ -2777,11 +2778,8 @@ function getUploadContentType(file) {
   const extension = getFileExtension(file?.name);
   const mappedType = {
     pdf: "application/pdf",
-    doc: "application/msword",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xls: "application/vnd.ms-excel",
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ppt: "application/vnd.ms-powerpoint",
     pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     png: "image/png",
     jpg: "image/jpeg",
@@ -3031,10 +3029,11 @@ async function saveClientUpload() {
     }
 
     setInlineStatus("#clientUploadStatus", "Validating and attaching files to the workspace.");
+    const finalizeTimeoutMs = getUploadOperationTimeoutMs(files, 30000, 180000);
     const finalizeResult = await withClientTimeout(
       fetchClientApi("/api/source-file-finalize", {
         method: "POST",
-        timeoutMs: getUploadOperationTimeoutMs(files, 30000, 180000),
+        timeoutMs: finalizeTimeoutMs,
         body: {
           action: "finalize",
           fileKind: "client_upload",
@@ -3047,7 +3046,7 @@ async function saveClientUpload() {
           files: stagedFiles.map(({ file, storagePath }) => buildUploadedSourceFile(file, storagePath)),
         },
       }),
-      30000,
+      finalizeTimeoutMs,
       "Files uploaded, but workspace validation took too long. Please refresh before trying again."
     );
 
@@ -3211,10 +3210,11 @@ async function uploadAdminDeliverable() {
   const fileRecords = [];
 
   setAdminReleaseStatus("Creating the controlled client release record.");
+  const prepareTimeoutMs = getUploadOperationTimeoutMs(files, 45000, 240000);
   const prepareResult = await withClientTimeout(
     fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
-      timeoutMs: getUploadOperationTimeoutMs(files, 30000, 180000),
+      timeoutMs: prepareTimeoutMs,
       body: {
         action: "prepare",
         organizationId,
@@ -3227,7 +3227,7 @@ async function uploadAdminDeliverable() {
         releaseNote,
       },
     }),
-    20000,
+    prepareTimeoutMs,
     "The deliverable release record took too long to create. Please try again."
   );
 
@@ -6890,6 +6890,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
       savedRequestId = data?.request_id || null;
       if (data?.request_code) request.id = data.request_code;
       if (data?.balance !== undefined) state.creditsLeft = Number(data.balance || 0);
+      if (data?.reserved_balance !== undefined) state.reservedCredits = Number(data.reserved_balance || 0);
       if (!savedRequestId) {
         result = {
           ok: false,

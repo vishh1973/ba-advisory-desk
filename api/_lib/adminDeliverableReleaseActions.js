@@ -155,7 +155,6 @@ async function prepareRelease({ supabase, req, body }) {
   const actorId = await readActorId(supabase, req);
   let deliverableId = existingDeliverableId;
   let createdDeliverable = false;
-  const now = new Date().toISOString();
 
   if (!deliverableId) {
     const { data, error } = await supabase
@@ -176,20 +175,6 @@ async function prepareRelease({ supabase, req, body }) {
     if (error) throw error;
     deliverableId = data.id;
     createdDeliverable = true;
-  } else {
-    const { error } = await supabase
-      .from("deliverables")
-      .update({
-        request_id: requestId,
-        project_id: projectId,
-        title,
-        deliverable_type: deliverableType,
-        summary,
-        updated_at: now,
-      })
-      .eq("id", deliverableId)
-      .eq("organization_id", organizationId);
-    if (error) throw error;
   }
 
   const { data: latestRows, error: latestError } = await supabase
@@ -443,6 +428,16 @@ async function finalizeRelease({ supabase, req, body }) {
   };
 }
 
+async function getLinkedDeliverableStoragePaths(supabase, paths) {
+  const cleanPaths = Array.from(new Set((paths || []).filter(Boolean)));
+  if (!cleanPaths.length) return new Set();
+  const { data } = await supabase
+    .from("deliverable_version_files")
+    .select("storage_path")
+    .in("storage_path", cleanPaths);
+  return new Set((data || []).map((row) => row.storage_path).filter(Boolean));
+}
+
 async function abortRelease({ supabase, body }) {
   const deliverableId = body.deliverableId;
   const versionId = body.versionId;
@@ -462,7 +457,8 @@ async function abortRelease({ supabase, body }) {
     }
   }
   if (paths.length) {
-    await supabase.storage.from("private-deliverables").remove(paths).then(() => null, () => null);
+    const linkedPaths = await getLinkedDeliverableStoragePaths(supabase, paths);
+    await supabase.storage.from("private-deliverables").remove(paths.filter((path) => !linkedPaths.has(path))).then(() => null, () => null);
   }
   if (versionId) {
     await supabase.from("deliverable_version_files").delete().eq("deliverable_version_id", versionId).then(() => null, () => null);

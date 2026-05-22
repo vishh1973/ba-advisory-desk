@@ -31,12 +31,15 @@ declare
   v_request_id uuid;
   v_due_at timestamptz;
   v_scope text := lower(trim(coalesce(p_credit_scope, 'credit')));
-  v_credits integer := case
-    when lower(trim(coalesce(p_credit_scope, 'credit'))) in ('custom', 'rescue') then 0
-    else greatest(0, coalesce(p_credits_estimated, 0))
-  end;
+  v_credits integer;
   v_available integer := 0;
 begin
+  if v_scope in ('custom', 'rescue') then
+    v_credits := 0;
+  else
+    v_credits := greatest(1, coalesce(p_credits_estimated, 1));
+  end if;
+
   if v_actor_id is null then
     raise exception 'Please sign in before submitting a request.';
   end if;
@@ -69,6 +72,7 @@ begin
   on conflict (organization_id) do nothing;
 
   perform public.expire_credit_grants(p_organization_id);
+  perform public.expire_credit_reservations(p_organization_id);
 
   select ca.*
   into v_account
