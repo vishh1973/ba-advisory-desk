@@ -245,10 +245,10 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
   };
 }
 
-async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, threshold, recipientEmail, relatedEntityId }) {
+async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, availableBalance, threshold, recipientEmail, relatedEntityId }) {
   if (!organizationId) return { status: "skipped" };
 
-  const normalizedBalance = Number(balance || 0);
+  const normalizedBalance = Number(Number.isFinite(Number(availableBalance)) ? availableBalance : balance || 0);
   const normalizedThreshold = Number.isFinite(Number(threshold)) ? Number(threshold) : 2;
   const now = new Date().toISOString();
   const status = normalizedBalance <= 0 ? "depleted" : normalizedBalance <= normalizedThreshold ? "low" : "active";
@@ -340,6 +340,7 @@ async function getCreditBalance(supabase, organizationId) {
     balance: Number(data?.balance ?? 0),
     lowCreditThreshold: Number(data?.low_credit_threshold ?? 2),
     status: data?.status || "",
+    reservedBalance: Number(data?.reserved_balance ?? 0),
     updatedAt: data?.updated_at || null,
   };
 }

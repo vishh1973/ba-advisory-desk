@@ -1,6 +1,6 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { requireAdmin } = require("./_lib/adminAuth");
-const { detectAndNotifyCreditStatus } = require("./_lib/paymentAndCredit");
+const { detectAndNotifyCreditStatus, getCreditBalance } = require("./_lib/paymentAndCredit");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -48,6 +48,19 @@ module.exports = async function handler(req, res) {
       if (projectError) throw projectError;
       if (!project?.id) {
         res.status(400).json({ error: "Project workspace does not belong to this client." });
+        return;
+      }
+    }
+
+    let currentBalanceInfo = null;
+    if (type === "adjust" && credits < 0) {
+      currentBalanceInfo = await getCreditBalance(supabase, organizationId);
+      const nextBalance = Number(currentBalanceInfo.balance || 0) + credits;
+      const reservedBalance = Number(currentBalanceInfo.reservedBalance || 0);
+      if (nextBalance < reservedBalance) {
+        res.status(409).json({
+          error: `This change would reduce available credits below the ${reservedBalance} credits already reserved for active work. Release or complete the reserved work first.`,
+        });
         return;
       }
     }
@@ -115,7 +128,13 @@ module.exports = async function handler(req, res) {
     }
 
     let balanceAfter = Number(ledgerResult?.balance || 0);
+    let reservedBalanceAfter = Number(currentBalanceInfo?.reservedBalance || 0);
     let lowCreditThreshold = 2;
+
+    const refreshedBalance = await getCreditBalance(supabase, organizationId);
+    balanceAfter = Number(refreshedBalance.balance ?? balanceAfter);
+    reservedBalanceAfter = Number(refreshedBalance.reservedBalance || 0);
+    lowCreditThreshold = Number(refreshedBalance.lowCreditThreshold || 2);
 
     const { data: account, error: accountError } = await supabase
       .from("credit_accounts")
@@ -124,9 +143,6 @@ module.exports = async function handler(req, res) {
       .maybeSingle();
 
     if (accountError) throw accountError;
-
-    balanceAfter = Number(account?.balance ?? balanceAfter);
-    lowCreditThreshold = Number(account?.low_credit_threshold || 2);
 
     if (Number.isFinite(requestedThreshold) && account?.id) {
       lowCreditThreshold = Math.max(0, requestedThreshold);
@@ -145,6 +161,7 @@ module.exports = async function handler(req, res) {
       await detectAndNotifyCreditStatus(supabase, {
         organizationId,
         balance: balanceAfter,
+        availableBalance: balanceAfter - reservedBalanceAfter,
         threshold: lowCreditThreshold,
         recipientEmail,
         relatedEntityId: deliverableId || requestId,

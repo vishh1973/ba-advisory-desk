@@ -385,7 +385,7 @@ module.exports = async function handler(req, res) {
 
       const customerId = await findStripeCustomerId(supabase, organizationId);
       if (!customerId) {
-        res.status(404).json({ error: "No active Stripe customer record is available for this workspace yet. If you need to cancel or change billing, contact support@baadvisorydesk.com." });
+        res.status(404).json({ error: "Subscription management is not available for this workspace. If you need to cancel or change billing, contact support@baadvisorydesk.com." });
         return;
       }
 

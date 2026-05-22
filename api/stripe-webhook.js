@@ -430,6 +430,135 @@ async function handleSubscriptionDeleted(supabase, subscription) {
   }
 }
 
+async function findOrderForCheckoutSession(supabase, session) {
+  const paymentOrderId = session?.metadata?.payment_order_id;
+  if (paymentOrderId) {
+    const { data, error } = await supabase
+      .from("payment_orders")
+      .select("*")
+      .eq("id", paymentOrderId)
+      .maybeSingle();
+    if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+    if (data) return data;
+  }
+
+  if (!session?.id) return null;
+  const { data, error } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+  return data || null;
+}
+
+async function updateOrderStatus(supabase, order, status, extra = {}) {
+  if (!order?.id) return;
+  const { error } = await supabase
+    .from("payment_orders")
+    .update({
+      status,
+      updated_at: new Date().toISOString(),
+      ...extra,
+    })
+    .eq("id", order.id);
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+}
+
+async function handleCheckoutPaymentIssue(supabase, session, eventType) {
+  const order = await findOrderForCheckoutSession(supabase, session);
+  if (!order) return;
+  const status = eventType === "checkout.session.expired" ? "expired" : "payment_failed";
+  await updateOrderStatus(supabase, order, status, {
+    stripe_checkout_session_id: session.id || order.stripe_checkout_session_id || null,
+    stripe_customer_id: stripeCustomerIdFrom(session.customer) || order.stripe_customer_id || null,
+  });
+  await recordAuditEvent(supabase, {
+    organizationId: order.organization_id,
+    eventType: status,
+    eventDetail: {
+      payment_order_id: order.id,
+      stripe_checkout_session_id: session.id,
+      stripe_event_type: eventType,
+      payment_status: session.payment_status || "unknown",
+    },
+  });
+}
+
+async function handleInvoicePaymentIssue(supabase, stripe, invoice, eventType) {
+  let subscription = null;
+  const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id;
+  if (subscriptionId) {
+    subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    await upsertSubscriptionRecord(supabase, subscription, invoice.metadata);
+  }
+
+  const { data: order, error } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("stripe_invoice_id", invoice.id)
+    .maybeSingle();
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+
+  if (order?.id) {
+    await updateOrderStatus(supabase, order, eventType === "invoice.payment_action_required" ? "payment_action_required" : "payment_failed", {
+      stripe_payment_intent_id: invoice.payment_intent || order.stripe_payment_intent_id || null,
+      stripe_customer_id: stripeCustomerIdFrom(invoice.customer) || order.stripe_customer_id || null,
+    });
+  }
+
+  await recordAuditEvent(supabase, {
+    organizationId: order?.organization_id || subscription?.metadata?.organization_id || subscription?.metadata?.workspace_id || null,
+    eventType: eventType === "invoice.payment_action_required" ? "payment_action_required" : "invoice_payment_failed",
+    eventDetail: {
+      payment_order_id: order?.id || null,
+      stripe_invoice_id: invoice.id,
+      stripe_subscription_id: subscriptionId || null,
+      stripe_event_type: eventType,
+    },
+  });
+}
+
+async function handleSubscriptionUpdated(supabase, subscription, eventType) {
+  const record = await upsertSubscriptionRecord(supabase, subscription, subscription.metadata);
+  await recordAuditEvent(supabase, {
+    organizationId: record?.organization_id || subscription?.metadata?.organization_id || subscription?.metadata?.workspace_id || null,
+    eventType: "subscription_updated",
+    eventDetail: {
+      stripe_subscription_id: subscriptionIdFrom(subscription),
+      stripe_event_type: eventType,
+      status: subscription.status || "unknown",
+      cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+    },
+  });
+}
+
+async function handleChargeReviewEvent(supabase, charge, eventType) {
+  const paymentIntentId = typeof charge?.payment_intent === "string" ? charge.payment_intent : charge?.payment_intent?.id;
+  let order = null;
+  if (paymentIntentId) {
+    const { data, error } = await supabase
+      .from("payment_orders")
+      .select("*")
+      .eq("stripe_payment_intent_id", paymentIntentId)
+      .maybeSingle();
+    if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+    order = data || null;
+  }
+
+  await recordAuditEvent(supabase, {
+    organizationId: order?.organization_id || null,
+    eventType: "payment_admin_review_required",
+    eventDetail: {
+      payment_order_id: order?.id || null,
+      stripe_charge_id: charge?.id || null,
+      stripe_payment_intent_id: paymentIntentId || null,
+      stripe_event_type: eventType,
+      reason: "Refund, dispute, or charge review event received. Review credits manually before changing the client balance.",
+    },
+  });
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).send("Method not allowed.");
@@ -455,12 +584,28 @@ module.exports = async function handler(req, res) {
       await handleCheckoutCompleted(supabase, stripe, event.data.object, event.type);
     }
 
+    if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
+      await handleCheckoutPaymentIssue(supabase, event.data.object, event.type);
+    }
+
     if (event.type === "invoice.paid") {
       await handleInvoicePaid(supabase, stripe, event.data.object, event.type);
     }
 
+    if (event.type === "invoice.payment_failed" || event.type === "invoice.payment_action_required") {
+      await handleInvoicePaymentIssue(supabase, stripe, event.data.object, event.type);
+    }
+
+    if (["customer.subscription.updated", "customer.subscription.paused", "customer.subscription.resumed"].includes(event.type)) {
+      await handleSubscriptionUpdated(supabase, event.data.object, event.type);
+    }
+
     if (event.type === "customer.subscription.deleted") {
       await handleSubscriptionDeleted(supabase, event.data.object);
+    }
+
+    if (["charge.refunded", "charge.dispute.created", "charge.dispute.updated"].includes(event.type)) {
+      await handleChargeReviewEvent(supabase, event.data.object, event.type);
     }
 
     await markWebhookEvent(supabase, event.id, "processed");

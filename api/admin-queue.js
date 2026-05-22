@@ -1,5 +1,6 @@
 const { requireAdmin } = require("./_lib/adminAuth");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
+const { getCreditBalance } = require("./_lib/paymentAndCredit");
 
 function readLimit(req) {
   const value = Number(req.query?.limit || 100);
@@ -339,11 +340,25 @@ module.exports = async function handler(req, res) {
 
     if (deliverableFilesError) throw deliverableFilesError;
 
+    const refreshedCreditAccounts = await Promise.all(
+      (creditAccounts.data || []).map(async (account) => {
+        const refreshed = await getCreditBalance(supabase, account.organization_id);
+        return {
+          ...account,
+          balance: refreshed.balance,
+          reserved_balance: refreshed.reservedBalance ?? account.reserved_balance ?? 0,
+          low_credit_threshold: refreshed.lowCreditThreshold ?? account.low_credit_threshold ?? 2,
+          status: refreshed.status || account.status,
+          updated_at: refreshed.updatedAt || account.updated_at,
+        };
+      })
+    );
+
     res.status(200).json({
       projects: projects.data || [],
       requests: requests.data || [],
       customQuoteRequests: quoteRequests.data || [],
-      creditAccounts: creditAccounts.data || [],
+      creditAccounts: refreshedCreditAccounts,
       paymentOrders: paymentOrderRows,
       queuePaymentOrders: visiblePaymentOrders,
       notifications: notifications.data || [],

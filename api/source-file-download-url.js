@@ -2,7 +2,7 @@ const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { requireAdmin } = require("./_lib/adminAuth");
 
 const DEFAULT_EXPIRY_SECONDS = 60 * 30;
-const MAX_EXPIRY_SECONDS = 60 * 60 * 4;
+const MAX_EXPIRY_SECONDS = 60 * 30;
 
 function parseBody(req) {
   if (typeof req.body === "string") {

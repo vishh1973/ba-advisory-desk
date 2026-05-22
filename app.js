@@ -233,6 +233,25 @@ function validateFieldSet({ fields, containerSelector, statusSelector, message }
   return false;
 }
 
+function clearFieldErrorForInput(field) {
+  if (!field?.classList?.contains("field-error")) return;
+  field.classList.remove("field-error");
+  field.removeAttribute("aria-invalid");
+  const errorId = field.dataset.errorId;
+  if (!errorId) return;
+  const describedBy = (field.getAttribute("aria-describedby") || "")
+    .split(/\s+/)
+    .filter((id) => id && id !== errorId)
+    .join(" ");
+  if (describedBy) {
+    field.setAttribute("aria-describedby", describedBy);
+  } else {
+    field.removeAttribute("aria-describedby");
+  }
+  delete field.dataset.errorId;
+  document.getElementById(errorId)?.remove();
+}
+
 function setButtonBusy(button, busy, labelWhenBusy = "Working") {
   if (!button) return;
   if (busy) {
@@ -754,10 +773,13 @@ function isSelectedAdminScopedRecord(record, client = getSelectedAdminClient(), 
 
 function getSelectedAdminQueueItems() {
   const selectedClient = getSelectedAdminClient();
-  const applyFocus = (items) =>
-    state.adminQueueFocus === "quote"
-      ? items.filter((item) => item.queueType === "quote")
-      : items;
+  const applyFocus = (items) => {
+    if (state.adminQueueFocus === "quote") return items.filter((item) => item.queueType === "quote");
+    if (state.adminQueueFocus === "files") return items.filter((item) => ["client-upload", "request-file"].includes(item.queueType));
+    if (state.adminQueueFocus === "payments") return items.filter((item) => item.queueType === "payment");
+    if (state.adminQueueFocus === "messages") return items.filter((item) => item.queueType === "client-message");
+    return items;
+  };
   if (!state.selectedAdminClientId) return applyFocus(state.adminQueue.filter(isAdminQueueOpenItem));
   if (!selectedClient.id && !selectedClient.email && !selectedClient.name) return [];
   return applyFocus(state.adminQueue.filter((item) => isSelectedAdminScopedRecord(item, selectedClient) && isAdminQueueOpenItem(item)));
@@ -4290,7 +4312,7 @@ function renderAdminSnapshot() {
   const alertCount = document.querySelector("#adminAlertCount");
   const alertSummary = document.querySelector("#adminAlertSummary");
   if (activeClientCount) activeClientCount.textContent = clients.length;
-  if (openWorkCount) openWorkCount.textContent = openWork || state.adminNewCount || 0;
+  if (openWorkCount) openWorkCount.textContent = openWork;
   if (quoteCount) quoteCount.textContent = customInquiries;
   if (fileInboxCount) fileInboxCount.textContent = fileInbox;
   if (readyCount) readyCount.textContent = released;
@@ -4613,8 +4635,10 @@ async function sendAdminClientMessage() {
   setInlineStatus("#adminMessageStatus", messageStatusText, messageSent ? "success" : "warning");
   if (!messageSent) showPersistentNotice(messageStatusText);
   await loadAdminQueue();
-  closeAdminMessageComposer();
-  if (messageSent) showToast("Tracked client message sent.");
+  if (messageSent) {
+    closeAdminMessageComposer();
+    showToast("Tracked client message sent.");
+  }
   return result;
 }
 
@@ -5048,8 +5072,14 @@ function applyAdminQueueData(data) {
     }
   }
 
+  const selectedAdminClientForHistory = getSelectedAdminClient();
+  const selectedAdminClientIdForHistory = selectedAdminClientForHistory?.id || "";
+
   const paymentHistory = data.paymentHistory || data.payments || paymentOrders || [];
-  state.adminPaymentHistory = paymentHistory.slice(0, 30).map((payment) => ({
+  state.adminPaymentHistory = paymentHistory
+    .filter((payment) => !selectedAdminClientIdForHistory || (payment.organization_id || payment.organizationId || null) === selectedAdminClientIdForHistory)
+    .slice(0, 30)
+    .map((payment) => ({
     organizationId: payment.organization_id || payment.organizationId || null,
     rawDate: payment.paid_at || payment.created_at || payment.date || null,
     date: formatDisplayDate(payment.paid_at || payment.created_at || payment.date),
@@ -5059,7 +5089,10 @@ function applyAdminQueueData(data) {
   }));
 
   const creditLedger = data.creditLedger || data.creditHistory || data.ledger || [];
-  state.adminCreditLedger = creditLedger.slice(0, 30).map((entry) => ({
+  state.adminCreditLedger = creditLedger
+    .filter((entry) => !selectedAdminClientIdForHistory || (entry.organization_id || entry.organizationId || null) === selectedAdminClientIdForHistory)
+    .slice(0, 30)
+    .map((entry) => ({
     organizationId: entry.organization_id || entry.organizationId || null,
     ...getProjectFieldsFromRow(entry),
     rawDate: entry.created_at || entry.date || null,
@@ -5070,7 +5103,10 @@ function applyAdminQueueData(data) {
   }));
 
   const auditEvents = data.auditEvents || [];
-  state.adminAuditEvents = auditEvents.slice(0, 30).map((entry) => ({
+  state.adminAuditEvents = auditEvents
+    .filter((entry) => !selectedAdminClientIdForHistory || (entry.organization_id || entry.organizationId || null) === selectedAdminClientIdForHistory)
+    .slice(0, 30)
+    .map((entry) => ({
     organizationId: entry.organization_id || null,
     ...getProjectFieldsFromRow(entry),
     date: formatDisplayDate(entry.created_at),
@@ -5125,7 +5161,8 @@ async function loadAdminQueue() {
   }
 
   applyAdminQueueData(result.data || {});
-  setAdminStatus(state.adminQueue.length ? "Admin queue is current." : "No admin items need review.");
+  const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
+  setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
   render();
 }
 
@@ -5178,7 +5215,7 @@ function rememberClientLoginFields() {
 
 async function signInWithOAuthProvider(provider) {
   if ((config.authProviders || {})[provider] === false) {
-    showToast("This sign in option is not available yet. Please use another sign in option.");
+    showToast("This sign in option is currently unavailable. Please use another sign in option.");
     return;
   }
 
@@ -5574,7 +5611,7 @@ async function beginCheckout(type, options = {}) {
         window.location.href = data.url;
         return;
       }
-      const message = data.error || "Subscription management is not available yet for this workspace. Contact support if you need to cancel or change billing.";
+      const message = data.error || "Subscription management is not available for this workspace. Contact support@baadvisorydesk.com if you need to cancel or change billing.";
       if (status) status.textContent = message;
       showPersistentNotice(message);
     } catch (_error) {
@@ -5662,6 +5699,14 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.querySelector("#toastClose")?.addEventListener("click", hideToast);
+
+document.addEventListener("input", (event) => {
+  clearFieldErrorForInput(event.target);
+});
+
+document.addEventListener("change", (event) => {
+  clearFieldErrorForInput(event.target);
+});
 
 document.addEventListener("click", (event) => {
   const target = event.target.closest("[data-mailto]");
@@ -5863,6 +5908,7 @@ document.addEventListener("click", async (event) => {
     document.querySelector("#adminCreditAdjustment").value = 0;
     document.querySelector("#adminCreditAdjustmentReason").value = "";
     saveState();
+    await loadAdminQueue();
     render();
     showToast("Credit account updated.");
   }
@@ -5895,7 +5941,7 @@ document.addEventListener("click", async (event) => {
       return;
     }
 
-    const displayStatus = status === "Delivered" || status === "Completed" || status === "Completed and shipped" ? "Complete" : status;
+    const displayStatus = status;
     if (adminItem?.requestId && adminItem?.organizationId) {
       const statusUpdate = await fetchAdminApi("/api/admin-queue", {
         method: "POST",

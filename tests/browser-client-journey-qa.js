@@ -9,6 +9,7 @@ const qaFile = path.join(os.tmpdir(), "baad-qa-accounts.txt");
 const port = Number(process.env.BAAD_LOCAL_QA_PORT || 4317);
 const configuredAppUrl = (process.env.BAAD_BROWSER_QA_APP_URL || "").replace(/\/$/, "");
 const baseUrl = configuredAppUrl || `http://127.0.0.1:${port}`;
+const allowLocalMutation = process.env.BAAD_ALLOW_LOCAL_BROWSER_QA_MUTATION === "1";
 
 function parseQaFile() {
   const values = {};
@@ -155,6 +156,10 @@ async function expectUploadedFileRows(page, fileNames) {
 }
 
 async function run() {
+  if (!configuredAppUrl && !allowLocalMutation) {
+    throw new Error("Set BAAD_BROWSER_QA_APP_URL to the deployed site for authenticated upload QA. Local static mode cannot clean up server-backed upload records.");
+  }
+
   const qa = parseQaFile();
   const email = requireValue(process.env.BAAD_QA_CLIENT_EMAIL || qa.client, "BAAD_QA_CLIENT_EMAIL");
   const password = requireValue(process.env.BAAD_QA_CLIENT_PASSWORD || qa.password, "BAAD_QA_CLIENT_PASSWORD");
@@ -170,8 +175,8 @@ async function run() {
     await waitForApp(page);
 
     const appScript = await page.getAttribute("script[src*='app.js']", "src");
-    if (!appScript || !appScript.includes("v=15")) {
-      throw new Error(`Expected app.js cache version v=15, found ${appScript || "none"}.`);
+    if (!appScript || !appScript.includes("v=18")) {
+      throw new Error(`Expected app.js cache version v=18, found ${appScript || "none"}.`);
     }
 
     await page.fill("#passwordLoginEmail", email);

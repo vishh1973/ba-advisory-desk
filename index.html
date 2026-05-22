@@ -27,7 +27,7 @@
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
     <title>BA Advisory Desk | Business Analysis Services</title>
-    <link rel="stylesheet" href="./styles.css?v=16" />
+    <link rel="stylesheet" href="./styles.css?v=17" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js?v=8"></script>
     <script type="application/ld+json">
@@ -94,6 +94,13 @@
               "price": "1000",
               "priceCurrency": "USD",
               "description": "Three additional Advisory Credits, valid for 30 days after purchase."
+            },
+            {
+              "@type": "Offer",
+              "name": "Custom Advisory Scope",
+              "price": "7500",
+              "priceCurrency": "USD",
+              "description": "Custom discovery led advisory scope for larger diagnostics, transformation support, readiness reviews, executive packages, or multi-team work."
             }
           ]
         }
@@ -293,7 +300,7 @@
               <small>Assess value, readiness, risk, data needs, governance roles, approval paths, and adoption steps.</small>
             </article>
           </div>
-          <div class="testimonial-strip" aria-label="Representative client feedback themes">
+          <div class="testimonial-strip" aria-label="Common advisory use cases">
             <article>
               <strong>Transformation programs</strong>
               <p>Leaders value clear separation of scope, risks, decisions, and next steps.</p>
@@ -677,7 +684,7 @@
           <article class="price-card">
             <h3>Requirements Rescue Sprint</h3>
             <strong>$1,500 USD</strong>
-            <span>one time introductory pilot price</span>
+            <span>one time introductory price</span>
             <p>Best for one project, unclear requirement set, stalled decision, or documentation package that needs fast senior Business Analysis structure.</p>
             <p class="mini-label">You receive</p>
             <ul>
@@ -953,11 +960,11 @@
             <div class="panel">
               <div class="panel-heading">
                 <div>
-                  <h3>Deliverable status</h3>
+                  <h3>Request status</h3>
                   <p>Track work from intake through review, pause, and completion.</p>
                 </div>
               </div>
-              <div class="status-board" aria-label="Deliverable status summary">
+              <div class="status-board" aria-label="Request status summary">
                 <article><span>Pending</span><strong id="pendingCount">0</strong><ul id="pendingDeliverables"></ul></article>
                 <article><span>In review</span><strong id="inReviewCount">0</strong><ul id="inReviewDeliverables"></ul></article>
                 <article><span>Paused</span><strong id="pausedCount">0</strong><ul id="pausedDeliverables"></ul></article>
@@ -1332,7 +1339,7 @@
             <a class="secondary" href="#dashboard">Return To Dashboard</a>
             <button class="secondary" type="button" data-action="manage-billing">Manage Or Cancel Subscription</button>
           </div>
-          <p id="billingManageStatus" class="form-note">Subscription management opens securely when an active Stripe customer record is available.</p>
+          <p id="billingManageStatus" class="form-note">Subscription management opens securely when billing details are available for this workspace.</p>
         </div>
         <div class="billing-grid">
           <article>
@@ -1442,12 +1449,12 @@
           </div>
         </div>
         <div class="admin-grid">
-          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminClientPortfolioTable" aria-label="Show client portfolio">
-            <h3>Work to do</h3>
+          <button class="admin-metric-card" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="all" aria-label="Show open actions">
+            <h3>Open actions</h3>
             <strong id="adminNewCount">1</strong>
             <span><span id="adminQuoteCount">0</span> custom inquiries. <span id="adminActiveClientCount">0</span> active clients.</span>
           </button>
-          <button class="admin-metric-card files" type="button" data-admin-action="jump-admin-section" data-target-id="adminDossierFilesBlock" aria-label="Show selected client file inbox">
+          <button class="admin-metric-card files" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="files" aria-label="Show file review queue">
             <h3>Files to review</h3>
             <strong id="adminFileInboxCount">0</strong>
             <span>Client source files and revision uploads.</span>
@@ -1834,7 +1841,7 @@
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
     <script src="./content.js?v=9"></script>
-    <script src="./app.js?v=17"></script>
+    <script src="./app.js?v=18"></script>
   </body>
 </html>
 
