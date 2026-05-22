@@ -1782,6 +1782,13 @@
               Head office country
               <select id="quoteCountry" data-country-select></select>
             </label>
+            <label id="quoteProjectWrap" class="conditional hidden">
+              Related client project
+              <select id="quoteProjectSelect">
+                <option value="">General custom scope</option>
+              </select>
+              <small>Signed in clients can link a custom scope inquiry to an existing project.</small>
+            </label>
             <label>
               Work email
               <input id="quoteEmail" type="email" placeholder="name@company.com" />
@@ -1841,7 +1848,7 @@
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
     <script src="./content.js?v=9"></script>
-    <script src="./app.js?v=19"></script>
+    <script src="./app.js?v=21"></script>
   </body>
 </html>
 

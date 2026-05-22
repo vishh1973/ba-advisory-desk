@@ -10,6 +10,8 @@ const {
 } = require("./_lib/paymentAndCredit");
 
 const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
+const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created"];
+const CHECKOUT_REUSE_WINDOW_MS = 30 * 60 * 1000;
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase() || null;
@@ -111,6 +113,96 @@ function customerEmailFromSession(session) {
 
 function isSessionPaid(session) {
   return String(session?.payment_status || "").toLowerCase() === "paid";
+}
+
+function buildCheckoutAttemptKey({ organizationId, userId, productType, priceId }) {
+  return ["checkout-v1", organizationId, userId, productType, priceId].filter(Boolean).join(":");
+}
+
+function isRecentOrder(order) {
+  const value = order?.updated_at || order?.created_at;
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return timestamp && Date.now() - timestamp < CHECKOUT_REUSE_WINDOW_MS;
+}
+
+function shouldIgnoreOptionalColumnError(error) {
+  return ["42703", "PGRST204"].includes(error?.code);
+}
+
+async function markOrderStatusQuietly(supabase, orderId, status) {
+  if (!orderId) return;
+  await supabase
+    .from("payment_orders")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .then(() => null, () => null);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKey }) {
+  if (!checkoutAttemptKey) return null;
+
+  const { data, error } = await supabase
+    .from("payment_orders")
+    .select("id,status,stripe_checkout_session_id,created_at,updated_at")
+    .eq("checkout_attempt_key", checkoutAttemptKey)
+    .in("status", OPEN_CHECKOUT_STATUSES)
+    .order("updated_at", { ascending: false })
+    .limit(3);
+
+  if (error) {
+    if (shouldIgnoreOptionalColumnError(error)) return null;
+    throw error;
+  }
+
+  for (const order of data || []) {
+    if (!isRecentOrder(order)) {
+      await markOrderStatusQuietly(supabase, order.id, "expired");
+      continue;
+    }
+    if (!order.stripe_checkout_session_id) continue;
+    try {
+      const session = await stripe.checkout.sessions.retrieve(order.stripe_checkout_session_id);
+      if (String(session.status || "").toLowerCase() === "open" && session.url) {
+        return { order, session };
+      }
+      if (["complete", "expired"].includes(String(session.status || "").toLowerCase())) {
+        await markOrderStatusQuietly(supabase, order.id, String(session.status || "").toLowerCase() === "complete" ? "checkout_completed" : "expired");
+      }
+    } catch (_error) {
+      await markOrderStatusQuietly(supabase, order.id, "checkout_lookup_failed");
+    }
+  }
+  return null;
+}
+
+async function insertPaymentOrder(supabase, payload, checkoutAttemptKey) {
+  const writePayload = {
+    ...payload,
+    status: "checkout_creating",
+  };
+
+  if (checkoutAttemptKey) {
+    const { data, error } = await supabase
+      .from("payment_orders")
+      .insert({ ...writePayload, checkout_attempt_key: checkoutAttemptKey })
+      .select("id")
+      .single();
+    if (!error) return { data };
+    if (error.code === "23505") return { duplicateAttempt: true };
+    if (!shouldIgnoreOptionalColumnError(error)) throw error;
+  }
+
+  const { data, error } = await supabase
+    .from("payment_orders")
+    .insert(writePayload)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return { data };
 }
 
 function periodFromSubscription(subscription) {
@@ -426,23 +518,41 @@ module.exports = async function handler(req, res) {
       existingCustomerId = await findStripeCustomerId(supabase, organizationId);
     }
 
-    const { data: order, error: orderError } = await supabase
-      .from("payment_orders")
-      .insert({
-        organization_id: organizationId,
-        user_id: userId,
-        product_type: productType,
-        amount_cents: priceConfig.amountCents,
-        currency: "usd",
-        credits: priceConfig.credits,
-        status: "checkout_started",
-      })
-      .select("id")
-      .single();
-
-    if (orderError) {
-      throw orderError;
+    const checkoutAttemptKey = buildCheckoutAttemptKey({
+      organizationId,
+      userId,
+      productType,
+      priceId: priceConfig.priceId,
+    });
+    const reusableAttempt = await findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKey });
+    if (reusableAttempt?.session?.url) {
+      res.status(200).json({ url: reusableAttempt.session.url, reused: true });
+      return;
     }
+
+    const orderPayload = {
+      organization_id: organizationId,
+      user_id: userId,
+      product_type: productType,
+      amount_cents: priceConfig.amountCents,
+      currency: "usd",
+      credits: priceConfig.credits,
+    };
+
+    const insertedOrder = await insertPaymentOrder(supabase, orderPayload, checkoutAttemptKey);
+    if (insertedOrder.duplicateAttempt) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await sleep(700);
+        const waitingAttempt = await findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKey });
+        if (waitingAttempt?.session?.url) {
+          res.status(200).json({ url: waitingAttempt.session.url, reused: true });
+          return;
+        }
+      }
+      res.status(409).json({ error: "Secure checkout is already being prepared. Please wait a moment and try again." });
+      return;
+    }
+    const order = insertedOrder.data;
 
     const checkoutMetadata = {
       payment_order_id: order.id,
@@ -455,22 +565,31 @@ module.exports = async function handler(req, res) {
       credit_grant_type: priceConfig.creditGrantType || (priceConfig.credits > 0 ? "purchase" : "none"),
     };
 
-    const session = await stripe.checkout.sessions.create({
-      mode: priceConfig.mode,
-      customer: existingCustomerId || undefined,
-      customer_email: existingCustomerId ? undefined : clientEmail || undefined,
-      client_reference_id: workspaceId || order.id,
-      line_items: [{ price: priceConfig.priceId, quantity: 1 }],
-      success_url: `${baseUrl}/success.html?session_id={CHECKOUT_SESSION_ID}&product=${productType}`,
-      cancel_url: `${baseUrl}/index.html#billing`,
-      metadata: checkoutMetadata,
-      subscription_data:
-        priceConfig.mode === "subscription"
-          ? {
-              metadata: checkoutMetadata,
-            }
-          : undefined,
-    });
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create(
+        {
+          mode: priceConfig.mode,
+          customer: existingCustomerId || undefined,
+          customer_email: existingCustomerId ? undefined : clientEmail || undefined,
+          client_reference_id: workspaceId || order.id,
+          line_items: [{ price: priceConfig.priceId, quantity: 1 }],
+          success_url: `${baseUrl}/success.html?session_id={CHECKOUT_SESSION_ID}&product=${productType}`,
+          cancel_url: `${baseUrl}/index.html#billing`,
+          metadata: checkoutMetadata,
+          subscription_data:
+            priceConfig.mode === "subscription"
+              ? {
+                  metadata: checkoutMetadata,
+                }
+              : undefined,
+        },
+        { idempotencyKey: `checkout-session:${order.id}` }
+      );
+    } catch (error) {
+      await markOrderStatusQuietly(supabase, order.id, "checkout_failed");
+      throw error;
+    }
 
     await supabase
       .from("payment_orders")

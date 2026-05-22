@@ -2,6 +2,7 @@ const { sendEmail } = require("./email");
 const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./emailReference");
 const { detectAndNotifyCreditStatus, updateNotificationDeliveryStatus } = require("./paymentAndCredit");
 const { getSupabaseAdmin } = require("./supabaseAdmin");
+const { validateStoredFile } = require("./fileValidation");
 
 function parseBody(req) {
   if (typeof req.body === "string") {
@@ -93,12 +94,15 @@ async function validateScope({ supabase, organizationId, projectId, requestId, d
 
   const { data: project, error: projectError } = await supabase
     .from("client_projects")
-    .select("id,name,project_code,organization_id")
+    .select("id,name,project_code,organization_id,status")
     .eq("id", projectId)
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (projectError) throw projectError;
   if (!project?.id) return { ok: false, status: 400, error: "Project workspace does not belong to this client." };
+  if (String(project.status || "").toLowerCase() === "archived") {
+    return { ok: false, status: 400, error: "This project is archived. Choose an active project before releasing files." };
+  }
 
   if (requestId) {
     const { data: request, error: requestError } = await supabase
@@ -241,6 +245,9 @@ async function finalizeRelease({ supabase, req, body }) {
   if (!organizationId || !projectId || !deliverableId || !versionId || !versionNumber || !files.length) {
     return { status: 400, data: { error: "Release record, version, project, and uploaded files are required." } };
   }
+  if (files.length > 10) {
+    return { status: 400, data: { error: "Please release no more than 10 files at a time." } };
+  }
 
   const scope = await validateScope({ supabase, organizationId, projectId, requestId, deliverableId });
   if (!scope.ok) return { status: scope.status, data: { error: scope.error } };
@@ -297,12 +304,19 @@ async function finalizeRelease({ supabase, req, body }) {
   }
 
   for (const file of safeFiles) {
-    const { error: storageError } = await supabase.storage
-      .from(file.storage_bucket)
-      .createSignedUrl(file.storage_path, 60);
-    if (storageError) {
-      return { status: 400, data: { error: `Uploaded file could not be verified: ${file.file_name}` } };
+    const validation = await validateStoredFile({
+      supabase,
+      bucket: file.storage_bucket,
+      storagePath: file.storage_path,
+      fileName: file.file_name,
+      fileSizeBytes: file.file_size_bytes,
+      contentType: file.content_type,
+    });
+    if (!validation.ok) {
+      return { status: 400, data: { error: validation.error || `Uploaded file could not be verified: ${file.file_name}` } };
     }
+    file.content_type = validation.contentType;
+    file.file_size_bytes = validation.fileSizeBytes;
   }
 
   const { data: releaseResult, error: releaseError } = await supabase

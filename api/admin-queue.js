@@ -29,19 +29,39 @@ function queueTarget(body) {
 }
 
 async function insertAudit(supabase, target, message) {
-  if (!target.organizationId) return;
-  await supabase
+  const relatedEntityId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target.id || "")
+    ? target.id
+    : null;
+  const { error } = await supabase
     .from("audit_events")
     .insert({
-      organization_id: target.organizationId,
+      organization_id: target.organizationId || null,
       project_id: target.projectId,
       event_type: "admin_queue_action",
-      event_detail: message,
+      event_detail: {
+        message,
+        action: target.action,
+        status: target.status || null,
+      },
       related_entity_type: target.queueType,
-      related_entity_id: target.id || null,
+      related_entity_id: relatedEntityId,
       source: "admin_workspace",
-    })
-    .then(() => null, () => null);
+    });
+  if (error) {
+    return { ok: false, error };
+  }
+  return { ok: true };
+}
+
+async function requireAudit(supabase, target, message) {
+  const result = await insertAudit(supabase, target, message);
+  if (!result?.ok) {
+    const detail = result?.error?.message || "Audit record could not be written.";
+    const error = new Error(`Queue action could not be recorded. ${detail}`);
+    error.status = 500;
+    throw error;
+  }
+  return result;
 }
 
 async function updateByTarget(supabase, target) {
@@ -102,6 +122,7 @@ async function updateByTarget(supabase, target) {
       .update({ status })
       .eq("id", target.id);
     if (target.organizationId) query = query.eq("organization_id", target.organizationId);
+    if (target.projectId) query = query.eq("project_id", target.projectId);
     return finishUpdate(query);
   }
 
@@ -147,8 +168,24 @@ async function updateByTarget(supabase, target) {
     if (!data?.length) {
       return { ok: false, status: 404, error: "Payment record was not found or is not linked to the selected client." };
     }
-    await insertAudit(supabase, target, "Payment record marked checked.");
+    await requireAudit(supabase, target, "Payment record marked checked.");
     return { ok: true, status: "checked", auditInserted: true };
+  }
+
+  if (target.queueType === "payment-review") {
+    let query = supabase
+      .from("audit_events")
+      .select("id")
+      .eq("id", target.id)
+      .eq("event_type", "payment_admin_review_required");
+    if (target.organizationId) query = query.eq("organization_id", target.organizationId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) {
+      return { ok: false, status: 404, error: "Payment review was not found or is not linked to the selected client." };
+    }
+    await requireAudit(supabase, target, `Payment review marked ${status}.`);
+    return { ok: true, status, auditInserted: true };
   }
 
   if (target.queueType === "request-file") {
@@ -164,7 +201,7 @@ async function updateByTarget(supabase, target) {
     if (!data?.length) {
       return { ok: false, status: 404, error: "Request file was not found or is not linked to the selected client." };
     }
-    await insertAudit(supabase, target, `Request file marked ${status}.`);
+    await requireAudit(supabase, target, `Request file marked ${status}.`);
     return { ok: true, status, auditInserted: true };
   }
 
@@ -180,7 +217,11 @@ async function handleQueueAction(req, res) {
     return;
   }
   if (!result.auditInserted) {
-    await insertAudit(supabase, target, `Queue item marked ${result.status}.`);
+    const auditResult = await insertAudit(supabase, target, `Queue item marked ${result.status}.`);
+    if (!auditResult.ok && ["payment", "payment-review", "request-file"].includes(target.queueType)) {
+      res.status(500).json({ error: "Queue item was updated, but the audit record could not be saved. Please refresh before taking another action." });
+      return;
+    }
   }
   res.status(200).json({ ok: true, status: result.status });
 }
@@ -218,7 +259,7 @@ module.exports = async function handler(req, res) {
         .limit(limit),
       supabase
         .from("custom_quote_requests")
-        .select("id,organization_id,work_email,company_type,estimated_budget,request_summary,status,created_at")
+        .select("id,organization_id,project_id,work_email,company_type,estimated_budget,request_summary,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .limit(limit),
       supabase
@@ -319,6 +360,29 @@ module.exports = async function handler(req, res) {
         .filter(Boolean)
     );
     const visiblePaymentOrders = paymentOrderRows.filter((payment) => !checkedPaymentIds.has(payment.id));
+    const paymentReviewRows = (auditEvents.data || []).filter((event) => event.event_type === "payment_admin_review_required");
+    const paymentReviewIds = paymentReviewRows.map((event) => event.id).filter(Boolean);
+    const { data: paymentReviewActionRows, error: paymentReviewActionError } = paymentReviewIds.length
+      ? await supabase
+          .from("audit_events")
+          .select("related_entity_id,event_detail")
+          .eq("event_type", "admin_queue_action")
+          .eq("related_entity_type", "payment-review")
+          .in("related_entity_id", paymentReviewIds)
+          .order("created_at", { ascending: false })
+          .limit(Math.max(paymentReviewIds.length * 3, 20))
+      : { data: [], error: null };
+    if (paymentReviewActionError) throw paymentReviewActionError;
+    const addressedPaymentReviewIds = new Set(
+      (paymentReviewActionRows || [])
+        .filter((entry) => {
+          const detail = typeof entry.event_detail === "string" ? entry.event_detail : JSON.stringify(entry.event_detail || "");
+          return /marked\s+(checked|reviewed|addressed|dismissed|completed)/i.test(detail);
+        })
+        .map((entry) => entry.related_entity_id)
+        .filter(Boolean)
+    );
+    const visiblePaymentReviews = paymentReviewRows.filter((event) => !addressedPaymentReviewIds.has(event.id));
 
     const { data: deliverables, error: deliverablesError } = await supabase
       .from("deliverables")
@@ -361,6 +425,7 @@ module.exports = async function handler(req, res) {
       creditAccounts: refreshedCreditAccounts,
       paymentOrders: paymentOrderRows,
       queuePaymentOrders: visiblePaymentOrders,
+      paymentReviewEvents: visiblePaymentReviews,
       notifications: notifications.data || [],
       creditLedger: creditLedger.data || [],
       auditEvents: auditEvents.data || [],

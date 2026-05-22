@@ -29,14 +29,15 @@ function readBearerToken(req) {
   return match ? match[1].trim() : "";
 }
 
-async function getVerifiedOrganizationId(req, supabase, requestedOrganizationId) {
-  if (!requestedOrganizationId) return null;
+async function getVerifiedWorkspaceScope(req, supabase, requestedOrganizationId, requestedProjectId) {
+  const emptyScope = { organizationId: null, projectId: null, projectName: "" };
+  if (!requestedOrganizationId && !requestedProjectId) return emptyScope;
 
   const token = readBearerToken(req);
-  if (!token) return null;
+  if (!token) return { ...emptyScope, authRequired: true };
 
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData?.user?.id) return null;
+  if (userError || !userData?.user?.id) return { ...emptyScope, authRequired: true };
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -44,8 +45,24 @@ async function getVerifiedOrganizationId(req, supabase, requestedOrganizationId)
     .eq("id", userData.user.id)
     .maybeSingle();
 
-  if (profileError || !profile?.organization_id) return null;
-  return profile.organization_id === requestedOrganizationId ? requestedOrganizationId : null;
+  if (profileError || !profile?.organization_id || profile.organization_id !== requestedOrganizationId) return { ...emptyScope, authRequired: true };
+  if (!requestedProjectId) return { organizationId: requestedOrganizationId, projectId: null, projectName: "" };
+
+  const { data: project, error: projectError } = await supabase
+    .from("client_projects")
+    .select("id,name,project_code,status")
+    .eq("id", requestedProjectId)
+    .eq("organization_id", requestedOrganizationId)
+    .maybeSingle();
+  if (projectError || !project?.id) {
+    return { organizationId: requestedOrganizationId, projectId: null, projectName: "", invalidProject: true };
+  }
+  if (String(project.status || "").toLowerCase() === "archived") {
+    return { organizationId: requestedOrganizationId, projectId: null, projectName: "", invalidProject: true };
+  }
+
+  const projectLabel = [project.project_code, project.name].filter(Boolean).join(" | ");
+  return { organizationId: requestedOrganizationId, projectId: project.id, projectName: projectLabel };
 }
 
 function buildAdminEmail(payload, quoteId) {
@@ -56,6 +73,7 @@ function buildAdminEmail(payload, quoteId) {
     ["Organization", payload.organizationName],
     ["Company type", payload.companyType === "Other" && payload.otherCompanyType ? payload.otherCompanyType : payload.companyType],
     ["Head office country", payload.headOfficeCountry],
+    ["Related project", payload.projectName],
     ["Estimated budget", payload.estimatedBudget],
     ["Request summary", payload.requestSummary],
   ];
@@ -90,9 +108,19 @@ module.exports = async function handler(req, res) {
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     const supabase = getSupabaseAdmin();
-    const organizationId = await getVerifiedOrganizationId(req, supabase, body.organizationId || null);
+    const workspaceScope = await getVerifiedWorkspaceScope(req, supabase, body.organizationId || null, body.projectId || null);
+    if (workspaceScope.authRequired) {
+      res.status(401).json({ error: "Please sign in again before submitting a project scoped custom advisory request." });
+      return;
+    }
+    if (workspaceScope.invalidProject) {
+      res.status(400).json({ error: "The selected project could not be confirmed. Please refresh your workspace and try again." });
+      return;
+    }
     const payload = {
-      organizationId,
+      organizationId: workspaceScope.organizationId,
+      projectId: workspaceScope.projectId,
+      projectName: workspaceScope.projectName,
       contactName: normalizeText(body.contactName),
       workEmail: normalizeText(body.workEmail || body.email).toLowerCase(),
       organizationName: normalizeText(body.organizationName || body.companyName),
@@ -120,6 +148,7 @@ module.exports = async function handler(req, res) {
       .from("custom_quote_requests")
       .insert({
         organization_id: payload.organizationId,
+        project_id: payload.projectId,
         work_email: payload.workEmail,
         company_type: payload.companyType,
         other_company_type: payload.otherCompanyType,
@@ -149,6 +178,7 @@ module.exports = async function handler(req, res) {
 
     await supabase.from("notifications").insert({
       organization_id: payload.organizationId,
+      project_id: payload.projectId,
       recipient_email: supportEmail,
       channel: "email",
       template_key: "custom_quote_admin_notice",

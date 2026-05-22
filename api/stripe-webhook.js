@@ -533,7 +533,7 @@ async function handleSubscriptionUpdated(supabase, subscription, eventType) {
   });
 }
 
-async function handleChargeReviewEvent(supabase, charge, eventType) {
+async function handleChargeReviewEvent(supabase, charge, eventType, eventId) {
   const paymentIntentId = typeof charge?.payment_intent === "string" ? charge.payment_intent : charge?.payment_intent?.id;
   let order = null;
   if (paymentIntentId) {
@@ -545,6 +545,33 @@ async function handleChargeReviewEvent(supabase, charge, eventType) {
     if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
     order = data || null;
   }
+
+  const refundIds = Array.isArray(charge?.refunds?.data)
+    ? charge.refunds.data.map((refund) => refund.id).filter(Boolean)
+    : [];
+  await supabase
+    .from("payment_events")
+    .insert({
+      organization_id: order?.organization_id || null,
+      payment_order_id: order?.id || null,
+      stripe_event_id: eventId || null,
+      event_type: eventType,
+      payment_status: "review_required",
+      amount_cents: Number(charge?.amount_refunded || charge?.amount || 0),
+      currency: charge?.currency || order?.currency || "usd",
+      stripe_payment_intent_id: paymentIntentId || null,
+      idempotency_key: eventId ? `payment-review:${eventId}` : null,
+      event_payload: {
+        stripe_charge_id: charge?.id || null,
+        stripe_payment_intent_id: paymentIntentId || null,
+        refund_ids: refundIds,
+        disputed: Boolean(charge?.disputed),
+        reason: "Manual credit review required. Do not adjust credits until the payment outcome is confirmed.",
+      },
+    })
+    .then(() => null, (error) => {
+      if (error?.code !== "23505") throw error;
+    });
 
   await recordAuditEvent(supabase, {
     organizationId: order?.organization_id || null,
@@ -605,7 +632,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (["charge.refunded", "charge.dispute.created", "charge.dispute.updated"].includes(event.type)) {
-      await handleChargeReviewEvent(supabase, event.data.object, event.type);
+      await handleChargeReviewEvent(supabase, event.data.object, event.type, event.id);
     }
 
     await markWebhookEvent(supabase, event.id, "processed");

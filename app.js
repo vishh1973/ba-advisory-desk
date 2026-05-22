@@ -77,6 +77,7 @@ const state = {
   requestFiles: [],
   clientProjects: [],
   selectedProjectId: "",
+  pendingQuoteProjectId: "",
   adminDeliverables: [],
   adminDeliverableFiles: [],
   adminClientUploads: [],
@@ -2618,8 +2619,7 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
   const fileInput = document.querySelector("#fileUpload");
   const files = Array.from(fileInput.files || []);
   const userId = getUserId();
-
-  let uploaded = 0;
+  const storagePaths = [];
 
   try {
     if (!files.length || !supabaseClient || !userId) {
@@ -2633,50 +2633,54 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
       return { ok: false, reason: validationError, uploaded: 0 };
     }
 
+    const fileRecords = [];
     for (const [index, file] of files.entries()) {
       const storagePath = createClientStoragePath(userId, requestId, file.name, index);
       const uploadResponse = await uploadFileToStorageBucket("client-files", storagePath, file, getSingleFileUploadTimeoutMs());
       const uploadError = uploadResponse?.error;
 
       if (uploadError) {
-        return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
+        await abortSourceFileBatch(storagePaths);
+        return { ok: false, reason: getAtomicUploadError(file.name, files.length, uploadError.message), uploaded: 0 };
       }
 
-      try {
-        const fileRecordResponse = await withClientTimeout(
-          supabaseClient.from("request_files").insert({
-            request_id: requestId,
-            organization_id: organizationId,
-            project_id: projectId || null,
-            storage_path: storagePath,
-            file_name: file.name,
-            file_size_bytes: file.size,
-            mime_type: getUploadContentType(file),
-            uploaded_by: userId,
-          }),
-          15000,
-          `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
-        );
-        const fileRecordError = fileRecordResponse?.error;
-
-        if (fileRecordError) {
-          await removeStorageObjectQuietly("client-files", storagePath);
-          return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, fileRecordError.message), uploaded };
-        }
-      } catch (error) {
-        await removeStorageObjectQuietly("client-files", storagePath);
-        return { ok: false, reason: getPartialUploadError(file.name, uploaded, files.length, error.message), uploaded };
-      }
-
-      uploaded += 1;
+      storagePaths.push(storagePath);
+      fileRecords.push(buildUploadedSourceFile(file, storagePath));
     }
 
-    return { ok: true, uploaded };
+    const finalizeResult = await withClientTimeout(
+      fetchClientApi("/api/source-file-finalize", {
+        method: "POST",
+        timeoutMs: getUploadOperationTimeoutMs(files, 30000, 180000),
+        body: {
+          action: "finalize",
+          fileKind: "request_file",
+          organizationId,
+          projectId,
+          requestId,
+          files: fileRecords,
+        },
+      }),
+      30000,
+      "Files uploaded, but workspace validation took too long. Please refresh the workspace before retrying."
+    );
+
+    if (!finalizeResult.ok) {
+      await abortSourceFileBatch(storagePaths);
+      return {
+        ok: false,
+        reason: getAtomicUploadError("workspace validation", files.length, finalizeResult.error || "Files could not be attached to the request."),
+        uploaded: 0,
+      };
+    }
+
+    return { ok: true, uploaded: Number(finalizeResult.data?.uploaded ?? files.length) };
   } catch (error) {
+    await abortSourceFileBatch(storagePaths);
     return {
       ok: false,
-      reason: getPartialUploadError("the current file", uploaded, files.length, error?.message || "The secure upload could not be completed."),
-      uploaded,
+      reason: getAtomicUploadError("the current file", files.length, error?.message || "The secure upload could not be completed."),
+      uploaded: 0,
     };
   }
 }
@@ -2756,6 +2760,19 @@ function getPartialUploadError(fileName, uploaded, total, reason) {
   return `Upload stopped at ${fileName}. ${countText} were uploaded before the issue. ${getFriendlyWorkspaceError(reason, "Please review the file and try again.")} ${recovery}`;
 }
 
+function getAdminReleaseUploadError(fileName, uploaded, total, reason) {
+  const countText = `${uploaded} of ${total} file${total === 1 ? "" : "s"}`;
+  const recovery = uploaded > 0
+    ? "The staged release has been cleaned up. Please select the full set of deliverable files and release again."
+    : "No deliverable files were released. Please try again with fewer or smaller files.";
+  return `Release upload stopped at ${fileName}. ${countText} were uploaded before the issue. ${getFriendlyWorkspaceError(reason, "Please review the file and try again.")} ${recovery}`;
+}
+
+function getAtomicUploadError(fileName, total, reason) {
+  const fileText = `${total} file${total === 1 ? "" : "s"}`;
+  return `Upload stopped at ${fileName}. No files were attached because the ${fileText} must pass validation as one complete batch. ${getFriendlyWorkspaceError(reason, "Please review the files and try again.")}`;
+}
+
 async function removeStorageObjectQuietly(bucketName, storagePath) {
   if (!supabaseClient || !storagePath) return;
   await withClientTimeout(
@@ -2763,6 +2780,26 @@ async function removeStorageObjectQuietly(bucketName, storagePath) {
     10000,
     "File cleanup took too long."
   ).then(() => null, () => null);
+}
+
+async function abortSourceFileBatch(storagePaths = []) {
+  if (!storagePaths.length) return;
+  await fetchClientApi("/api/source-file-finalize", {
+    method: "POST",
+    body: {
+      action: "abort",
+      files: storagePaths.map((storagePath) => ({ storagePath })),
+    },
+  }).then(() => null, () => null);
+}
+
+function buildUploadedSourceFile(file, storagePath) {
+  return {
+    storagePath,
+    fileName: file.name,
+    fileSizeBytes: file.size,
+    contentType: getUploadContentType(file),
+  };
 }
 
 function getSingleFileUploadTimeoutMs() {
@@ -2928,88 +2965,97 @@ async function saveClientUpload() {
     return { ok: false, error: "Choose the project workspace these files belong to before uploading." };
   }
 
-  for (const [index, file] of files.entries()) {
-    setInlineStatus("#clientUploadStatus", `Uploading file ${index + 1} of ${files.length}: ${file.name}`);
-    const entry = {
-      id: `upload-${Date.now()}-${uploaded}`,
-      fileId: "",
-      fileKind: "client_upload",
-      projectId,
-      projectLabel: getClientProjectLabel(projectId),
-      contextType: context.type,
-      contextId: context.id,
-      contextLabel: context.label,
-      purpose,
-      fileName: file.name,
-      fileSize: file.size,
-      note,
-      status: "Received",
-      createdAt: getIsoNow(),
-    };
+  const storagePaths = [];
+  const stagedFiles = [];
 
-    if (organizationId && userId && supabaseClient) {
+  if (organizationId && userId && supabaseClient) {
+    for (const [index, file] of files.entries()) {
+      setInlineStatus("#clientUploadStatus", `Uploading file ${index + 1} of ${files.length}: ${file.name}`);
       const storagePath = createClientStoragePath(userId, `workspace-uploads/${context.type}-${context.id || "workspace"}`, file.name, index);
       const uploadResponse = await uploadFileToStorageBucket("client-files", storagePath, file, getSingleFileUploadTimeoutMs());
       const uploadError = uploadResponse?.error;
 
       if (uploadError) {
-        if (uploaded > 0) {
-          addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} failed.`);
-          saveState();
-          render();
-        }
-        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message || "File could not be uploaded."), uploaded };
+        await abortSourceFileBatch(storagePaths);
+        return { ok: false, error: getAtomicUploadError(file.name, files.length, uploadError.message || "File could not be uploaded."), uploaded: 0 };
       }
 
-      try {
-        const recordResponse = await withClientTimeout(
-          supabaseClient
-            .from("client_uploads")
-            .insert({
-              organization_id: organizationId,
-              project_id: projectId || null,
-              uploaded_by: userId,
-              deliverable_id: context.deliverableId,
-              request_id: context.requestId,
-              upload_type: purpose,
-              original_file_name: file.name,
-              file_size_bytes: file.size,
-              storage_bucket: "client-files",
-              storage_path: storagePath,
-              note,
-              status: "received",
-            })
-            .select("id")
-            .single(),
-          15000,
-          `${file.name} uploaded, but the workspace record took too long to save. Please contact ${config.supportEmail}.`
-        );
-        const uploadRecord = recordResponse?.data;
-        const recordError = recordResponse?.error;
-        if (recordError) {
-          await removeStorageObjectQuietly("client-files", storagePath);
-          if (uploaded > 0) {
-            addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} could not be recorded.`);
-            saveState();
-            render();
-          }
-          return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, recordError.message || "File record could not be saved to the workspace."), uploaded };
-        }
-        entry.fileId = uploadRecord?.id || "";
-      } catch (error) {
-        await removeStorageObjectQuietly("client-files", storagePath);
-        if (uploaded > 0) {
-          addAuditEvent("Partial client upload", `${uploaded} of ${files.length} files were attached before ${file.name} could not be recorded.`);
-          saveState();
-          render();
-        }
-        return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, error.message || "File record could not be saved to the workspace."), uploaded };
-      }
-      storedOnline = true;
+      storagePaths.push(storagePath);
+      stagedFiles.push({ file, storagePath });
     }
 
-    addLocalUpload(entry);
-    uploaded += 1;
+    setInlineStatus("#clientUploadStatus", "Validating and attaching files to the workspace.");
+    const finalizeResult = await withClientTimeout(
+      fetchClientApi("/api/source-file-finalize", {
+        method: "POST",
+        timeoutMs: getUploadOperationTimeoutMs(files, 30000, 180000),
+        body: {
+          action: "finalize",
+          fileKind: "client_upload",
+          organizationId,
+          projectId,
+          deliverableId: context.deliverableId,
+          requestId: context.requestId,
+          uploadType: purpose,
+          note,
+          files: stagedFiles.map(({ file, storagePath }) => buildUploadedSourceFile(file, storagePath)),
+        },
+      }),
+      30000,
+      "Files uploaded, but workspace validation took too long. Please refresh before trying again."
+    );
+
+    if (!finalizeResult.ok) {
+      await abortSourceFileBatch(storagePaths);
+      return {
+        ok: false,
+        error: getAtomicUploadError("workspace validation", files.length, finalizeResult.error || "File records could not be saved to the workspace."),
+        uploaded: 0,
+      };
+    }
+
+    const recordByPath = new Map((finalizeResult.data?.files || []).map((record) => [record.storage_path, record]));
+    stagedFiles.forEach(({ file, storagePath }, index) => {
+      const record = recordByPath.get(storagePath) || {};
+      addLocalUpload({
+        id: `upload-${Date.now()}-${index}`,
+        fileId: record.id || "",
+        fileKind: "client_upload",
+        projectId,
+        projectLabel: getClientProjectLabel(projectId),
+        contextType: context.type,
+        contextId: context.id,
+        contextLabel: context.label,
+        purpose,
+        fileName: file.name,
+        fileSize: file.size,
+        note,
+        status: "Received",
+        createdAt: record.created_at || getIsoNow(),
+      });
+    });
+    uploaded = Number(finalizeResult.data?.uploaded ?? stagedFiles.length);
+    storedOnline = true;
+  } else {
+    files.forEach((file, index) => {
+      addLocalUpload({
+        id: `upload-${Date.now()}-${index}`,
+        fileId: "",
+        fileKind: "client_upload",
+        projectId,
+        projectLabel: getClientProjectLabel(projectId),
+        contextType: context.type,
+        contextId: context.id,
+        contextLabel: context.label,
+        purpose,
+        fileName: file.name,
+        fileSize: file.size,
+        note,
+        status: "Received",
+        createdAt: getIsoNow(),
+      });
+    });
+    uploaded = files.length;
   }
 
   addAuditEvent("Client files received", `${uploaded} file${uploaded === 1 ? "" : "s"} attached to ${context.label}.`);
@@ -3120,6 +3166,7 @@ async function uploadAdminDeliverable() {
   const prepareResult = await withClientTimeout(
     fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
+      timeoutMs: getUploadOperationTimeoutMs(fileRecords, 30000, 180000),
       body: {
         action: "prepare",
         organizationId,
@@ -3173,7 +3220,7 @@ async function uploadAdminDeliverable() {
 
     if (uploadError) {
       await abortPreparedRelease();
-      return { ok: false, error: getPartialUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
+      return { ok: false, error: getAdminReleaseUploadError(file.name, uploaded, files.length, uploadError.message), uploaded };
     }
 
     storagePaths.push(storagePath);
@@ -4127,6 +4174,8 @@ function renderClientProjectControls() {
   const filter = document.querySelector("#clientProjectFilter");
   const requestSelect = document.querySelector("#requestProjectSelect");
   const requestProjectNameWrap = document.querySelector("#requestProjectNameWrap");
+  const quoteProjectWrap = document.querySelector("#quoteProjectWrap");
+  const quoteProjectSelect = document.querySelector("#quoteProjectSelect");
   const title = document.querySelector("#clientProjectFocusTitle");
   const body = document.querySelector("#clientProjectFocusBody");
   const selectedProject = getProjectById(state.selectedProjectId);
@@ -4159,6 +4208,16 @@ function renderClientProjectControls() {
 
   if (requestProjectNameWrap) {
     requestProjectNameWrap.classList.toggle("hidden", requestSelect?.value !== "__new__" && Boolean(requestSelect?.value));
+  }
+
+  if (quoteProjectWrap && quoteProjectSelect) {
+    const shouldShow = Boolean(state.session?.user && projects.length);
+    quoteProjectWrap.classList.toggle("hidden", !shouldShow);
+    const current = quoteProjectSelect.value || state.pendingQuoteProjectId || state.selectedProjectId;
+    quoteProjectSelect.innerHTML =
+      `<option value="">General custom scope</option>` +
+      projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(getProjectLabel(project))}</option>`).join("");
+    quoteProjectSelect.value = current && projects.some((project) => project.id === current) ? current : "";
   }
 
   if (title) title.textContent = selectedProject ? getProjectLabel(selectedProject) : "All active projects";
@@ -4766,13 +4825,16 @@ function normalizeAdminRequest(request) {
 }
 
 function normalizeCustomQuoteRequest(quote) {
+  const project = getProjectFieldsFromRow(quote);
+  const organization = quote.client_organizations || {};
   return {
     queueType: "quote",
     id: quote.id || "Custom quote",
     requestId: quote.id || null,
     organizationId: quote.organization_id || null,
+    ...project,
     clientEmail: quote.work_email || "",
-    client: quote.organization_name || quote.work_email || "Custom inquiry",
+    client: quote.organization_name || organization.name || organization.billing_email || quote.work_email || "Custom inquiry",
     type: `Custom quote${quote.company_type ? `: ${quote.company_type}` : ""}`,
     summarySnippet: quote.request_summary || "",
     budget: quote.estimated_budget || "",
@@ -4780,6 +4842,29 @@ function normalizeCustomQuoteRequest(quote) {
     status: quote.status || "New",
     dueAt: quote.created_at || null,
     dueLabel: "Discovery follow up",
+  };
+}
+
+function normalizePaymentReviewEvent(event) {
+  const organization = event.client_organizations || {};
+  const detail = typeof event.event_detail === "string" ? { reason: event.event_detail } : event.event_detail || {};
+  return {
+    queueType: "payment-review",
+    id: event.id || "Payment review",
+    requestId: event.id || null,
+    relatedEntityType: "payment-review",
+    relatedEntityId: event.id || null,
+    organizationId: event.organization_id || null,
+    projectId: event.project_id || null,
+    projectLabel: event.client_projects ? getProjectLabel(event.client_projects) : "Billing review",
+    clientEmail: organization.billing_email || "",
+    client: organization.name || organization.billing_email || "Client workspace",
+    type: "Payment review required",
+    summarySnippet: detail.reason || detail.stripe_event_type || "Review the refund, dispute, or charge activity before changing credits.",
+    action: "Review billing and credits",
+    status: "Review required",
+    dueAt: event.created_at || null,
+    dueLabel: "Finance review",
   };
 }
 
@@ -4914,6 +4999,7 @@ function applyAdminQueueData(data) {
   const quoteItems = data.quotes || data.customQuoteRequests || [];
   const paymentOrders = data.paymentOrders || [];
   const queuePaymentOrders = data.queuePaymentOrders || data.visiblePaymentOrders || paymentOrders;
+  const paymentReviewEvents = data.paymentReviewEvents || [];
   const notifications = data.notifications || [];
   const clientMessages = data.clientMessages || [];
   const clientUploads = data.clientUploads || [];
@@ -4935,6 +5021,7 @@ function applyAdminQueueData(data) {
     ...clientUploads.map(normalizeAdminClientUpload),
     ...queueRequestFiles.map(normalizeAdminRequestFile),
     ...queuePaymentOrders.map(normalizePaymentOrder),
+    ...paymentReviewEvents.map(normalizePaymentReviewEvent),
     ...notifications.map(normalizeNotification),
     ...fallbackItems.map(normalizeAdminQueueItem),
   ];
@@ -6499,6 +6586,8 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
     const { estimateValue, requestedCredits } = getRequestCreditScope();
     if (estimateValue === "custom") {
+      const projectValue = document.querySelector("#requestProjectSelect")?.value || "";
+      state.pendingQuoteProjectId = projectValue && projectValue !== "__new__" ? projectValue : state.selectedProjectId || "";
       window.location.hash = "quote";
       setInlineStatus(statusSelector, "Custom scope selected. Please complete the custom advisory request form.", "success");
       showPersistentNotice("This looks like a custom advisory scope. Please use the custom quote form so we can review the work properly before pricing it.");
@@ -6759,6 +6848,7 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
   const country = document.querySelector("#quoteCountry").value;
   const budget = document.querySelector("#quoteBudget").value;
   const summary = document.querySelector("#quoteSummary").value.trim();
+  const quoteProjectId = document.querySelector("#quoteProjectSelect")?.value || "";
   const quoteFieldsValid = validateFieldSet({
     containerSelector: "#quoteForm",
     statusSelector: "#quoteStatus",
@@ -6786,11 +6876,21 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
   setButtonBusy(submitButton, true, "Sending Request");
   try {
     const organizationId = await getProfileOrganizationId();
+    const scopedProjectId = quoteProjectId && getActiveClientProjects().some((project) => project.id === quoteProjectId) ? quoteProjectId : "";
+    if (quoteProjectId && !scopedProjectId) {
+      if (quoteStatus) {
+        quoteStatus.textContent = "The selected project is no longer active. Please refresh the workspace and choose an active project.";
+        quoteStatus.classList.add("warning");
+      }
+      showPersistentNotice("The selected project is no longer active. Please refresh the workspace and choose an active project.");
+      return;
+    }
 
     const result = await fetchMaybeAuthedApi("/api/custom-quote", {
       method: "POST",
       body: {
         organizationId,
+        projectId: scopedProjectId,
         workEmail,
         organizationName: state.client.company,
         companyType,
@@ -6811,6 +6911,7 @@ document.querySelector("#quoteForm").addEventListener("submit", async (event) =>
       quoteStatus.classList.toggle("warning", !result.ok);
     }
     if (result.ok) {
+      state.pendingQuoteProjectId = "";
       showPersistentNotice(successMessage);
       addAuditEvent("Custom quote requested", summary.slice(0, 100));
       saveState();
