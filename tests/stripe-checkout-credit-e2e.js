@@ -126,21 +126,26 @@ async function fillIfVisible(page, selector, value) {
 }
 
 async function completeStripeCheckout(url, email) {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: process.env.BAAD_QA_HEADED !== "1" });
   const page = await browser.newPage();
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     await fillIfVisible(page, "input[type='email']", email);
     await fillIfVisible(page, "input[name='cardNumber'], #cardNumber", "4242424242424242");
-    await fillIfVisible(page, "input[name='cardExpiry'], #cardExpiry", "1234");
+    await fillIfVisible(page, "input[name='cardExpiry'], #cardExpiry", "12 34");
     await fillIfVisible(page, "input[name='cardCvc'], #cardCvc", "123");
     await fillIfVisible(page, "input[name='billingName'], #billingName", "BA Advisory QA");
-    await fillIfVisible(page, "input[name='billingPostalCode'], #billingPostalCode", "12345");
+    await fillIfVisible(page, "input[name='billingPostalCode'], #billingPostalCode", "M5V 2T6");
 
     const payButton = page.locator("button[type='submit']");
     await payButton.waitFor({ state: "visible", timeout: 30000 });
     await payButton.click();
-    await page.waitForURL(/success\.html\?session_id=/, { timeout: 120000 });
+    try {
+      await page.waitForURL(/success\.html\?session_id=/, { timeout: 120000 });
+    } catch (error) {
+      const visibleText = await page.locator("body").innerText().catch(() => "");
+      throw new Error(`Stripe checkout did not return to the app. Current URL: ${page.url()}. Page text: ${visibleText.slice(0, 500)}`);
+    }
     const currentUrl = page.url();
     const sessionId = new URL(currentUrl).searchParams.get("session_id");
     if (!sessionId) throw new Error("Stripe checkout returned without a session id.");
