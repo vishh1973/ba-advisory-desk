@@ -180,6 +180,15 @@ async function expectUploadedFileRows(page, fileNames) {
 }
 
 async function selectOptionContainingText(page, selector, text) {
+  await page.waitForFunction(
+    ({ selector: selectSelector, text: expectedText }) => {
+      const select = document.querySelector(selectSelector);
+      if (!select) return false;
+      return Array.from(select.options).some((item) => (item.textContent || "").includes(expectedText));
+    },
+    { selector, text },
+    { timeout: 30000 }
+  ).catch(() => null);
   const value = await page.evaluate(
     ({ selector: selectSelector, text: expectedText }) => {
       const select = document.querySelector(selectSelector);
@@ -217,12 +226,15 @@ async function runNewProjectRequestQa(page, runId) {
 
     await page.waitForFunction(() => {
       const status = document.querySelector("#requestStatus")?.textContent || "";
-      return window.location.hash.includes("dashboard") || /request received|file upload needs attention|could not|insufficient|verify enough/i.test(status);
+      const toast = document.querySelector("#toastText")?.textContent || "";
+      return /request received|file upload needs attention|could not|insufficient|verify enough|please open billing/i.test(`${status} ${toast}`);
     }, null, { timeout: 180000 });
 
     const requestStatus = await page.textContent("#requestStatus").catch(() => "");
-    if (!window.location.hash.includes("dashboard") && !/request received/i.test(requestStatus || "")) {
-      throw new Error(`Project request did not complete successfully. Status: ${requestStatus || "none"}`);
+    const toastText = await page.textContent("#toastText").catch(() => "");
+    const combinedStatus = `${requestStatus || ""} ${toastText || ""}`;
+    if (!/request received/i.test(combinedStatus)) {
+      throw new Error(`Project request did not complete successfully. URL: ${page.url()}. Status: ${combinedStatus || "none"}`);
     }
 
     await page.goto(appRoute("dashboard"), { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -327,6 +339,6 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error(`FAIL | Browser client journey | ${error.message}`);
+  console.error(`FAIL | Browser client journey | ${error.stack || error.message}`);
   process.exit(1);
 });
