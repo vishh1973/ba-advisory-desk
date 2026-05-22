@@ -252,15 +252,16 @@ async function grantPurchaseCreditsWithLegacyRpc(supabase, {
     ? billingPeriodEnd || addDaysIso(billingPeriodStart || paidAt, 30)
     : addDaysIso(paidAt, 30);
 
-  await supabase
-    .from("credit_ledger")
-    .update({
-      expires_at: expiresAt,
-      grant_remaining: credits,
-      stripe_payment_intent_id: stripePaymentIntentId || null,
-    })
-    .eq("id", data?.ledger_id)
-    .then(() => null, () => null);
+  if (data?.ledger_id) {
+    await supabase
+      .from("credit_ledger")
+      .update({
+        expires_at: expiresAt,
+        stripe_payment_intent_id: stripePaymentIntentId || null,
+      })
+      .eq("id", data.ledger_id)
+      .then(() => null, () => null);
+  }
 
   return {
     granted: true,
