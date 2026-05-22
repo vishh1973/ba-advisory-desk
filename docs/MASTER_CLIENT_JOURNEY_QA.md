@@ -74,7 +74,7 @@ Remaining QA:
 Expected path:
 
 1. Client signs in and completes profile.
-2. Client chooses Rescue Sprint, Starter, or Credit Top Up.
+2. Client chooses Requirements Rescue Sprint, BA Advisory Desk Monthly Support, or 3 Advisory Credit Top Up.
 3. Checkout opens only for a signed in and verified client.
 4. Stripe payment returns to the checkout complete view.
 5. Client is guided back to the workspace.
@@ -84,13 +84,13 @@ Current QA status:
 
 - Passed: signed out checkout attempts are blocked and sent to login.
 - Fixed: checkout success now returns to the checkout complete view instead of dropping directly into a protected dashboard route.
-- Passed: product setup still maps Rescue Sprint, Starter, and Credit Top Up.
+- Passed: product setup still maps Requirements Rescue Sprint, BA Advisory Desk Monthly Support, and 3 Advisory Credit Top Up.
 
 Remaining QA:
 
 - Complete a Stripe test checkout with an authenticated test client.
 - Confirm payment history appears.
-- Confirm Starter grants 5 credits.
+- Confirm BA Advisory Desk Monthly Support grants 5 credits.
 - Confirm Credit Top Up grants 3 credits and expiry is shown.
 - Confirm Manage Or Cancel Subscription opens the billing portal for a client with a Stripe customer record.
 
@@ -189,7 +189,7 @@ Remaining QA:
 
 Expected path:
 
-1. Starter payment grants 5 monthly credits.
+1. BA Advisory Desk Monthly Support payment grants 5 monthly credits.
 2. Credit Top Up grants 3 credits.
 3. Monthly credits expire at billing period end.
 4. Top Up credits expire 30 days after purchase.

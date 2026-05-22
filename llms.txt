@@ -1,6 +1,6 @@
 # BA Advisory Desk
 
-BA Advisory Desk is a senior Business Analysis service for teams that need Requirements Rescue Sprints, decision ready business cases, SOPs, UAT support, process documentation, vendor readiness, AI governance material, decision logs, and executive ready documentation.
+BA Advisory Desk is a senior Business Analysis service for teams that need Requirements Rescue Sprints, monthly Business Analysis support, decision ready business cases, SOPs, UAT support, process documentation, stakeholder synthesis, vendor readiness, AI assessments, AI governance frameworks, decision logs, and executive ready documentation.
 
 ## Primary Service Offers
 
@@ -23,6 +23,11 @@ BA Advisory Desk is a senior Business Analysis service for teams that need Requi
 - Gap and options analysis
 - Stakeholder synthesis
 - Vendor readiness packages
+- AI assessment packs
+- AI governance frameworks
+- Custom advisory scopes
+
+If a client does not see the deliverable they need, they can contact support@baadvisorydesk.com. BA Advisory Desk will review the requirement and confirm whether it can be delivered through Requirements Rescue Sprint, BA Advisory Desk Monthly Support, 3 Advisory Credit Top Up, or Custom Advisory Scope.
 
 ## Best Fit Clients
 
@@ -31,7 +36,7 @@ BA Advisory Desk is a senior Business Analysis service for teams that need Requi
 - Delivery leaders
 - Transformation teams
 - Public sector and private sector organizations
-- Agencies and vendors that need senior BA capacity without hiring full time
+- Agencies and vendors that need senior Business Analysis capacity without hiring full time
 
 ## Website
 

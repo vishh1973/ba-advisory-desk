@@ -75,7 +75,7 @@ Result:
 - 3 credit grants recorded.
 - Credit account balance updated to 11.
 - Ledger now contains:
-  - 5 Starter monthly credits.
+  - 5 BA Advisory Desk Monthly Support credits.
   - 3 Credit Top Up credits.
   - 3 Credit Top Up credits.
 
@@ -141,7 +141,7 @@ Coverage included:
 
 These still need live browser validation after deployment:
 
-- Complete a new Starter checkout from the client dashboard and confirm credits update immediately.
+- Complete a new BA Advisory Desk Monthly Support checkout from the client dashboard and confirm credits update immediately.
 - Complete a new Credit Top Up checkout and confirm credits update immediately.
 - Submit a real client request with one small PDF or PNG.
 - Confirm the file appears in the client file list.
@@ -173,7 +173,7 @@ Date: 2026-05-20
 - Request upload failure messaging now directs the client to Messages and Files for the same request instead of suggesting a duplicate intake submission.
 - Logout now clears Supabase auth storage as a fallback after clearing local workspace state.
 - Stripe checkout now reuses an existing Stripe customer when available.
-- Starter checkout now blocks duplicate active Starter subscriptions.
+- BA Advisory Desk Monthly Support checkout now blocks duplicate active monthly subscriptions.
 - Stripe webhook duplicate handling now treats already received events as in progress.
 - Credit grant SQL now uses an advisory transaction lock around Stripe idempotency keys.
 - Live database now has unique indexes for `payment_orders.stripe_invoice_id` and `request_files.storage_path`.
@@ -328,7 +328,7 @@ Safe QA account checks completed:
 - Checkout APIs reject unauthenticated checkout requests.
 - Checkout APIs reject checkout attempts for the wrong client organization.
 - Checkout APIs return a clear support fallback when a client has no Stripe customer portal record yet.
-- Starter and Credit Top Up checkout session creation returns valid Stripe checkout URLs for the safe QA client.
+- BA Advisory Desk Monthly Support and Credit Top Up checkout session creation returns valid Stripe checkout URLs for the safe QA client.
 
 Responsive admin QA completed:
 

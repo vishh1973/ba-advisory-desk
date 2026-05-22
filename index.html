@@ -16,20 +16,20 @@
     <meta name="application-name" content="BA Advisory Desk" />
     <meta name="classification" content="Business analysis advisory services" />
     <meta name="subject" content="Requirements rescue, senior Business Analysis support, business cases, SOPs, UAT support, vendor readiness, AI governance, and executive documentation" />
-    <meta property="og:title" content="BA Advisory Desk | Requirements Rescue Sprint" />
+    <meta property="og:title" content="BA Advisory Desk | Business Analysis Services" />
     <meta property="og:description" content="Requirements rescue and senior Business Analysis support for teams that need clear scope, decisions, and delivery documentation without adding a full time role." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://baadvisorydesk.com" />
     <meta property="og:site_name" content="BA Advisory Desk" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="BA Advisory Desk | Requirements Rescue Sprint" />
+    <meta name="twitter:title" content="BA Advisory Desk | Business Analysis Services" />
     <meta name="twitter:description" content="Requirements rescue and senior Business Analysis support for requirements, business cases, SOPs, UAT support, vendor readiness, and executive documentation." />
     <link rel="canonical" href="https://baadvisorydesk.com" />
     <link rel="alternate" type="text/plain" href="https://baadvisorydesk.com/llms.txt" />
-    <title>BA Advisory Desk | Requirements Rescue Sprint</title>
+    <title>BA Advisory Desk | Business Analysis Services</title>
     <link rel="stylesheet" href="./styles.css?v=16" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./config.js?v=7"></script>
+    <script src="./config.js?v=8"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -50,7 +50,12 @@
           "Process documentation",
           "Vendor readiness",
           "Board presentations",
-          "Decision logs"
+          "Decision logs",
+          "Stakeholder synthesis",
+          "AI assessments",
+          "AI governance frameworks",
+          "Custom advisory scope",
+          "Monthly Business Analysis support"
         ],
         "serviceType": [
           "Business analysis advisory services",
@@ -59,7 +64,11 @@
           "SOP and process documentation",
           "UAT support",
           "Vendor readiness support",
-          "Executive documentation"
+          "Executive documentation",
+          "AI assessment support",
+          "AI governance frameworks",
+          "Stakeholder synthesis",
+          "Custom advisory scope"
         ],
         "offers": {
           "@type": "OfferCatalog",
@@ -110,31 +119,31 @@
             "name": "What does BA Advisory Desk help with?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "BA Advisory Desk helps teams with Requirements Rescue Sprints, requirements, user stories, acceptance criteria, SOPs, UAT scenarios, business cases, board material, gap analysis, decision logs, vendor readiness, and AI governance material."
+              "text": "BA Advisory Desk helps teams with Requirements Rescue Sprints, business requirements, functional requirements, non functional requirements, user stories, acceptance criteria, SOPs, UAT scenarios, business cases, board material, gap analysis, decision logs, stakeholder synthesis, vendor readiness, AI assessments, and AI governance frameworks."
             }
           },
           {
             "@type": "Question",
-            "name": "What is an Advisory Credit?",
+            "name": "Do I need an account before purchasing?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "An Advisory Credit is a defined delivery unit used to scope and track business analysis deliverables. A credit is confirmed before work begins and may cover a focused deliverable, milestone, or outcome-based service unit depending on complexity."
+              "text": "Yes. Account setup is free and simple. A client workspace is required before checkout so payments, files, requests, messages, credits, and deliverables stay connected to the right account."
             }
           },
           {
             "@type": "Question",
-            "name": "Who is BA Advisory Desk for?",
+            "name": "Who works behind the service?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The service is for software teams, consulting firms, delivery leaders, transformation teams, agencies, and organizations that need senior Business Analysis support without hiring full time."
+              "text": "BA Advisory Desk is supported by a senior advisory network of experienced business analysts, transformation architects, delivery leaders, former CIOs, former CTOs, and advisory specialists."
             }
           },
           {
             "@type": "Question",
-            "name": "How do clients start?",
+            "name": "What if I do not see the deliverable I need?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Clients can start with the Requirements Rescue Sprint for one focused project, subscribe to BA Advisory Desk Monthly Support for recurring support, or request a custom advisory scope."
+              "text": "Contact support@baadvisorydesk.com with the requirement. We will review the context and confirm whether the work fits a Requirements Rescue Sprint, BA Advisory Desk Monthly Support, a 3 Advisory Credit Top Up, or Custom Advisory Scope."
             }
           }
         ]
@@ -701,7 +710,7 @@
             <p class="mini-label">Credit guide</p>
             <p class="scope-note">1 Advisory Credit equals one defined Business Analysis delivery unit agreed before work starts. Examples include a requirements clarity pack, SOP package, UAT scenario pack, decision brief, stakeholder synthesis, or vendor readiness package.</p>
             <p class="scope-note">Larger outcomes may use multiple credits. The 3 Advisory Credit Top Up is available for $1,000 USD and expires 30 days after purchase.</p>
-            <button data-action="buy-starter">Start Monthly Support</button>
+            <button data-action="buy-monthly-support">Start Monthly Support</button>
           </article>
           <article class="price-card">
             <h3>Custom Advisory Scope</h3>
@@ -1336,7 +1345,7 @@
             <h3>BA Advisory Desk Monthly Support</h3>
             <strong>$2,500 USD/month</strong>
             <p>5 Advisory Credits per month. A client workspace is required so credits, files, payments, and deliverables stay linked to your account.</p>
-            <button data-action="buy-starter">Start Monthly Support</button>
+            <button data-action="buy-monthly-support">Start Monthly Support</button>
           </article>
           <article>
             <h3>3 Advisory Credit Top Up</h3>
@@ -1825,7 +1834,7 @@
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
     <script src="./content.js?v=9"></script>
-    <script src="./app.js?v=16"></script>
+    <script src="./app.js?v=17"></script>
   </body>
 </html>
 

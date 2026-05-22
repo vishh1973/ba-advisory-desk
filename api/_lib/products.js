@@ -9,7 +9,7 @@ const PRODUCT_CATALOG = {
   },
   starter_monthly: {
     label: "BA Advisory Desk Monthly Support",
-    priceEnv: "STRIPE_STARTER_PRICE_ID",
+    priceEnv: ["STRIPE_MONTHLY_SUPPORT_PRICE_ID", "STRIPE_STARTER_PRICE_ID"],
     mode: "subscription",
     credits: 5,
     amountCents: 250000,
@@ -30,11 +30,15 @@ function getProductConfig(productType) {
   if (!product) {
     throw new Error("Unsupported product type.");
   }
+  const priceEnvNames = Array.isArray(product.priceEnv) ? product.priceEnv : [product.priceEnv];
+  const priceId = priceEnvNames.map((name) => process.env[name]).find(Boolean);
 
   return {
     ...product,
     productType,
-    priceId: process.env[product.priceEnv],
+    priceEnv: priceEnvNames[0],
+    priceEnvFallbacks: priceEnvNames.slice(1),
+    priceId,
   };
 }
 

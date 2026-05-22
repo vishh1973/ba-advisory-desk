@@ -79,7 +79,7 @@ async function findStripeCustomerId(supabase, organizationId) {
   return order?.stripe_customer_id || null;
 }
 
-async function findActiveStarterSubscription(supabase, organizationId) {
+async function findActiveMonthlySupportSubscription(supabase, organizationId) {
   const { data, error } = await supabase
     .from("subscriptions")
     .select("id,stripe_subscription_id,status,current_period_end")
@@ -413,7 +413,7 @@ module.exports = async function handler(req, res) {
 
     let existingCustomerId = null;
     if (productType === "starter_monthly") {
-      const existingSubscription = await findActiveStarterSubscription(supabase, organizationId);
+      const existingSubscription = await findActiveMonthlySupportSubscription(supabase, organizationId);
       if (existingSubscription?.stripe_subscription_id) {
         res.status(409).json({
           error: "This workspace already has active BA Advisory Desk Monthly Support. Open Billing to manage the current plan or add a 3 Advisory Credit Top Up.",

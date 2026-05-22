@@ -72,10 +72,10 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 
 | Area | Status | Result |
 |---|---:|---|
-| Stripe product mapping | Pass | Rescue, Starter, and Top Up product credit setup is consistent. |
+| Stripe product mapping | Pass | Requirements Rescue Sprint, BA Advisory Desk Monthly Support, and 3 Advisory Credit Top Up product credit setup is consistent. |
 | Top Up credit grant | Pass from user test | User confirmed Top Up increased credits from 11 to 14. |
-| Checkout guardrails | Pass | Live API rejects unauthenticated checkout, rejects wrong organization checkout, and returns valid Stripe checkout URLs for safe Starter and Top Up requests. |
-| Starter credits | Risk | Needs repeated live test across webhook-first and success-page-first paths. |
+| Checkout guardrails | Pass | Live API rejects unauthenticated checkout, rejects wrong organization checkout, and returns valid Stripe checkout URLs for safe Monthly Support and Top Up requests. |
+| Monthly Support credits | Risk | Needs repeated live test across webhook-first and success-page-first paths. |
 | Duplicate Stripe event handling | Fixed in app | Webhook retries now reprocess rows still marked received or failed. Processed rows remain idempotently ignored. |
 | Paid order with missing credits | Fixed in app | Checkout reconciliation now reruns the idempotent credit grant for paid credit products. |
 | Credit expiry | Risk | Expiry is server-side but request gate can read balance before expiry job runs. |

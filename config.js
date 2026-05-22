@@ -6,6 +6,7 @@ window.BAAD_CONFIG = {
   siteDomain: "baadvisorydesk.com",
   stripePrices: {
     rescueSprint: "price_1TYXC8APPPI08UZD46QIjVCk",
+    monthlySupport: "price_1TYXCtAPPPI08UZDJVWzzJhv",
     starterMonthly: "price_1TYXCtAPPPI08UZDJVWzzJhv",
     creditTopUp: "price_1TYXDQAPPPI08UZDPKSUXUQv",
   },

@@ -17,7 +17,7 @@ This checklist tracks what must be tightened before a confident public launch.
 - Email and password account creation exists.
 - Password reset flow exists.
 - Client profile captures company, role, country, timezone, industry, phone, and primary need.
-- Stripe checkout links are configured for Rescue Sprint, Starter, and Credit Top Up.
+- Stripe checkout links are configured for Requirements Rescue Sprint, BA Advisory Desk Monthly Support, and 3 Advisory Credit Top Up.
 - Custom quote form sends a support notification.
 - Client request form accepts multiple files.
 - Admin access is restricted to the administrator account.

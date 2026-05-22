@@ -12,6 +12,7 @@ const config = {
   lowCreditThreshold: 2,
   stripePrices: {
     rescueSprint: "price_1TYXC8APPPI08UZD46QIjVCk",
+    monthlySupport: "price_1TYXCtAPPPI08UZDJVWzzJhv",
     starterMonthly: "price_1TYXCtAPPPI08UZDJVWzzJhv",
     creditTopUp: "price_1TYXDQAPPPI08UZDPKSUXUQv",
   },
@@ -5433,6 +5434,7 @@ function toggleOther(selectId, wrapperId) {
 
 const checkoutProductMap = {
   rescueSprint: "rescue_sprint",
+  monthlySupport: "starter_monthly",
   starterMonthly: "starter_monthly",
   creditTopUp: "credit_top_up",
 };
@@ -5591,10 +5593,10 @@ async function beginCheckout(type, options = {}) {
     });
   }
 
-  if (type === "buy-starter") {
+  if (type === "buy-starter" || type === "buy-monthly-support") {
     addAuditEvent("Checkout started", "BA Advisory Desk Monthly Support checkout opened.");
     saveState();
-    await openConfiguredCheckout("starterMonthly", "Secure checkout is being prepared for BA Advisory Desk Monthly Support at $2,500 per month.", {
+    await openConfiguredCheckout("monthlySupport", "Secure checkout is being prepared for BA Advisory Desk Monthly Support at $2,500 per month.", {
       requireWorkspace: true,
     });
   }
