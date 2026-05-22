@@ -5,7 +5,7 @@ const { detectAndNotifyCreditStatus, getCreditBalance } = require("./_lib/paymen
 function readLimit(req) {
   const value = Number(req.query?.limit || 100);
   if (!Number.isFinite(value) || value < 1) return 100;
-  return Math.min(Math.floor(value), 250);
+  return Math.min(Math.floor(value), 1000);
 }
 
 function parseBody(req) {

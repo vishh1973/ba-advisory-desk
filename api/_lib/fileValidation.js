@@ -16,6 +16,7 @@ const FILE_TYPES = {
     label: "Word",
     mimes: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
     signature: "zip",
+    packageMarkers: ["[Content_Types].xml", "word/document.xml"],
   },
   xls: {
     label: "Excel",
@@ -26,6 +27,7 @@ const FILE_TYPES = {
     label: "Excel",
     mimes: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
     signature: "zip",
+    packageMarkers: ["[Content_Types].xml", "xl/workbook.xml"],
   },
   ppt: {
     label: "PowerPoint",
@@ -36,6 +38,7 @@ const FILE_TYPES = {
     label: "PowerPoint",
     mimes: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     signature: "zip",
+    packageMarkers: ["[Content_Types].xml", "ppt/presentation.xml"],
   },
   png: {
     label: "PNG",
@@ -88,6 +91,12 @@ function hasExpectedSignature(bytes, expected) {
   return false;
 }
 
+function hasExpectedPackageMarkers(bytes, fileType) {
+  if (!fileType?.packageMarkers?.length) return true;
+  const packageText = Buffer.from(bytes).toString("latin1");
+  return fileType.packageMarkers.every((marker) => packageText.includes(marker));
+}
+
 function validateFileMetadata({ fileName, fileSizeBytes, contentType }) {
   const fileType = getFileType(fileName);
   if (!fileType) {
@@ -124,10 +133,23 @@ async function fetchObjectHead(signedUrl) {
   }
 }
 
-async function fetchObjectPrefix(signedUrl) {
+async function fetchObjectPrefix(signedUrl, maxBytes = 1024 * 1024) {
   const response = await fetch(signedUrl, {
     headers: {
-      Range: "bytes=0-8191",
+      Range: `bytes=0-${maxBytes - 1}`,
+    },
+  });
+  if (!response.ok && response.status !== 206) {
+    throw new Error("Uploaded file could not be opened for validation.");
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
+}
+
+async function fetchObjectRange(signedUrl, start, end) {
+  const response = await fetch(signedUrl, {
+    headers: {
+      Range: `bytes=${start}-${end}`,
     },
   });
   if (!response.ok && response.status !== 206) {
@@ -157,6 +179,15 @@ async function validateStoredFile({ supabase, bucket, storagePath, fileName, fil
   const bytes = await fetchObjectPrefix(signed.signedUrl);
   if (!hasExpectedSignature(bytes, metadata.fileType.signature)) {
     return { ok: false, error: `${fileName || "This file"} content does not match its extension.` };
+  }
+  let packageBytes = bytes;
+  if (!hasExpectedPackageMarkers(packageBytes, metadata.fileType) && head.contentLength && head.contentLength > bytes.length) {
+    const tailStart = Math.max(0, head.contentLength - 1024 * 1024);
+    const tailBytes = await fetchObjectRange(signed.signedUrl, tailStart, head.contentLength - 1);
+    packageBytes = Buffer.concat([Buffer.from(bytes), Buffer.from(tailBytes)]);
+  }
+  if (!hasExpectedPackageMarkers(packageBytes, metadata.fileType)) {
+    return { ok: false, error: `${fileName || "This file"} is not a valid ${metadata.fileType.label} package.` };
   }
 
   return {

@@ -69,15 +69,21 @@ function startStaticServer() {
   });
 }
 
-function createQaFiles(runId) {
+function createQaFiles(runId, prefix = "baad-qa-upload") {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "baad-browser-qa-"));
-  const pngPath = path.join(dir, `baad-qa-upload-${runId}.png`);
-  const pdfPath = path.join(dir, `baad-qa-upload-${runId}.pdf`);
+  const pngPath = path.join(dir, `${prefix}-${runId}.png`);
+  const pdfPath = path.join(dir, `${prefix}-${runId}.pdf`);
   const samplePdfPath = path.join(appRoot, "samples", "sample_requirements_pack.pdf");
   const onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
   fs.writeFileSync(pngPath, Buffer.from(onePixelPng, "base64"));
   fs.copyFileSync(samplePdfPath, pdfPath);
   return { dir, files: [pngPath, pdfPath] };
+}
+
+function futureDate(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function appRoute(hash) {
@@ -100,6 +106,22 @@ async function pickFirstWorkspaceContext(page) {
     return usable ? usable.value : "";
   });
   if (!value) throw new Error("No project or work item was available in the upload context list.");
+  await page.selectOption("#clientUploadContext", value);
+  return value;
+}
+
+async function pickWorkspaceContextContaining(page, text) {
+  await page.waitForFunction(() => {
+    const options = Array.from(document.querySelectorAll("#clientUploadContext option"));
+    return options.some((option) => option.value && option.value !== "workspace:");
+  }, null, { timeout: 30000 });
+  const value = await page.evaluate((expectedText) => {
+    const options = Array.from(document.querySelectorAll("#clientUploadContext option"));
+    const requestOption = options.find((option) => option.value.startsWith("request:") && (option.textContent || "").includes(expectedText));
+    const projectOption = options.find((option) => (option.textContent || "").includes(expectedText));
+    return requestOption?.value || projectOption?.value || "";
+  }, text);
+  if (!value) throw new Error(`No workspace context was available for ${text}.`);
   await page.selectOption("#clientUploadContext", value);
   return value;
 }
@@ -157,6 +179,78 @@ async function expectUploadedFileRows(page, fileNames) {
   }
 }
 
+async function selectOptionContainingText(page, selector, text) {
+  const value = await page.evaluate(
+    ({ selector: selectSelector, text: expectedText }) => {
+      const select = document.querySelector(selectSelector);
+      if (!select) return "";
+      const option = Array.from(select.options).find((item) => (item.textContent || "").includes(expectedText));
+      return option?.value || "";
+    },
+    { selector, text }
+  );
+  if (!value) {
+    throw new Error(`No option containing "${text}" was available in ${selector}.`);
+  }
+  await page.selectOption(selector, value);
+  return value;
+}
+
+async function runNewProjectRequestQa(page, runId) {
+  const requestFiles = createQaFiles(runId, "baad-qa-request");
+  const projectName = `Browser QA Project ${runId}`;
+  const requestType = "Requirements clarity package";
+
+  try {
+    await page.goto(appRoute("request"), { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForSelector("#requestForm", { timeout: 30000 });
+    await page.selectOption("#requestProjectSelect", "__new__");
+    await page.fill("#requestProjectName", projectName);
+    await page.selectOption("#requestCreditEstimate", "1");
+    await page.fill("#businessGoal", `Validate project scoped request and file upload ${runId}.`);
+    await page.fill("#targetAudience", "Browser QA reviewer");
+    await page.fill("#desiredOutput", "A requirements clarity package that proves project scoped intake works.");
+    await page.fill("#decisionDeadline", futureDate(7));
+    await page.setInputFiles("#fileUpload", requestFiles.files);
+    await page.fill("#attachmentDescription", `Two source files for project scoped browser QA ${runId}.`);
+    await page.click("#requestSubmitButton");
+
+    await page.waitForFunction(() => {
+      const status = document.querySelector("#requestStatus")?.textContent || "";
+      return window.location.hash.includes("dashboard") || /request received|file upload needs attention|could not|insufficient|verify enough/i.test(status);
+    }, null, { timeout: 180000 });
+
+    const requestStatus = await page.textContent("#requestStatus").catch(() => "");
+    if (!window.location.hash.includes("dashboard") && !/request received/i.test(requestStatus || "")) {
+      throw new Error(`Project request did not complete successfully. Status: ${requestStatus || "none"}`);
+    }
+
+    await page.goto(appRoute("dashboard"), { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.waitForSelector("#clientProjectFilter", { timeout: 30000 });
+    await selectOptionContainingText(page, "#clientProjectFilter", projectName);
+    await page.waitForTimeout(750);
+
+    const projectVisible = await page.textContent("#clientProjectFocusTitle");
+    if (!projectVisible || !projectVisible.includes(projectName)) {
+      throw new Error(`Client project focus did not switch to ${projectName}.`);
+    }
+
+    const requestRows = await page.textContent("#requestTable tbody");
+    if (!requestRows || !requestRows.includes(requestType)) {
+      throw new Error(`The new project request was not visible in the client request table. Rows: ${requestRows || "none"}`);
+    }
+
+    await expectUploadedFileRows(page, [`baad-qa-request-${runId}.png`, `baad-qa-request-${runId}.pdf`]);
+    if (configuredAppUrl) {
+      await removeUploadedFile(page, `baad-qa-request-${runId}.png`);
+      await removeUploadedFile(page, `baad-qa-request-${runId}.pdf`);
+    }
+    return { projectName, requestType };
+  } finally {
+    fs.rmSync(requestFiles.dir, { recursive: true, force: true });
+  }
+}
+
 async function run() {
   if (!configuredAppUrl && !allowLocalMutation) {
     throw new Error("Set BAAD_BROWSER_QA_APP_URL to the deployed site for authenticated upload QA. Local static mode cannot clean up server-backed upload records.");
@@ -177,8 +271,8 @@ async function run() {
     await waitForApp(page);
 
     const appScript = await page.getAttribute("script[src*='app.js']", "src");
-    if (!appScript || !appScript.includes("v=21")) {
-      throw new Error(`Expected app.js cache version v=21, found ${appScript || "none"}.`);
+    if (!appScript || !appScript.includes("v=22")) {
+      throw new Error(`Expected app.js cache version v=22, found ${appScript || "none"}.`);
     }
 
     await page.fill("#passwordLoginEmail", email);
@@ -186,10 +280,16 @@ async function run() {
     await page.click("#passwordSignInForm button[type='submit']");
     await page.waitForFunction(() => window.location.hash.includes("dashboard") || document.querySelector("#clientName")?.textContent?.trim(), null, { timeout: 30000 });
 
+    const requestQa = await runNewProjectRequestQa(page, runId);
+
     await page.goto(appRoute("messages"), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector("#clientUploadForm", { timeout: 30000 });
     await expectUploadValidation(page, /select at least one file|complete the highlighted upload fields/i, "Empty upload validation");
-    await pickFirstWorkspaceContext(page);
+    if (requestQa?.projectName) {
+      await pickWorkspaceContextContaining(page, requestQa.projectName);
+    } else {
+      await pickFirstWorkspaceContext(page);
+    }
     await expectUploadValidation(page, /select at least one file/i, "Missing file validation");
     await page.selectOption("#clientUploadPurpose", "Revision notes");
     await page.fill("#clientUploadNotes", `Browser QA upload ${runId}`);
@@ -218,7 +318,7 @@ async function run() {
     await page.click("[data-sign-out]");
     await page.waitForSelector("#passwordLoginEmail", { timeout: 30000 });
 
-    console.log(`PASS | Browser client journey | upload, billing, and sign out passed for QA run ${runId}`);
+    console.log(`PASS | Browser client journey | project request, upload, billing, and sign out passed for QA run ${runId}`);
   } finally {
     await browser.close().catch(() => null);
     if (server) await new Promise((resolve) => server.close(resolve));

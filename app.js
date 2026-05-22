@@ -23,6 +23,17 @@ const config = {
 
 const siteContent = window.BAAD_CONTENT || {};
 const ADMIN_ALL_PROJECTS_VALUE = "__all__";
+const visibleCountDefaults = {
+  clientRequests: 25,
+  clientFiles: 12,
+  clientDeliverables: 8,
+  clientActivity: 8,
+  adminQueue: 50,
+  adminDossierRequests: 10,
+  adminDossierFiles: 20,
+  adminDossierDeliverables: 8,
+  adminDossierMessages: 8,
+};
 
 window.BAAD_RUNTIME_CONFIG = {
   domain: config.domain,
@@ -104,6 +115,7 @@ const state = {
   workspaceLoadIssue: "",
   reservedCredits: 0,
   checkoutOpening: false,
+  visibleCounts: { ...visibleCountDefaults },
 };
 
 const views = {
@@ -794,6 +806,40 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function getVisibleLimit(key) {
+  return Math.max(1, Number(state.visibleCounts?.[key] || visibleCountDefaults[key] || 10));
+}
+
+function resetVisibleCounts(keys) {
+  const targetKeys = keys?.length ? keys : Object.keys(visibleCountDefaults);
+  targetKeys.forEach((key) => {
+    state.visibleCounts[key] = visibleCountDefaults[key];
+  });
+}
+
+function getVisibleSlice(items, key) {
+  return items.slice(0, getVisibleLimit(key));
+}
+
+function loadMoreControlHtml({ key, total, shown, label, increment }) {
+  if (!total || total <= shown) return "";
+  const nextIncrement = increment || visibleCountDefaults[key] || 10;
+  return `
+    <div class="load-more-footer" data-load-more-footer="${escapeHtml(key)}">
+      <span>Showing ${escapeHtml(shown)} of ${escapeHtml(total)} ${escapeHtml(label)}.</span>
+      <button class="secondary small" type="button" data-load-more="${escapeHtml(key)}" data-load-increment="${escapeHtml(nextIncrement)}">Load older ${escapeHtml(label)}</button>
+    </div>
+  `;
+}
+
+function renderLoadMoreFooter(anchorSelector, options) {
+  const anchor = document.querySelector(anchorSelector);
+  if (!anchor) return;
+  document.querySelector(`[data-load-more-footer="${options.key}"]`)?.remove();
+  const html = loadMoreControlHtml(options);
+  if (html) anchor.insertAdjacentHTML("afterend", html);
 }
 
 function setTextContent(selector, value) {
@@ -2413,32 +2459,32 @@ async function loadClientWorkspaceData() {
         .select("entry_type,entry_reason,credits,balance_after,created_at,project_id,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(100),
       supabaseClient
         .from("payment_history")
         .select("product_type,amount_cents,currency,credits,status,paid_at,created_at")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(100),
       supabaseClient
         .from("requests")
         .select("id,project_id,request_code,request_type,status,due_at,created_at,credits_estimated,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
-        .limit(50),
+        .limit(250),
       supabaseClient
         .from("client_deliverable_versions")
         .select("deliverable_id,request_id,project_id,project_name,project_code,title,deliverable_type,status,current_version_number,version_id,file_id,version_number,original_file_name,file_size_bytes,summary,release_note,uploaded_at,updated_at")
         .eq("organization_id", organizationId)
         .order("uploaded_at", { ascending: false })
-        .limit(100),
+        .limit(250),
       supabaseClient
         .from("request_files")
         .select("id,request_id,project_id,organization_id,uploaded_by,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(50),
+        .limit(250),
     ]);
 
     const firstDataError = [projectResult, creditResult, ledgerResult, paymentResult, requestResult, deliverableResult, requestFileResult].find((result) => result?.error);
@@ -2513,14 +2559,14 @@ async function loadClientWorkspaceData() {
         .select("id,project_id,deliverable_id,request_id,subject,body,status,created_at,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(250),
       supabaseClient
         .from("client_uploads")
         .select("id,organization_id,project_id,deliverable_id,request_id,uploaded_by,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(20),
+        .limit(250),
     ]);
 
     const firstActivityError = [messageResult, uploadResult].find((result) => result?.error);
@@ -3382,8 +3428,9 @@ function getVisibleRequestFiles() {
 
 function renderRequests() {
   const requests = getVisibleRequests();
+  const visibleRequests = getVisibleSlice(requests, "clientRequests");
   const rows = requests.length
-    ? requests
+    ? visibleRequests
         .map(
           (request) => `
         <tr>
@@ -3399,6 +3446,13 @@ function renderRequests() {
     : `<tr><td colspan="5" class="empty-cell">No requests yet for this project view. Start a request when you are ready to send source material or ask for Business Analysis support.</td></tr>`;
 
   document.querySelector("#requestTable tbody").innerHTML = rows;
+  renderLoadMoreFooter("#requestTable", {
+    key: "clientRequests",
+    total: requests.length,
+    shown: visibleRequests.length,
+    label: "requests",
+    increment: 25,
+  });
 
   const adminSource = state.adminQueue.length ? getSelectedAdminQueueItems() : state.requests.map((request) => ({
     client: request.client,
@@ -3407,8 +3461,9 @@ function renderRequests() {
     action: request.status === "New" ? "Scope request" : "Review",
     status: request.status,
   }));
+  const visibleAdminSource = getVisibleSlice(adminSource, "adminQueue");
 
-  const adminRows = adminSource
+  const adminRows = visibleAdminSource
     .map(
       (item) => {
         const canUpload = item.queueType === "request" && item.organizationId && item.requestId;
@@ -3459,6 +3514,13 @@ function renderRequests() {
 
   document.querySelector("#adminTable tbody").innerHTML =
     adminRows || `<tr><td colspan="5" class="empty-cell">No admin queue items for the selected client.</td></tr>`;
+  renderLoadMoreFooter("#adminTable", {
+    key: "adminQueue",
+    total: adminSource.length,
+    shown: visibleAdminSource.length,
+    label: "queue items",
+    increment: 50,
+  });
 }
 
 function renderDeliverableStatus() {
@@ -3494,7 +3556,8 @@ function renderClientDeliverables() {
     return;
   }
 
-  list.innerHTML = deliverables
+  const visibleDeliverables = getVisibleSlice(deliverables, "clientDeliverables");
+  list.innerHTML = visibleDeliverables
     .map((deliverable) => {
       const currentFiles = deliverable.versions.filter((version) => Number(version.versionNumber) === Number(deliverable.currentVersion));
       const previousFiles = deliverable.versions.filter((version) => Number(version.versionNumber) !== Number(deliverable.currentVersion));
@@ -3559,7 +3622,14 @@ function renderClientDeliverables() {
         </article>
       `;
     })
-    .join("");
+    .join("") +
+    loadMoreControlHtml({
+      key: "clientDeliverables",
+      total: deliverables.length,
+      shown: visibleDeliverables.length,
+      label: "deliverables",
+      increment: 8,
+    });
 }
 
 function renderDeliverySummary() {
@@ -3614,8 +3684,8 @@ function renderClientCommunicationLog() {
     return;
   }
 
-  log.innerHTML = entries
-    .slice(0, 8)
+  const visibleEntries = getVisibleSlice(entries, "clientActivity");
+  log.innerHTML = visibleEntries
     .map((entry) => {
       const detail = entry.kind === "Upload" ? `${entry.purpose}: ${entry.fileName}` : entry.body;
       return `
@@ -3629,7 +3699,14 @@ function renderClientCommunicationLog() {
         </article>
       `;
     })
-    .join("");
+    .join("") +
+    loadMoreControlHtml({
+      key: "clientActivity",
+      total: entries.length,
+      shown: visibleEntries.length,
+      label: "activity records",
+      increment: 8,
+    });
 }
 
 function renderCreditHistory() {
@@ -4269,8 +4346,8 @@ function renderClientFileRoom() {
     list.innerHTML = `<div class="empty-cell">No source files or revision uploads are attached yet.</div>`;
     return;
   }
-  list.innerHTML = files
-    .slice(0, 12)
+  const visibleFiles = getVisibleSlice(files, "clientFiles");
+  list.innerHTML = visibleFiles
     .map(
       (file) => `
         <article class="workspace-file-row">
@@ -4295,7 +4372,14 @@ function renderClientFileRoom() {
         </article>
       `
     )
-    .join("");
+    .join("") +
+    loadMoreControlHtml({
+      key: "clientFiles",
+      total: files.length,
+      shown: visibleFiles.length,
+      label: "files",
+      increment: 12,
+    });
 }
 
 function getAdminOpenItemsForClient(client) {
@@ -4480,9 +4564,9 @@ function renderAdminClientDossier() {
   if (requests) {
     const activeProject = getSelectedAdminProject();
     const requestRows = client.id ? state.adminQueue.filter((item) => item.queueType === "request" && isSelectedAdminScopedRecord(item, client, activeProject) && isAdminQueueOpenItem(item)) : [];
+    const visibleRequestRows = getVisibleSlice(requestRows, "adminDossierRequests");
     requests.innerHTML = requestRows.length
-      ? requestRows
-          .slice(0, 10)
+      ? visibleRequestRows
           .map(
             (request) => `
               <article class="admin-dossier-row">
@@ -4498,15 +4582,22 @@ function renderAdminClientDossier() {
               </article>
             `
           )
-          .join("")
+          .join("") +
+          loadMoreControlHtml({
+            key: "adminDossierRequests",
+            total: requestRows.length,
+            shown: visibleRequestRows.length,
+            label: "requests",
+            increment: 10,
+          })
       : `<p class="muted">${client.id ? "No open requests for the active project." : "Create or link a client workspace before request handling."}</p>`;
   }
 
   if (files) {
     const fileRows = client.id ? getAdminFilesForClient(client) : [];
+    const visibleFileRows = getVisibleSlice(fileRows, "adminDossierFiles");
     files.innerHTML = fileRows.length
-      ? fileRows
-        .slice(0, 20)
+      ? visibleFileRows
         .map(
           (file) => `
               <p><strong>${escapeHtml(file.fileName || file.type || "Client file")}</strong><br />
@@ -4519,16 +4610,23 @@ function renderAdminClientDossier() {
               }</p>
             `
         )
-          .join("")
+          .join("") +
+          loadMoreControlHtml({
+            key: "adminDossierFiles",
+            total: fileRows.length,
+            shown: visibleFileRows.length,
+            label: "files",
+            increment: 20,
+          })
       : `<p class="muted">${client.id ? "No client files are attached yet." : "Create or link a client workspace before file handling."}</p>`;
   }
 
   if (deliverables) {
     const activeProject = getSelectedAdminProject();
     const rows = client.id ? state.adminDeliverables.filter((deliverable) => isSelectedAdminScopedRecord(deliverable, client, activeProject)) : [];
+    const visibleRows = getVisibleSlice(rows, "adminDossierDeliverables");
     deliverables.innerHTML = rows.length
-      ? rows
-          .slice(0, 8)
+      ? visibleRows
           .map((deliverable) => {
             const files = state.adminDeliverableFiles.filter((file) => {
               if (file.deliverableId !== deliverable.id) return false;
@@ -4545,20 +4643,34 @@ function renderAdminClientDossier() {
               : `<br /><span class="muted">No file rows found for this deliverable.</span>`;
             return `<p><strong>${escapeHtml(deliverable.title)}</strong><br /><span>${escapeHtml(getClientProjectLabel(deliverable))} | ${escapeHtml(deliverable.type)} | Version ${escapeHtml(deliverable.currentVersion || 1)} | ${escapeHtml(deliverable.status)}</span>${fileHtml}</p>`;
           })
-          .join("")
+          .join("") +
+          loadMoreControlHtml({
+            key: "adminDossierDeliverables",
+            total: rows.length,
+            shown: visibleRows.length,
+            label: "deliverables",
+            increment: 8,
+          })
       : `<p class="muted">${client.id ? "No deliverables have been released yet." : "No deliverables can be released until a client workspace exists."}</p>`;
   }
 
   if (messages) {
     const rows = getAdminMessagesForClient(client);
+    const visibleRows = getVisibleSlice(rows, "adminDossierMessages");
     messages.innerHTML = rows.length
-      ? rows
-          .slice(0, 8)
+      ? visibleRows
           .map((message) => {
             const body = message.body ? `<br /><span>${escapeHtml(message.body)}</span>` : "";
             return `<p><strong>${escapeHtml(message.type)}</strong><br /><span>${escapeHtml(getClientProjectLabel(message))} | ${escapeHtml(message.action)} | ${escapeHtml(formatDateTime(message.dueAt))}</span>${body}</p>`;
           })
-          .join("")
+          .join("") +
+          loadMoreControlHtml({
+            key: "adminDossierMessages",
+            total: rows.length,
+            shown: visibleRows.length,
+            label: "messages",
+            increment: 8,
+          })
       : `<p class="muted">No client messages need review.</p>`;
   }
 }
@@ -5242,7 +5354,7 @@ async function loadAdminQueue() {
   if (!supabaseClient || !(await ensureAdminAccess())) return;
 
   setAdminStatus("Loading admin queue.");
-  const result = await fetchAdminApi("/api/admin-queue?limit=250");
+  const result = await fetchAdminApi("/api/admin-queue?limit=1000");
 
   if (!result.ok) {
     setAdminStatus(result.error || "Admin queue could not be loaded.");
@@ -5757,6 +5869,17 @@ document.addEventListener("click", (event) => {
     return;
   }
 
+  const loadMoreTarget = event.target.closest("[data-load-more]");
+  if (loadMoreTarget) {
+    event.preventDefault();
+    const key = loadMoreTarget.dataset.loadMore;
+    if (!key || !Object.prototype.hasOwnProperty.call(visibleCountDefaults, key)) return;
+    const increment = Math.max(1, Number(loadMoreTarget.dataset.loadIncrement || visibleCountDefaults[key]));
+    state.visibleCounts[key] = getVisibleLimit(key) + increment;
+    render();
+    return;
+  }
+
   const navToggle = event.target.closest("[data-nav-toggle]");
   if (navToggle) {
     event.preventDefault();
@@ -5825,12 +5948,14 @@ document.addEventListener("change", (event) => {
   if (event.target.id === "adminClientSelect" || event.target.id === "adminUploadClientSelect") {
     state.selectedAdminClientId = event.target.value;
     state.adminUploadProjectId = null;
+    resetVisibleCounts(["adminQueue", "adminDossierRequests", "adminDossierFiles", "adminDossierDeliverables", "adminDossierMessages"]);
     syncSelectedAdminClientToState();
     saveState();
     render();
   }
   if (event.target.id === "adminProjectFilter") {
     state.selectedAdminProjectId = event.target.value || "";
+    resetVisibleCounts(["adminQueue", "adminDossierRequests", "adminDossierFiles", "adminDossierDeliverables", "adminDossierMessages"]);
     saveState();
     render();
   }
@@ -5867,6 +5992,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.adminAction === "jump-admin-section") {
     const previousQueueFocus = state.adminQueueFocus;
     state.adminQueueFocus = target.dataset.queueFilter || "";
+    if (state.adminQueueFocus !== previousQueueFocus) resetVisibleCounts(["adminQueue"]);
     if (state.adminQueueFocus || previousQueueFocus) renderRequests();
     const targetId = target.dataset.targetId;
     if (targetId) scrollToAdminSection(targetId);
@@ -5908,6 +6034,7 @@ document.addEventListener("click", async (event) => {
     state.selectedAdminClientId = selectionId;
     state.adminUploadProjectId = null;
     state.adminQueueFocus = "";
+    resetVisibleCounts(["adminQueue", "adminDossierRequests", "adminDossierFiles", "adminDossierDeliverables", "adminDossierMessages"]);
     syncSelectedAdminClientToState();
     syncSelectedAdminProjectToClient();
     saveState();
@@ -6995,6 +7122,7 @@ document.querySelector("#requestCreditEstimate")?.addEventListener("change", () 
 
 document.querySelector("#clientProjectFilter")?.addEventListener("change", (event) => {
   state.selectedProjectId = event.target.value || "";
+  resetVisibleCounts(["clientRequests", "clientFiles", "clientDeliverables", "clientActivity"]);
   saveState();
   render();
 });

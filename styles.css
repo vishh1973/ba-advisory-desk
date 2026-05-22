@@ -1628,6 +1628,30 @@ label small {
   color: var(--ink);
 }
 
+.load-more-footer {
+  align-items: center;
+  background: #f8fbfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--slate);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+  line-height: 1.45;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.load-more-footer span {
+  min-width: 0;
+}
+
+.load-more-footer button {
+  width: auto;
+}
+
 input[type="file"] {
   background: #f8fbfc;
   cursor: pointer;
