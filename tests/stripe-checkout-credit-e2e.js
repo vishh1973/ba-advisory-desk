@@ -145,15 +145,26 @@ async function completeStripeCheckout(url, email) {
 
     const payButton = page.locator("button[type='submit']");
     await payButton.waitFor({ state: "visible", timeout: 30000 });
+    const returnUrlPromise = new Promise((resolve) => {
+      page.on("framenavigated", (frame) => {
+        const frameUrl = frame.url();
+        if (frame === page.mainFrame() && frameUrl.includes("session_id=")) {
+          resolve(frameUrl);
+        }
+      });
+    });
     await payButton.click();
+    let returnedUrl = "";
     try {
-      await page.waitForURL(/success\.html\?session_id=/, { timeout: 120000 });
+      returnedUrl = await Promise.race([
+        returnUrlPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Stripe did not return a session id before the timeout.")), 120000)),
+      ]);
     } catch (error) {
       const visibleText = await page.locator("body").innerText().catch(() => "");
       throw new Error(`Stripe checkout did not return to the app. Current URL: ${page.url()}. Page text: ${visibleText.slice(0, 500)}`);
     }
-    const currentUrl = page.url();
-    const sessionId = new URL(currentUrl).searchParams.get("session_id");
+    const sessionId = new URL(returnedUrl).searchParams.get("session_id");
     if (!sessionId) throw new Error("Stripe checkout returned without a session id.");
     return sessionId;
   } finally {
