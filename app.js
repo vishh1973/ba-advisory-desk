@@ -102,6 +102,7 @@ const state = {
   profileOrganizationId: "",
   workspaceLoadIssue: "",
   reservedCredits: 0,
+  checkoutOpening: false,
 };
 
 const views = {
@@ -5583,68 +5584,80 @@ async function resumePendingCheckout() {
 }
 
 async function beginCheckout(type, options = {}) {
+  if (state.checkoutOpening) {
+    showPersistentNotice("Secure checkout is already opening. Please wait a moment before trying again.");
+    return;
+  }
+  state.checkoutOpening = true;
+
   if (!options.fromResume) {
     setPendingCheckoutType(type);
   }
 
-  if (type === "manage-billing") {
-    clearPendingCheckoutType();
-    const organizationId = await requireClientWorkspaceForCheckout();
-    if (!organizationId) return;
-    const status = document.querySelector("#billingManageStatus");
-    if (status) status.textContent = "Opening secure subscription management.";
-    try {
-      const accessToken = await getSessionAccessToken();
-      const response = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({
-          action: "customer_portal",
-          organizationId,
-        }),
+  try {
+    if (type === "manage-billing") {
+      clearPendingCheckoutType();
+      const organizationId = await requireClientWorkspaceForCheckout();
+      if (!organizationId) return;
+      const status = document.querySelector("#billingManageStatus");
+      if (status) status.textContent = "Opening secure subscription management.";
+      try {
+        const accessToken = await getSessionAccessToken();
+        const response = await fetch("/api/create-checkout-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({
+            action: "customer_portal",
+            organizationId,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        const message = data.error || "Subscription management is not available for this workspace. Contact support@baadvisorydesk.com if you need to cancel or change billing.";
+        if (status) status.textContent = message;
+        showPersistentNotice(message);
+      } catch (_error) {
+        const message = `Subscription management could not be opened. Please contact ${config.supportEmail} for billing changes.`;
+        if (status) status.textContent = message;
+        showPersistentNotice(message);
+      }
+      return;
+    }
+
+    if (type === "buy-sprint") {
+      addAuditEvent("Checkout started", "Requirements Rescue Sprint checkout opened.");
+      saveState();
+      await openConfiguredCheckout("rescueSprint", "Secure checkout is being prepared for Requirements Rescue Sprint.", {
+        requireWorkspace: true,
       });
-      const data = await response.json().catch(() => ({}));
-      if (response.ok && data.url) {
-        window.location.href = data.url;
+    }
+
+    if (type === "buy-starter" || type === "buy-monthly-support") {
+      addAuditEvent("Checkout started", "BA Advisory Desk Monthly Support checkout opened.");
+      saveState();
+      await openConfiguredCheckout("monthlySupport", "Secure checkout is being prepared for BA Advisory Desk Monthly Support at $2,500 per month.", {
+        requireWorkspace: true,
+      });
+    }
+
+    if (type === "buy-topup") {
+      addAuditEvent("Checkout started", "3 Advisory Credit top up checkout opened.");
+      saveState();
+      const openedCheckout = await openConfiguredCheckout("creditTopUp", "Secure checkout is being prepared for the 3 Advisory Credit Top Up.", {
+        requireWorkspace: true,
+      });
+      if (openedCheckout) {
         return;
       }
-      const message = data.error || "Subscription management is not available for this workspace. Contact support@baadvisorydesk.com if you need to cancel or change billing.";
-      if (status) status.textContent = message;
-      showPersistentNotice(message);
-    } catch (_error) {
-      const message = `Subscription management could not be opened. Please contact ${config.supportEmail} for billing changes.`;
-      if (status) status.textContent = message;
-      showPersistentNotice(message);
     }
-    return;
-  }
-
-  if (type === "buy-sprint") {
-    addAuditEvent("Checkout started", "Requirements Rescue Sprint checkout opened.");
-    saveState();
-    await openConfiguredCheckout("rescueSprint", "Secure checkout is being prepared for Requirements Rescue Sprint.", {
-      requireWorkspace: true,
-    });
-  }
-
-  if (type === "buy-starter" || type === "buy-monthly-support") {
-    addAuditEvent("Checkout started", "BA Advisory Desk Monthly Support checkout opened.");
-    saveState();
-    await openConfiguredCheckout("monthlySupport", "Secure checkout is being prepared for BA Advisory Desk Monthly Support at $2,500 per month.", {
-      requireWorkspace: true,
-    });
-  }
-
-  if (type === "buy-topup") {
-    addAuditEvent("Checkout started", "3 Advisory Credit top up checkout opened.");
-    saveState();
-    const openedCheckout = await openConfiguredCheckout("creditTopUp", "Secure checkout is being prepared for the 3 Advisory Credit Top Up.", {
-      requireWorkspace: true,
-    });
-    if (openedCheckout) return;
+  } finally {
+    state.checkoutOpening = false;
   }
 }
 
