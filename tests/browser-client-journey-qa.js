@@ -72,10 +72,12 @@ function startStaticServer() {
 function createQaFiles(runId) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "baad-browser-qa-"));
   const pngPath = path.join(dir, `baad-qa-upload-${runId}.png`);
-  const docxPath = path.join(dir, `baad-qa-upload-${runId}.docx`);
-  fs.writeFileSync(pngPath, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]));
-  fs.writeFileSync(docxPath, Buffer.from([80, 75, 3, 4, 20, 0, 6, 0, 8, 0, 0, 0, 33, 0, 1, 2, 3, 4]));
-  return { dir, files: [pngPath, docxPath] };
+  const pdfPath = path.join(dir, `baad-qa-upload-${runId}.pdf`);
+  const samplePdfPath = path.join(appRoot, "samples", "sample_requirements_pack.pdf");
+  const onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
+  fs.writeFileSync(pngPath, Buffer.from(onePixelPng, "base64"));
+  fs.copyFileSync(samplePdfPath, pdfPath);
+  return { dir, files: [pngPath, pdfPath] };
 }
 
 function appRoute(hash) {
@@ -204,10 +206,10 @@ async function run() {
       throw new Error(`Client upload did not complete successfully. Status: ${uploadStatus}`);
     }
 
-    await expectUploadedFileRows(page, [`baad-qa-upload-${runId}.png`, `baad-qa-upload-${runId}.docx`]);
+    await expectUploadedFileRows(page, [`baad-qa-upload-${runId}.png`, `baad-qa-upload-${runId}.pdf`]);
     if (configuredAppUrl) {
       await removeUploadedFile(page, `baad-qa-upload-${runId}.png`);
-      await removeUploadedFile(page, `baad-qa-upload-${runId}.docx`);
+      await removeUploadedFile(page, `baad-qa-upload-${runId}.pdf`);
     }
 
     await page.goto(appRoute("billing"), { waitUntil: "domcontentloaded", timeout: 30000 });

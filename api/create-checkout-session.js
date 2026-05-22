@@ -115,8 +115,8 @@ function isSessionPaid(session) {
   return String(session?.payment_status || "").toLowerCase() === "paid";
 }
 
-function buildCheckoutAttemptKey({ organizationId, userId, productType, priceId }) {
-  return ["checkout-v1", organizationId, userId, productType, priceId].filter(Boolean).join(":");
+function buildCheckoutAttemptKey({ organizationId, productType, priceId }) {
+  return ["checkout-v2", organizationId, productType, priceId].filter(Boolean).join(":");
 }
 
 function isRecentOrder(order) {
@@ -518,12 +518,7 @@ module.exports = async function handler(req, res) {
       existingCustomerId = await findStripeCustomerId(supabase, organizationId);
     }
 
-    const checkoutAttemptKey = buildCheckoutAttemptKey({
-      organizationId,
-      userId,
-      productType,
-      priceId: priceConfig.priceId,
-    });
+    const checkoutAttemptKey = buildCheckoutAttemptKey({ organizationId, productType, priceId: priceConfig.priceId });
     const reusableAttempt = await findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKey });
     if (reusableAttempt?.session?.url) {
       res.status(200).json({ url: reusableAttempt.session.url, reused: true });

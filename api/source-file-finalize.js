@@ -122,7 +122,7 @@ async function finalizeRequestFiles({ supabase, body, files, userId }) {
 }
 
 async function finalizeClientUploads({ supabase, body, files, userId }) {
-  const rows = files.map((file) => ({
+  const buildRows = (includeMimeType) => files.map((file) => ({
     organization_id: body.organizationId,
     project_id: body.projectId || null,
     uploaded_by: userId,
@@ -131,18 +131,30 @@ async function finalizeClientUploads({ supabase, body, files, userId }) {
     upload_type: body.uploadType || "Supporting file",
     original_file_name: file.fileName,
     file_size_bytes: file.fileSizeBytes,
-    mime_type: file.contentType,
+    ...(includeMimeType ? { mime_type: file.contentType } : {}),
     storage_bucket: BUCKET,
     storage_path: file.storagePath,
     note: body.note || "",
     status: "received",
   }));
-  const { data, error } = await supabase
+  const insertRows = (includeMimeType) => supabase
     .from("client_uploads")
-    .insert(rows)
+    .insert(buildRows(includeMimeType))
     .select("id,original_file_name,file_size_bytes,storage_path,project_id,created_at");
+
+  let { data, error } = await insertRows(true);
+  if (isMissingColumnError(error, "mime_type")) {
+    ({ data, error } = await insertRows(false));
+  }
   if (error) throw error;
   return data || [];
+}
+
+function isMissingColumnError(error, columnName) {
+  if (!error) return false;
+  const codeMatches = ["42703", "PGRST204"].includes(error.code);
+  const text = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`;
+  return codeMatches && text.includes(columnName);
 }
 
 module.exports = async function handler(req, res) {

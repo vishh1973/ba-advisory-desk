@@ -201,6 +201,16 @@ async function grantPurchaseCredits(supabase, {
   if (error && !isMissingStripeGrantRpc(error)) throw error;
 
   if (error && isMissingStripeGrantRpc(error)) {
+    const fallback = await grantPurchaseCreditsWithLegacyRpc(supabase, {
+      order,
+      credits,
+      stripeSourceId,
+      stripePaymentIntentId,
+      paidAt,
+      billingPeriodStart,
+      billingPeriodEnd,
+    });
+    if (fallback) return fallback;
     throw new Error("Stripe credit grant schema is not installed. Payment was recorded, but credits were not granted.");
   }
 
@@ -210,6 +220,61 @@ async function grantPurchaseCredits(supabase, {
     expiresAt: data?.expires_at || null,
     reason: data?.duplicate ? "Credit grant already recorded." : undefined,
   };
+}
+
+async function grantPurchaseCreditsWithLegacyRpc(supabase, {
+  order,
+  credits,
+  stripeSourceId,
+  stripePaymentIntentId,
+  paidAt,
+  billingPeriodStart,
+  billingPeriodEnd,
+}) {
+  const entryType = order.product_type === "starter_monthly" ? "monthly_grant" : "top_up";
+  const idempotencyKey = `stripe-${stripeSourceId}-credits`;
+  const { data, error } = await supabase
+    .rpc("apply_credit_change", {
+      p_organization_id: order.organization_id,
+      p_entry_type: entryType,
+      p_credits: credits,
+      p_entry_reason: order.product_type,
+      p_related_payment_id: order.id || null,
+      p_source: "stripe",
+      p_idempotency_key: idempotencyKey,
+    })
+    .single();
+
+  if (error && shouldIgnoreOptionalSchemaError(error)) return null;
+  if (error) throw error;
+
+  const expiresAt = order.product_type === "starter_monthly"
+    ? billingPeriodEnd || addDaysIso(billingPeriodStart || paidAt, 30)
+    : addDaysIso(paidAt, 30);
+
+  await supabase
+    .from("credit_ledger")
+    .update({
+      expires_at: expiresAt,
+      grant_remaining: credits,
+      stripe_payment_intent_id: stripePaymentIntentId || null,
+    })
+    .eq("id", data?.ledger_id)
+    .then(() => null, () => null);
+
+  return {
+    granted: true,
+    balanceAfter: data?.balance ?? null,
+    expiresAt,
+    reason: "Credit grant recorded through legacy credit ledger path.",
+  };
+}
+
+function addDaysIso(value, days) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return new Date(Date.now() + days * 86400000).toISOString();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString();
 }
 
 async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceAfter, source }) {

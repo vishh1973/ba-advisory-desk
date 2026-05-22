@@ -21,6 +21,8 @@ on public.custom_quote_requests(organization_id, project_id, created_at desc);
 alter table public.client_uploads
   add column if not exists mime_type text;
 
+notify pgrst, 'reload schema';
+
 create index if not exists client_uploads_storage_path_lookup_idx
 on public.client_uploads(storage_path)
 where storage_path is not null and deleted_at is null;

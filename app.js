@@ -3239,6 +3239,7 @@ async function uploadAdminDeliverable() {
   const finalizeResult = await withClientTimeout(
     fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
+      timeoutMs: getUploadOperationTimeoutMs(files, 45000, 240000),
       body: {
         action: "finalize",
         organizationId,
@@ -3255,7 +3256,7 @@ async function uploadAdminDeliverable() {
         fileRecords,
       },
     }),
-    30000,
+    getUploadOperationTimeoutMs(files, 45000, 240000),
     "The deliverable was uploaded, but publishing took too long. Please refresh the admin file before trying again."
   );
 
