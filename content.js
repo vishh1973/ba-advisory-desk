@@ -25,7 +25,7 @@ window.BAAD_CONTENT = {
     eyebrow: "Core Offer",
     headline: "From unclear project material to decision ready Business Analysis deliverables.",
     intro:
-      "The offer is built around three high-value outcomes: rescue unclear requirements, prepare approval-ready material, and keep delivery moving with recurring senior Business Analysis support.",
+      "Our service offering gives teams senior Business Analysis capacity for three practical needs: rescuing unclear requirements, preparing decision ready material, and keeping delivery moving through recurring advisory support.",
     steps: ["Send", "Structure", "Decide"],
     cards: [
       {
@@ -196,12 +196,12 @@ window.BAAD_CONTENT = {
       {
         question: "What does BA Advisory Desk actually do?",
         answer:
-          "We provide senior Business Analysis advisory support on demand. Clients bring rough project material, unclear requirements, stakeholder notes, process issues, or decision needs. We turn that material into structured requirements, business cases, SOPs, UAT packs, governance material, executive presentations, and practical next steps.",
+          "We provide senior Business Analysis advisory support on demand. Clients bring project material, unclear requirements, stakeholder input, process issues, or decision needs. We organize the facts, identify gaps, and prepare requirements, business cases, SOPs, UAT packs, governance material, executive presentations, and practical next steps.",
       },
       {
         question: "Do I need to hire a full time business analyst?",
         answer:
-          "No. The service is built for teams that need strong Business Analysis output without adding a permanent role. You can start with one Requirements Rescue Sprint, use BA Advisory Desk Monthly Support, or request a custom advisory scope.",
+          "No. The service is designed for teams that need strong Business Analysis output without adding a permanent role. You can start with one Requirements Rescue Sprint, use BA Advisory Desk Monthly Support, or request a custom advisory scope.",
       },
       {
         question: "How do I receive deliverables?",
@@ -211,7 +211,7 @@ window.BAAD_CONTENT = {
       {
         question: "How are credits used?",
         answer:
-          "Advisory Credits are used to scope and track recurring work. Before work starts, each request is confirmed as one defined delivery unit, a multi-credit outcome, or a custom scope if the work is too complex for standard credits.",
+          "Advisory Credits help plan and track recurring work in clear delivery units. Before work starts, each request is confirmed as one credit, multiple credits, or a custom scope if the work is too complex for standard credits.",
       },
     ],
     categories: [
@@ -222,7 +222,7 @@ window.BAAD_CONTENT = {
           {
             question: "What is BA Advisory Desk?",
             answer:
-              "BA Advisory Desk is an on demand Business Analysis advisory service for teams that need clear scope, requirements, documentation, process clarity, and decision support without hiring full time.",
+              "BA Advisory Desk is an on demand Business Analysis advisory service for teams that need scope clarity, requirements, documentation, process support, and decision material without adding full time headcount.",
           },
           {
             question: "Who is this service designed for?",
@@ -232,12 +232,12 @@ window.BAAD_CONTENT = {
           {
             question: "Is this a consulting service or a software platform?",
             answer:
-              "It is a productized advisory service supported by a secure client workspace. The workspace helps manage intake, files, messages, credits, payments, status updates, and deliverables.",
+              "It is a productized advisory service supported by a secure client workspace. The advisory work creates the value. The workspace keeps intake, files, messages, credits, payments, status updates, and deliverables organized.",
           },
           {
             question: "Can you support both public and private sector work?",
             answer:
-              "Yes. The service is rooted in experience across public and private sector environments. The work is positioned globally and is not limited to one region or industry.",
+              "Yes. We support work shaped by both public and private sector needs. The service is built for clients across industries and regions, not for one country, agency type, or company size.",
           },
         ],
       },
@@ -248,12 +248,12 @@ window.BAAD_CONTENT = {
           {
             question: "What types of deliverables can I request?",
             answer:
-              "Clients can request business requirements, functional requirements, non functional requirements, user stories, acceptance criteria, SOPs, process maps, UAT scenarios, business cases, executive presentations, gap analysis, decision logs, vendor readiness material, AI assessment packs, and governance frameworks.",
+              "Clients can request business requirements, functional requirements, non functional requirements, user stories, acceptance criteria, SOPs, process maps, UAT scenarios, business cases, executive presentations, gap analysis, decision logs, vendor readiness material, AI assessment packs, and governance frameworks. If you do not see the deliverable you need, contact support@baadvisorydesk.com. We will review the requirement and confirm the right way to scope it.",
           },
           {
             question: "Can you review documents I already have?",
             answer:
-              "Yes. Many requests start with existing notes, decks, transcripts, emails, policies, process diagrams, or draft requirements. We review the material and turn it into clearer client ready output.",
+              "Yes. Many requests start with existing notes, decks, transcripts, emails, policies, process diagrams, or draft requirements. We review the material, separate facts from assumptions, and turn it into clearer client ready output.",
           },
           {
             question: "What makes a request ready to begin?",
@@ -263,7 +263,7 @@ window.BAAD_CONTENT = {
           {
             question: "Can you handle urgent work?",
             answer:
-              "Urgent work can be reviewed if the scope is clear and the required source material is available. If the deadline is not realistic, we will recommend a smaller first deliverable or a custom scope.",
+              "Urgent work can be reviewed if the scope is clear and the required source material is available. If the deadline is not realistic, we will recommend a smaller first deliverable, a phased path, or a custom scope.",
           },
         ],
       },
@@ -274,22 +274,22 @@ window.BAAD_CONTENT = {
           {
             question: "Who works behind the service?",
             answer:
-              "The service is positioned as a Business Analysis consortium supported by experienced business analysts, transformation architects, delivery leaders, former CIOs, former CTOs, and advisory specialists.",
+              "BA Advisory Desk is supported by a senior advisory network of experienced business analysts, transformation architects, delivery leaders, former CIOs, former CTOs, and advisory specialists. Clients get practical judgment across requirements, delivery, operations, technology, governance, and executive documentation.",
           },
           {
             question: "How do you maintain deliverable quality?",
             answer:
-              "Deliverables are structured for clarity, decision value, usability, and professional presentation. Each output is reviewed for scope, assumptions, risks, open questions, and practical next steps before release.",
+              "Quality starts with seasoned professionals who have worked through unclear scope, competing stakeholder views, incomplete notes, policy complexity, delivery pressure, and executive decision needs across sectors and industries. Each deliverable is structured for clarity, accuracy, usability, and decision value, then reviewed for scope, assumptions, risks, gaps, open questions, and practical next steps before release.",
           },
           {
             question: "Can I request revisions?",
             answer:
-              "Yes. You can send revision notes, upload supporting files, and ask for clarification inside the client workspace. Revision handling depends on the original scope and the plan purchased.",
+              "Yes. You can send revision notes, upload supporting files, and ask for clarification inside the client workspace. Revision handling depends on the original scope, the plan purchased, and whether the requested change stays within the agreed outcome.",
           },
           {
             question: "Do you guarantee business outcomes?",
             answer:
-              "No advisory service can guarantee project, financial, or implementation outcomes. We provide professional Business Analysis support, structured deliverables, and practical recommendations based on the information provided.",
+              "No advisory service can guarantee project, financial, or implementation outcomes. We provide professional Business Analysis support, structured deliverables, and practical recommendations based on the information made available to us.",
           },
         ],
       },
@@ -300,22 +300,22 @@ window.BAAD_CONTENT = {
           {
             question: "What is the Requirements Rescue Sprint?",
             answer:
-              "The Requirements Rescue Sprint is a one time package for unclear scope, scattered stakeholder feedback, stalled documentation, or delivery material that needs senior Business Analysis structure.",
+              "The Requirements Rescue Sprint is a one time package for unclear scope, scattered stakeholder feedback, stalled documentation, or delivery material that needs senior Business Analysis structure. The output is a focused advisory package your team can use for decisions, planning, or delivery alignment.",
           },
           {
             question: "What is included in BA Advisory Desk Monthly Support?",
             answer:
-              "BA Advisory Desk Monthly Support includes 5 Advisory Credits per month, a private client workspace, monthly advisory sync, request tracking, file handling, credit history, and deliverable tracking.",
+              "BA Advisory Desk Monthly Support includes 5 Advisory Credits per month, a private client workspace, monthly advisory sync, request tracking, file handling, credit history, and deliverable tracking. It is best for teams that expect recurring Business Analysis needs.",
           },
           {
             question: "What happens if I need more credits?",
             answer:
-              "Monthly support clients can purchase a 3 Advisory Credit Top Up. The current top up package adds 3 Advisory Credits for $1,000 USD. Top up credits are tracked separately and expire according to the stated top up period.",
+              "Monthly support clients can purchase a 3 Advisory Credit Top Up. The current top up package adds 3 Advisory Credits for $1,000 USD. Top up credits are tracked in the client workspace and expire according to the stated top up period.",
           },
           {
             question: "What if my request is too large for credits?",
             answer:
-              "If a request is too broad or unclear for the credit model, it is handled as a custom advisory scope. We confirm the objective, assumptions, timeline, and price before work starts.",
+              "If a request is too broad, complex, or unclear for the credit model, contact support@baadvisorydesk.com. We will review the context and, if the work is a fit, confirm the objective, assumptions, timeline, and price before work starts.",
           },
         ],
       },
@@ -326,22 +326,22 @@ window.BAAD_CONTENT = {
           {
             question: "Do I need an account before purchasing?",
             answer:
-              "Yes. A client workspace is required before checkout so payments, files, requests, messages, credits, and deliverables stay connected to the right account.",
+              "Yes. Account setup is free and simple. A client workspace is required before checkout so payments, files, requests, messages, credits, and deliverables stay connected to the right account.",
           },
           {
             question: "How do I access the private workspace?",
             answer:
-              "Clients use controlled account access tied to their work email. Email and password accounts support account creation, email verification, sign in, password reset, and password update.",
+              "Clients use controlled account access tied to their work email. Email and password accounts support account creation, email verification, sign in, password reset, and password update. Supported single sign on options may also be available.",
           },
           {
             question: "Can I upload multiple files?",
             answer:
-              "Yes. The request intake and client upload areas support multiple files. You can upload source documents, screenshots, revision notes, spreadsheets, presentations, and supporting material.",
+              "Yes. The request intake and client upload areas support multiple files. You can upload source documents, screenshots, revision notes, spreadsheets, presentations, and supporting material connected to the right client project or request.",
           },
           {
             question: "How do I communicate after submitting a request?",
             answer:
-              "You can send quick messages from the client workspace and link them to a request, deliverable, or general workspace item. Messages become part of the delivery record.",
+              "You can send quick messages from the client workspace and link them to a request, deliverable, or general workspace item. Messages become part of the delivery record. For package, billing, access, or specific questions, contact support@baadvisorydesk.com.",
           },
         ],
       },
@@ -352,7 +352,7 @@ window.BAAD_CONTENT = {
           {
             question: "Can I share confidential documents?",
             answer:
-              "Yes, but only share what is needed for the engagement. The service uses account based access, private file handling, controlled downloads, and workspace separation.",
+              "Yes, but only share what is needed for the engagement. The service uses account based access, private file handling, controlled downloads, and workspace separation to keep client material organized and protected.",
           },
           {
             question: "Who can access my files and requests?",
@@ -367,7 +367,7 @@ window.BAAD_CONTENT = {
           {
             question: "Is an NDA available?",
             answer:
-              "Yes. NDA review is available on request before sensitive document sharing.",
+              "Yes. NDA review is available on request before sensitive document sharing. Contact support@baadvisorydesk.com if an NDA is required before the first upload.",
           },
         ],
       },
@@ -378,17 +378,17 @@ window.BAAD_CONTENT = {
           {
             question: "When should I request a custom quote?",
             answer:
-              "Use a custom quote for large diagnostics, multi-team work, complex transformations, AI governance, vendor readiness reviews, executive decision packages, or work that cannot be cleanly scoped through credits.",
+              "Use a custom quote for large diagnostics, multi team work, complex transformations, AI governance, vendor readiness reviews, executive decision packages, or work that cannot be cleanly scoped through credits.",
           },
           {
             question: "What happens after I submit a custom request?",
             answer:
-              "We review the request, identify the discovery need, and follow up with next steps. If the work is a fit, the next step is discovery, written scope, timeline, and a custom invoice.",
+              "We review the request, identify the discovery need, and follow up with next steps. If the work is a fit, the next step is discovery, written scope, timeline, and a custom invoice. If it is not a fit, we will tell you clearly.",
           },
           {
             question: "Can consulting firms use this service?",
             answer:
-              "Yes. Consulting firms can use the service for Business Analysis support, requirements cleanup, executive documentation, delivery artifacts, and scoped advisory support.",
+              "Yes. Consulting firms can use the service for Business Analysis support, requirements cleanup, executive documentation, delivery artifacts, and scoped advisory support. The service is useful when a firm needs senior capacity without adding permanent staff for every engagement.",
           },
         ],
       },
