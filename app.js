@@ -290,9 +290,9 @@ function generateRequestCode() {
 
 function productLabel(productType) {
   const labels = {
-    rescue_sprint: "BA Rescue Sprint",
-    starter_monthly: "BA Advisory Desk Starter",
-    credit_top_up: "Credit Top Up",
+    rescue_sprint: "Requirements Rescue Sprint",
+    starter_monthly: "BA Advisory Desk Monthly Support",
+    credit_top_up: "3 Advisory Credit Top Up",
   };
   return labels[productType] || productType || "Payment";
 }
@@ -918,10 +918,10 @@ function getLowCreditMessage() {
 function getCreditPromptHtml() {
   const availableCredits = getAvailableCredits();
   if (availableCredits <= 0) {
-    return `No Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before starting new credit based work.`;
+    return `No Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a 3 Advisory Credit Top Up</a> before starting new credit based work.`;
   }
   if (availableCredits <= state.creditThreshold) {
-    return `${availableCredits} Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a Credit Top Up</a> before the next deliverable is scoped.`;
+    return `${availableCredits} Advisory Credits remain. <a href="#billing" data-action="buy-topup">Add a 3 Advisory Credit Top Up</a> before the next deliverable is scoped.`;
   }
   if (Number(state.reservedCredits || 0) > 0) {
     return `${availableCredits} Advisory Credits are available after ${state.reservedCredits} reserved for active work.`;
@@ -973,7 +973,7 @@ function updateRequestReadinessStatus(files = []) {
   }
 
   if (estimateValue === "rescue") {
-    setInlineStatus(statusSelector, "Files selected. Submit once your Rescue Sprint purchase is connected to this workspace.", "success");
+    setInlineStatus(statusSelector, "Files selected. Submit once your Requirements Rescue Sprint purchase is connected to this workspace.", "success");
     return;
   }
 
@@ -4051,15 +4051,15 @@ function getClientNextStep() {
   if (availableCredits <= 0 && !visibleRequests.length) {
     if (hasRescueSprintAccess()) {
       return {
-        title: "Submit your Rescue Sprint intake",
-        body: "Your Rescue Sprint purchase is recorded. Send the business goal, desired output, deadline, and source files so the advisory team can begin scoping.",
+        title: "Submit your Requirements Rescue Sprint intake",
+        body: "Your Requirements Rescue Sprint purchase is recorded. Send the business goal, desired output, deadline, and source files so the advisory team can begin scoping.",
         href: "#request",
         cta: "Start Intake",
       };
     }
     return {
       title: "Choose a service package",
-      body: "Start with a Rescue Sprint or monthly advisory credits, then submit source material through this workspace.",
+      body: "Start with a Requirements Rescue Sprint or monthly advisory credits, then submit source material through this workspace.",
       href: "#billing",
       cta: "Open Billing",
     };
@@ -4767,7 +4767,7 @@ function normalizePaymentOrder(order) {
     organizationId: order.organization_id || null,
     clientEmail: organization.billing_email || "",
     client: organization.name || organization.billing_email || (isRescueSprint ? "One time client" : "Client workspace"),
-    type: isRescueSprint ? "BA Rescue Sprint buyer" : productLabel(order.product_type),
+    type: isRescueSprint ? "Requirements Rescue Sprint buyer" : productLabel(order.product_type),
     action: isRescueSprint ? "Open intake follow up" : "Review payment",
     status: order.status || "Pending",
     dueAt: order.created_at || null,
@@ -5584,17 +5584,17 @@ async function beginCheckout(type, options = {}) {
   }
 
   if (type === "buy-sprint") {
-    addAuditEvent("Checkout started", "BA Rescue Sprint checkout opened.");
+    addAuditEvent("Checkout started", "Requirements Rescue Sprint checkout opened.");
     saveState();
-    await openConfiguredCheckout("rescueSprint", "Secure checkout is being prepared for BA Rescue Sprint.", {
+    await openConfiguredCheckout("rescueSprint", "Secure checkout is being prepared for Requirements Rescue Sprint.", {
       requireWorkspace: true,
     });
   }
 
   if (type === "buy-starter") {
-    addAuditEvent("Checkout started", "Starter subscription checkout opened.");
+    addAuditEvent("Checkout started", "BA Advisory Desk Monthly Support checkout opened.");
     saveState();
-    await openConfiguredCheckout("starterMonthly", "Secure checkout is being prepared for Starter at $2,500 per month.", {
+    await openConfiguredCheckout("starterMonthly", "Secure checkout is being prepared for BA Advisory Desk Monthly Support at $2,500 per month.", {
       requireWorkspace: true,
     });
   }
@@ -5602,7 +5602,7 @@ async function beginCheckout(type, options = {}) {
   if (type === "buy-topup") {
     addAuditEvent("Checkout started", "3 Advisory Credit top up checkout opened.");
     saveState();
-    const openedCheckout = await openConfiguredCheckout("creditTopUp", "Secure checkout is being prepared for the 3 credit top up.", {
+    const openedCheckout = await openConfiguredCheckout("creditTopUp", "Secure checkout is being prepared for the 3 Advisory Credit Top Up.", {
       requireWorkspace: true,
     });
     if (openedCheckout) return;
@@ -6547,8 +6547,8 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
 
     if (estimateValue === "rescue" && !hasRescueSprintAccess()) {
       window.location.hash = "billing";
-      warn("Please start or confirm the BA Rescue Sprint before submitting a Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
-      addAuditEvent("Rescue Sprint request paused", "Client selected Rescue Sprint scope without a recorded Rescue Sprint payment.");
+      warn("Please start or confirm the Requirements Rescue Sprint before submitting a Requirements Rescue Sprint request. This keeps your payment, intake, files, and delivery history connected.");
+      addAuditEvent("Requirements Rescue Sprint request paused", "Client selected Requirements Rescue Sprint scope without a recorded Requirements Rescue Sprint payment.");
       saveState();
       render();
       return;
@@ -6641,7 +6641,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     addAuditEvent(
       "Request submitted",
       estimateValue === "rescue"
-        ? `${request.id} submitted for BA Rescue Sprint delivery.`
+        ? `${request.id} submitted for Requirements Rescue Sprint delivery.`
         : `${request.id} submitted with an estimated ${requestedCredits} Advisory Credit scope.`
     );
     saveState();

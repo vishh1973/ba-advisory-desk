@@ -124,7 +124,7 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
     organization_id: organizationId,
     stripe_customer_id: stripeCustomerId,
     stripe_subscription_id: subscription.id,
-    plan_name: "Starter",
+    plan_name: "BA Advisory Desk Monthly Support",
     status: subscription.status || "active",
     monthly_credit_allowance: Number(metadata.credits || getPriceConfig("starter_monthly").credits),
     current_period_start: period.start,
@@ -409,7 +409,7 @@ async function handleSubscriptionDeleted(supabase, subscription) {
           organization_id: organizationId,
           stripe_customer_id: stripeCustomerIdFrom(subscription.customer),
           stripe_subscription_id: subscriptionId,
-          plan_name: "Starter",
+          plan_name: "BA Advisory Desk Monthly Support",
           monthly_credit_allowance: getPriceConfig("starter_monthly").credits,
         }, { onConflict: "stripe_subscription_id" });
 

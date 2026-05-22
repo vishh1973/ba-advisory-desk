@@ -135,7 +135,7 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
         organization_id: organizationId,
         stripe_customer_id: stripeCustomerId,
         stripe_subscription_id: subscription.id,
-        plan_name: "Starter",
+        plan_name: "BA Advisory Desk Monthly Support",
         status: subscription.status || "active",
         monthly_credit_allowance: Number(metadata.credits || getPriceConfig("starter_monthly").credits),
         current_period_start: period.start,
@@ -416,7 +416,7 @@ module.exports = async function handler(req, res) {
       const existingSubscription = await findActiveStarterSubscription(supabase, organizationId);
       if (existingSubscription?.stripe_subscription_id) {
         res.status(409).json({
-          error: "This workspace already has an active Starter plan. Open Billing to manage the current plan or add a Credit Top Up.",
+          error: "This workspace already has active BA Advisory Desk Monthly Support. Open Billing to manage the current plan or add a 3 Advisory Credit Top Up.",
           subscriptionId: existingSubscription.stripe_subscription_id,
         });
         return;

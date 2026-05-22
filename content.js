@@ -1,100 +1,115 @@
 window.BAAD_CONTENT = {
   hero: {
-    eyebrow: "Senior Business Analysis advisory for complex delivery decisions",
-    headline: "Senior Business Analysis support for decisions, requirements, and delivery clarity.",
+    eyebrow: "Requirements rescue and decision ready Business Analysis support",
+    headline: "Get senior Business Analysis output without adding headcount.",
     benefit:
-      "Access senior Business Analysis capacity for scoped decisions and client-ready deliverables without hiring full time.",
+      "Why add fixed BA capacity when you can access focused requirements, business case, UAT, SOP, vendor, and AI readiness support on demand?",
     body:
-      "We help teams diagnose ambiguity, structure scope, frame options, assess risks, and produce the artifacts leaders and delivery teams need to move with confidence.",
+      "Send the business problem, source material, and decision pressure. We structure the evidence, identify gaps and risks, and return clear deliverables your team can approve, build from, or share with clients.",
     proofPoints: [
       {
-        title: "Business questions become decisions.",
-        body: "We clarify objectives, scope, risks, options, stakeholder impacts, and the path to approval.",
+        title: "Start with a concrete rescue outcome.",
+        body: "Requirements, scope, decisions, risks, and gaps are organized into a usable package.",
       },
       {
-        title: "Delivery teams get usable artifacts.",
-        body: "Requirements, governance, vendor scope, AI readiness, and executive material are prepared for action.",
+        title: "Move from analysis to action.",
+        body: "Business cases, UAT packs, SOPs, vendor material, and executive summaries are shaped for next-step decisions.",
       },
       {
-        title: "Momentum without fixed headcount.",
-        body: "A private workspace, structured intake, and senior review help work move forward with control.",
+        title: "Use a premium desk without large-firm overhead.",
+        body: "A private workspace, structured intake, and senior review give teams focused support without a long consulting setup.",
       },
     ],
   },
   advisoryOffer: {
-    eyebrow: "Business Analysis Advisory Offer",
-    headline: "Senior analysis that turns complex initiatives into decisions, requirements, and delivery action.",
+    eyebrow: "Core Offer",
+    headline: "From unclear project material to decision ready Business Analysis deliverables.",
     intro:
-      "We help teams define the problem, align stakeholders, structure scope, and produce advisory grade deliverables for approvals, vendor direction, build readiness, UAT, governance, AI assessment, and rollout.",
-    steps: ["Clarify", "Shape", "Equip"],
+      "The offer is built around three high-value outcomes: rescue unclear requirements, prepare approval-ready material, and keep delivery moving with recurring senior Business Analysis support.",
+    steps: ["Send", "Structure", "Decide"],
     cards: [
       {
         number: "01",
-        label: "Strategic clarity",
-        title: "Define the business problem and decision context",
-        body: "Clarify outcomes, stakeholders, scope boundaries, assumptions, risks, dependencies, and the decisions required to move forward.",
+        label: "Requirements Rescue",
+        title: "Stabilize unclear scope and requirements",
+        body: "Turn scattered notes, drafts, stakeholder feedback, and policy rules into a structured view of scope, gaps, requirements, assumptions, and open decisions.",
       },
       {
         number: "02",
-        label: "Delivery grade artifacts",
-        title: "Create the documentation teams need to execute",
-        body: "Business requirements, functional and non functional requirements, business cases, SOPs, process models, UAT packs, governance models, AI assessment material, and board presentations.",
+        label: "Decision Readiness",
+        title: "Prepare material leaders can approve",
+        body: "Shape business cases, options analysis, board material, risk views, vendor readiness packs, and AI governance material into a clear recommendation path.",
       },
       {
         number: "03",
-        label: "Execution confidence",
-        title: "Leave with a practical path to approval and delivery",
-        body: "Recommendations, decision options, acceptance criteria, ownership, open questions, next actions, and traceability for delivery momentum.",
+        label: "Delivery Enablement",
+        title: "Give teams artifacts they can use",
+        body: "Produce practical requirements, functional and non functional requirements, user stories, UAT packs, SOPs, process notes, and action lists for delivery teams.",
       },
     ],
     resultLabel: "Bottom line",
     result:
-      "Engage senior Business Analysis and transformation advisory capacity when the work is too important to stay vague, but not large enough to justify full time hiring or large firm cost.",
+      "Use BA Advisory Desk when the work is important enough to need senior analysis, but not large enough to justify a full time hire or a large consulting engagement.",
   },
   representativeOutcomes: {
-    eyebrow: "Representative outcomes",
-    headline: "Seasoned advisory work, structured for focused business outcomes.",
+    eyebrow: "High Value Outcomes",
+    headline: "What clients buy is confidence, control, and speed.",
     body:
-      "We position the service like a premium consulting desk, while reducing unnecessary setup and starting with a clear, scoped engagement.",
+      "The work is packaged around outcomes leaders care about: clearer decisions, cleaner scope, lower delivery risk, and client ready artifacts.",
     items: [
       {
-        label: "Requirements clarity",
-        title: "Detailed business requirements and service workflows",
-        body: "Structured complex intake, stakeholder needs, case movement, business rules, and delivery ready documentation.",
+        label: "Requirements rescue",
+        title: "Scope, gaps, rules, and acceptance logic made usable",
+        body: "Clarify what is known, what is missing, what matters, and what the delivery team needs before build or approval.",
       },
       {
-        label: "Risk and action planning",
-        title: "Executive risk, gap, and action material",
-        body: "Converted technical findings into leadership ready priorities, remediation themes, and practical action planning.",
+        label: "Approval support",
+        title: "Business cases, options, and board material",
+        body: "Frame the case for action with benefits, constraints, risks, recommendation logic, and decision requests.",
       },
       {
-        label: "Investment and delivery scope",
-        title: "Business cases, SOPs, and vendor ready scope",
-        body: "Helped teams clarify what to build, what to approve, and what to ask vendors before delivery spend increased.",
+        label: "Delivery readiness",
+        title: "User stories, UAT packs, and release support",
+        body: "Give delivery teams clear acceptance criteria, validation scenarios, signoff notes, and readiness gaps.",
       },
       {
-        label: "Process and operating control",
+        label: "Operating discipline",
         title: "SOPs, workflows, handoffs, and role clarity",
-        body: "Documented repeatable operating steps, exception handling, ownership, controls, and handoff rules for cleaner execution.",
+        body: "Document repeatable operating steps, exceptions, ownership, controls, and handoff rules.",
       },
       {
-        label: "AI assessment",
-        title: "AI readiness, use case triage, and value mapping",
-        body: "Assessed where AI can support business outcomes, what data and process conditions are needed, and which ideas should move first.",
+        label: "Vendor and partner readiness",
+        title: "Cleaner scope before outside delivery spend grows",
+        body: "Prepare vendor questions, evaluation criteria, transition notes, risks, and scope boundaries before teams commit.",
       },
       {
-        label: "AI governance",
-        title: "AI decision rights, controls, and rollout guardrails",
-        body: "Defined governance roles, review checkpoints, risk controls, approval paths, and adoption steps for responsible AI initiatives.",
+        label: "AI readiness and governance",
+        title: "Use case triage, controls, decision rights, and rollout guardrails",
+        body: "Assess value, readiness, risk, data needs, governance roles, approval paths, and adoption steps.",
       },
     ],
   },
   services: {
     eyebrow: "Services",
-    headline: "Senior Business Analysis support for complex delivery work.",
+    headline: "Focused senior Business Analysis services.",
     body:
-      "We focus on the Business Analysis outputs that help teams make decisions, align delivery, and move work forward without adding full time headcount.",
+      "Choose a flagship path or request a specific deliverable type. Each engagement starts by confirming the outcome, inputs, scope boundary, and delivery format.",
     items: [
+      {
+        label: "Flagship sprint",
+        title: "Requirements Rescue Sprint",
+        body: "A focused one time sprint for unclear requirements, scattered stakeholder input, weak scope, or stalled delivery documentation.",
+      },
+      {
+        label: "Decision support",
+        title: "Approval Ready Business Case Desk",
+        body: "Business cases, options analysis, executive briefs, board presentations, recommendation packs, and decision requests.",
+      },
+      {
+        label: "Monthly capacity",
+        title: "BA Advisory Desk Monthly Support",
+        body: "Recurring senior Business Analysis support for teams that need ongoing deliverable capacity without adding a full time role.",
+      },
       {
         label: "Requirements and scope",
         title: "Requirements clarity packs",
@@ -186,7 +201,7 @@ window.BAAD_CONTENT = {
       {
         question: "Do I need to hire a full time business analyst?",
         answer:
-          "No. The service is built for teams that need strong Business Analysis output without adding a permanent role. You can start with one Rescue Sprint, use the monthly Starter plan, or request a custom advisory scope.",
+          "No. The service is built for teams that need strong Business Analysis output without adding a permanent role. You can start with one Requirements Rescue Sprint, use BA Advisory Desk Monthly Support, or request a custom advisory scope.",
       },
       {
         question: "How do I receive deliverables?",
@@ -283,19 +298,19 @@ window.BAAD_CONTENT = {
         description: "How plans, credits, and custom scopes work.",
         questions: [
           {
-            question: "What is the BA Rescue Sprint?",
+            question: "What is the Requirements Rescue Sprint?",
             answer:
-              "The BA Rescue Sprint is a one time package for unclear scope, scattered stakeholder feedback, stalled documentation, or delivery material that needs senior Business Analysis structure.",
+              "The Requirements Rescue Sprint is a one time package for unclear scope, scattered stakeholder feedback, stalled documentation, or delivery material that needs senior Business Analysis structure.",
           },
           {
-            question: "What is included in the Starter plan?",
+            question: "What is included in BA Advisory Desk Monthly Support?",
             answer:
-              "The Starter plan includes 5 Advisory Credits per month, a private client workspace, monthly advisory sync, request tracking, file handling, credit history, and deliverable tracking.",
+              "BA Advisory Desk Monthly Support includes 5 Advisory Credits per month, a private client workspace, monthly advisory sync, request tracking, file handling, credit history, and deliverable tracking.",
           },
           {
             question: "What happens if I need more credits?",
             answer:
-              "Starter clients can purchase a Credit Top Up. The current top up package adds 3 Advisory Credits for $1,000 USD. Top up credits are tracked separately and expire according to the stated top up period.",
+              "Monthly support clients can purchase a 3 Advisory Credit Top Up. The current top up package adds 3 Advisory Credits for $1,000 USD. Top up credits are tracked separately and expire according to the stated top up period.",
           },
           {
             question: "What if my request is too large for credits?",

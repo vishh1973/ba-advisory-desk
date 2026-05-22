@@ -49,11 +49,11 @@ function paymentConfirmed({ order, balanceAfter }) {
   if (productType === "rescue_sprint") {
     return {
       templateKey: "payment_confirmation",
-      subject: "BA Rescue Sprint payment confirmed",
-      body: `Your BA Rescue Sprint payment has been confirmed. Amount paid: ${amount}. Please use your checkout email to access BA Advisory Desk and share the material needed for your sprint.`,
+      subject: "Requirements Rescue Sprint payment confirmed",
+      body: `Your Requirements Rescue Sprint payment has been confirmed. Amount paid: ${amount}. Please use your checkout email to access BA Advisory Desk and share the material needed for your sprint.`,
       html: wrapEmail({
-        heading: "BA Rescue Sprint payment confirmed",
-        intro: `Your BA Rescue Sprint payment has been confirmed. Amount paid: ${amount}.`,
+        heading: "Requirements Rescue Sprint payment confirmed",
+        intro: `Your Requirements Rescue Sprint payment has been confirmed. Amount paid: ${amount}.`,
         paragraphs: ["Please use your checkout email to access BA Advisory Desk and share the material needed for your sprint."],
         actionLabel: "Open BA Advisory Desk",
         actionUrl: workspaceUrl,
@@ -65,11 +65,11 @@ function paymentConfirmed({ order, balanceAfter }) {
     const balanceText = Number.isFinite(balanceAfter) ? ` Your current credit balance is ${balanceAfter}.` : "";
     return {
       templateKey: "payment_confirmation",
-      subject: "BA Advisory Desk Starter payment confirmed",
-      body: `Your Starter payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText}`,
+      subject: "BA Advisory Desk Monthly Support payment confirmed",
+      body: `Your BA Advisory Desk Monthly Support payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText}`,
       html: wrapEmail({
-        heading: "Starter payment confirmed",
-        intro: `Your Starter payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.`,
+        heading: "BA Advisory Desk Monthly Support payment confirmed",
+        intro: `Your BA Advisory Desk Monthly Support payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.`,
         paragraphs: [balanceText.trim(), "Use your workspace for requests, delivery updates, files, and credit history."],
         actionLabel: "Open your workspace",
         actionUrl: workspaceUrl,
@@ -81,11 +81,11 @@ function paymentConfirmed({ order, balanceAfter }) {
     const balanceText = Number.isFinite(balanceAfter) ? ` Your current credit balance is ${balanceAfter}.` : "";
     return {
       templateKey: "payment_confirmation",
-      subject: "BA Advisory Desk credit top up confirmed",
-      body: `Your credit top up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText}`,
+      subject: "3 Advisory Credit Top Up payment confirmed",
+      body: `Your 3 Advisory Credit Top Up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText}`,
       html: wrapEmail({
-        heading: "Credit top up confirmed",
-        intro: `Your credit top up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.`,
+        heading: "3 Advisory Credit Top Up payment confirmed",
+        intro: `Your 3 Advisory Credit Top Up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.`,
         paragraphs: [balanceText.trim()],
         actionLabel: "Open your workspace",
         actionUrl: workspaceUrl,

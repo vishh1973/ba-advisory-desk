@@ -1,6 +1,6 @@
 const PRODUCT_CATALOG = {
   rescue_sprint: {
-    label: "BA Rescue Sprint",
+    label: "Requirements Rescue Sprint",
     priceEnv: "STRIPE_RESCUE_PRICE_ID",
     mode: "payment",
     credits: 0,
@@ -8,7 +8,7 @@ const PRODUCT_CATALOG = {
     creditGrantType: "none",
   },
   starter_monthly: {
-    label: "BA Advisory Desk Starter",
+    label: "BA Advisory Desk Monthly Support",
     priceEnv: "STRIPE_STARTER_PRICE_ID",
     mode: "subscription",
     credits: 5,
