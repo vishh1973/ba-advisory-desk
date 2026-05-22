@@ -288,20 +288,26 @@ async function finalizeRelease({ supabase, req, body }) {
     return { status: 400, data: { error: "Uploaded files do not match the prepared deliverable version." } };
   }
 
-  for (const file of safeFiles) {
-    const validation = await validateStoredFile({
-      supabase,
-      bucket: file.storage_bucket,
-      storagePath: file.storage_path,
-      fileName: file.file_name,
-      fileSizeBytes: file.file_size_bytes,
-      contentType: file.content_type,
-    });
-    if (!validation.ok) {
-      return { status: 400, data: { error: validation.error || `Uploaded file could not be verified: ${file.file_name}` } };
+  try {
+    for (const file of safeFiles) {
+      const validation = await validateStoredFile({
+        supabase,
+        bucket: file.storage_bucket,
+        storagePath: file.storage_path,
+        fileName: file.file_name,
+        fileSizeBytes: file.file_size_bytes,
+        contentType: file.content_type,
+      });
+      if (!validation.ok) {
+        await abortRelease({ supabase, body }).catch(() => null);
+        return { status: 400, data: { error: validation.error || `Uploaded file could not be verified: ${file.file_name}` } };
+      }
+      file.content_type = validation.contentType;
+      file.file_size_bytes = validation.fileSizeBytes;
     }
-    file.content_type = validation.contentType;
-    file.file_size_bytes = validation.fileSizeBytes;
+  } catch (validationError) {
+    await abortRelease({ supabase, body }).catch(() => null);
+    return { status: 400, data: { error: validationError.message || "Uploaded file could not be verified." } };
   }
 
   const { data: releaseResult, error: releaseError } = await supabase
@@ -443,7 +449,11 @@ async function abortRelease({ supabase, body }) {
   const versionId = body.versionId;
   const organizationId = body.organizationId;
   const createdDeliverable = Boolean(body.createdDeliverable);
-  const paths = Array.isArray(body.storagePaths) ? body.storagePaths.filter(Boolean) : [];
+  const explicitPaths = Array.isArray(body.storagePaths) ? body.storagePaths.filter(Boolean) : [];
+  const filePaths = Array.isArray(body.files)
+    ? body.files.map((file) => file.storagePath || file.storage_path).filter(Boolean)
+    : [];
+  const paths = Array.from(new Set([...explicitPaths, ...filePaths]));
 
   if (versionId) {
     const { data: version } = await supabase
@@ -488,6 +498,9 @@ async function handleAdminDeliverableAction(req, res, body = parseBody(req)) {
 
     res.status(result.status).json(result.data);
   } catch (error) {
+    if (body?.action === "finalize") {
+      await abortRelease({ supabase: getSupabaseAdmin(), body }).catch(() => null);
+    }
     res.status(500).json({ error: error.message || "Deliverable release could not be completed." });
   }
 }

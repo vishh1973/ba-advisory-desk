@@ -594,7 +594,7 @@ module.exports = async function handler(req, res) {
       throw error;
     }
 
-    await supabase
+    const { error: checkoutSessionUpdateError } = await supabase
       .from("payment_orders")
       .update({
         stripe_checkout_session_id: session.id,
@@ -602,6 +602,25 @@ module.exports = async function handler(req, res) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", order.id);
+
+    if (checkoutSessionUpdateError) {
+      await markOrderStatusQuietly(supabase, order.id, "checkout_record_failed");
+      await recordAuditEvent(supabase, {
+        organizationId,
+        eventType: "checkout_record_failed",
+        eventDetail: {
+          payment_order_id: order.id,
+          stripe_checkout_session_id: session.id,
+          error: checkoutSessionUpdateError.message || "Checkout session could not be attached to the payment order.",
+        },
+        relatedEntityType: "payment_order",
+        relatedEntityId: order.id,
+      }).catch(() => null);
+      res.status(500).json({
+        error: "Checkout was created but could not be connected to your workspace. Please contact support before trying again.",
+      });
+      return;
+    }
 
     res.status(200).json({ url: session.url });
   } catch (error) {

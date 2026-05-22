@@ -35,6 +35,26 @@ const visibleCountDefaults = {
   adminDossierMessages: 8,
 };
 
+const remotePageSizes = {
+  adminQueue: 1000,
+  clientRequests: 250,
+  clientDeliverables: 250,
+  clientRequestFiles: 250,
+  clientMessages: 250,
+  clientUploads: 250,
+};
+
+function createRemotePaginationState() {
+  return {
+    adminQueue: { offset: 0, hasMore: false, loading: false },
+    clientRequests: { offset: 0, hasMore: false, loading: false },
+    clientDeliverables: { offset: 0, hasMore: false, loading: false },
+    clientRequestFiles: { offset: 0, hasMore: false, loading: false },
+    clientMessages: { offset: 0, hasMore: false, loading: false },
+    clientUploads: { offset: 0, hasMore: false, loading: false },
+  };
+}
+
 window.BAAD_RUNTIME_CONFIG = {
   domain: config.domain,
   stripePrices: config.stripePrices,
@@ -116,6 +136,7 @@ const state = {
   reservedCredits: 0,
   checkoutOpening: false,
   visibleCounts: { ...visibleCountDefaults },
+  remotePagination: createRemotePaginationState(),
 };
 
 const views = {
@@ -823,12 +844,45 @@ function getVisibleSlice(items, key) {
   return items.slice(0, getVisibleLimit(key));
 }
 
-function loadMoreControlHtml({ key, total, shown, label, increment }) {
-  if (!total || total <= shown) return "";
+function hasRemoteMoreForVisibleKey(key) {
+  if (key === "adminQueue") return Boolean(state.remotePagination.adminQueue?.hasMore);
+  if (key === "clientRequests") return Boolean(state.remotePagination.clientRequests?.hasMore);
+  if (key === "clientDeliverables") return Boolean(state.remotePagination.clientDeliverables?.hasMore);
+  if (key === "clientFiles") {
+    return Boolean(state.remotePagination.clientRequestFiles?.hasMore || state.remotePagination.clientUploads?.hasMore);
+  }
+  if (key === "clientActivity") {
+    return Boolean(state.remotePagination.clientMessages?.hasMore || state.remotePagination.clientUploads?.hasMore);
+  }
+  return false;
+}
+
+function getCurrentTotalForVisibleKey(key) {
+  if (key === "adminQueue") return getSelectedAdminQueueItems().length;
+  if (key === "clientRequests") return getVisibleRequests().length;
+  if (key === "clientDeliverables") return getVisibleDeliverables().length;
+  if (key === "clientFiles") return getClientFileEntries().length;
+  if (key === "clientActivity") return getVisibleMessages().length + getVisibleUploads().length;
+  return 0;
+}
+
+async function loadRemoteRowsForVisibleKey(key) {
+  if (key === "adminQueue") return loadMoreAdminQueue();
+  if (["clientRequests", "clientDeliverables", "clientFiles", "clientActivity"].includes(key)) {
+    return loadMoreClientRecords(key);
+  }
+  return false;
+}
+
+function loadMoreControlHtml({ key, total, shown, label, increment, hasMore }) {
+  const canRevealLocalRows = total > shown;
+  const canFetchRemoteRows = Boolean(hasMore);
+  if (!canRevealLocalRows && !canFetchRemoteRows) return "";
   const nextIncrement = increment || visibleCountDefaults[key] || 10;
+  const totalLabel = canFetchRemoteRows ? `${total}+` : total;
   return `
     <div class="load-more-footer" data-load-more-footer="${escapeHtml(key)}">
-      <span>Showing ${escapeHtml(shown)} of ${escapeHtml(total)} ${escapeHtml(label)}.</span>
+      <span>Showing ${escapeHtml(shown)} of ${escapeHtml(totalLabel)} ${escapeHtml(label)}.</span>
       <button class="secondary small" type="button" data-load-more="${escapeHtml(key)}" data-load-increment="${escapeHtml(nextIncrement)}">Load older ${escapeHtml(label)}</button>
     </div>
   `;
@@ -1393,6 +1447,8 @@ function resetClientWorkspaceState() {
   state.passwordRecovery = false;
   state.profileOrganizationId = "";
   state.selectedAdminProjectId = "";
+  state.visibleCounts = { ...visibleCountDefaults };
+  state.remotePagination = createRemotePaginationState();
   clearPrivateWorkspaceStorage();
   localStorage.removeItem("baad-post-auth-route");
   clearPendingCheckoutType();
@@ -2442,6 +2498,11 @@ async function loadClientWorkspaceData() {
 
   try {
     state.workspaceLoadIssue = "";
+    const requestLimit = remotePageSizes.clientRequests;
+    const deliverableLimit = remotePageSizes.clientDeliverables;
+    const requestFileLimit = remotePageSizes.clientRequestFiles;
+    const messageLimit = remotePageSizes.clientMessages;
+    const uploadLimit = remotePageSizes.clientUploads;
     const [projectResult, creditResult, ledgerResult, paymentResult, requestResult, deliverableResult, requestFileResult] = await Promise.all([
       supabaseClient
         .from("client_projects")
@@ -2471,20 +2532,20 @@ async function loadClientWorkspaceData() {
         .select("id,project_id,request_code,request_type,status,due_at,created_at,credits_estimated,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
-        .limit(250),
+        .limit(requestLimit),
       supabaseClient
         .from("client_deliverable_versions")
         .select("deliverable_id,request_id,project_id,project_name,project_code,title,deliverable_type,status,current_version_number,version_id,file_id,version_number,original_file_name,file_size_bytes,summary,release_note,uploaded_at,updated_at")
         .eq("organization_id", organizationId)
         .order("uploaded_at", { ascending: false })
-        .limit(250),
+        .limit(deliverableLimit),
       supabaseClient
         .from("request_files")
         .select("id,request_id,project_id,organization_id,uploaded_by,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(250),
+        .limit(requestFileLimit),
     ]);
 
     const firstDataError = [projectResult, creditResult, ledgerResult, paymentResult, requestResult, deliverableResult, requestFileResult].find((result) => result?.error);
@@ -2533,6 +2594,8 @@ async function loadClientWorkspaceData() {
     }
 
     if (!requestResult.error && Array.isArray(requestResult.data)) {
+      state.remotePagination.clientRequests.offset = requestResult.data.length;
+      state.remotePagination.clientRequests.hasMore = requestResult.data.length === requestLimit;
       state.requests = requestResult.data.map((request) => ({
         id: request.request_code || `REQ ${String(request.id).slice(0, 8)}`,
         requestId: request.id,
@@ -2546,10 +2609,14 @@ async function loadClientWorkspaceData() {
     }
 
     if (!deliverableResult.error && Array.isArray(deliverableResult.data)) {
+      state.remotePagination.clientDeliverables.offset = deliverableResult.data.length;
+      state.remotePagination.clientDeliverables.hasMore = deliverableResult.data.length === deliverableLimit;
       state.deliverables = groupDeliverableVersions(deliverableResult.data);
     }
 
     if (!requestFileResult.error && Array.isArray(requestFileResult.data)) {
+      state.remotePagination.clientRequestFiles.offset = requestFileResult.data.length;
+      state.remotePagination.clientRequestFiles.hasMore = requestFileResult.data.length === requestFileLimit;
       state.requestFiles = requestFileResult.data.map(normalizeRequestFile);
     }
 
@@ -2559,14 +2626,14 @@ async function loadClientWorkspaceData() {
         .select("id,project_id,deliverable_id,request_id,subject,body,status,created_at,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
-        .limit(250),
+        .limit(messageLimit),
       supabaseClient
         .from("client_uploads")
         .select("id,organization_id,project_id,deliverable_id,request_id,uploaded_by,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(250),
+        .limit(uploadLimit),
     ]);
 
     const firstActivityError = [messageResult, uploadResult].find((result) => result?.error);
@@ -2575,10 +2642,14 @@ async function loadClientWorkspaceData() {
     }
 
     if (!messageResult.error && Array.isArray(messageResult.data)) {
+      state.remotePagination.clientMessages.offset = messageResult.data.length;
+      state.remotePagination.clientMessages.hasMore = messageResult.data.length === messageLimit;
       state.clientMessages = messageResult.data.map(normalizeClientMessage);
     }
 
     if (!uploadResult.error && Array.isArray(uploadResult.data)) {
+      state.remotePagination.clientUploads.offset = uploadResult.data.length;
+      state.remotePagination.clientUploads.hasMore = uploadResult.data.length === uploadLimit;
       state.clientUploads = uploadResult.data.map(normalizeClientUpload);
     }
 
@@ -2586,6 +2657,192 @@ async function loadClientWorkspaceData() {
   } catch (error) {
     state.workspaceLoadIssue = error.message || "Workspace information could not be loaded.";
   }
+}
+
+function mergeById(existing, additions, idSelector = (item) => item.id) {
+  const seen = new Set();
+  return [...existing, ...additions].filter((item) => {
+    const id = idSelector(item);
+    const key = id || JSON.stringify(item);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeDeliverableGroups(existingDeliverables, newDeliverables) {
+  const grouped = new Map(existingDeliverables.map((deliverable) => [deliverable.id, { ...deliverable, versions: [...(deliverable.versions || [])] }]));
+  newDeliverables.forEach((deliverable) => {
+    const existing = grouped.get(deliverable.id);
+    if (!existing) {
+      grouped.set(deliverable.id, deliverable);
+      return;
+    }
+    existing.versions = mergeById(existing.versions || [], deliverable.versions || [], (version) => version.fileId || version.id);
+    existing.currentVersion = Math.max(Number(existing.currentVersion || 1), Number(deliverable.currentVersion || 1));
+    existing.updatedAt = [existing.updatedAt, deliverable.updatedAt].filter(Boolean).sort().reverse()[0] || existing.updatedAt;
+    existing.status = deliverable.status || existing.status;
+    existing.summary = deliverable.summary || existing.summary;
+  });
+  return Array.from(grouped.values()).sort((a, b) => new Date(getDeliverableReleasedAt(b) || b.updatedAt || 0) - new Date(getDeliverableReleasedAt(a) || a.updatedAt || 0));
+}
+
+async function loadMoreClientRecords(key) {
+  if (!supabaseClient || !getUserId()) return false;
+  const organizationId = await getProfileOrganizationId();
+  if (!organizationId) return false;
+
+  if (key === "clientRequests" && state.remotePagination.clientRequests.hasMore) {
+    const page = state.remotePagination.clientRequests;
+    if (page.loading) return false;
+    const limit = remotePageSizes.clientRequests;
+    page.loading = true;
+    try {
+      const { data, error } = await supabaseClient
+        .from("requests")
+        .select("id,project_id,request_code,request_type,status,due_at,created_at,credits_estimated,client_projects(id,name,project_code,status)")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .range(page.offset, page.offset + limit - 1);
+      if (error) throw error;
+      page.offset += (data || []).length;
+      page.hasMore = (data || []).length === limit;
+      state.requests = mergeById(
+        state.requests,
+        (data || []).map((request) => ({
+          id: request.request_code || `REQ ${String(request.id).slice(0, 8)}`,
+          requestId: request.id,
+          ...getProjectFieldsFromRow(request),
+          type: request.request_type,
+          status: request.status || "New",
+          due: formatDisplayDate(request.due_at),
+          createdAt: request.created_at,
+          client: state.client.company,
+        })),
+        (request) => request.requestId || request.id
+      );
+      return true;
+    } finally {
+      page.loading = false;
+    }
+  }
+
+  if (key === "clientDeliverables" && state.remotePagination.clientDeliverables.hasMore) {
+    const page = state.remotePagination.clientDeliverables;
+    if (page.loading) return false;
+    const limit = remotePageSizes.clientDeliverables;
+    page.loading = true;
+    try {
+      const { data, error } = await supabaseClient
+        .from("client_deliverable_versions")
+        .select("deliverable_id,request_id,project_id,project_name,project_code,title,deliverable_type,status,current_version_number,version_id,file_id,version_number,original_file_name,file_size_bytes,summary,release_note,uploaded_at,updated_at")
+        .eq("organization_id", organizationId)
+        .order("uploaded_at", { ascending: false })
+        .range(page.offset, page.offset + limit - 1);
+      if (error) throw error;
+      page.offset += (data || []).length;
+      page.hasMore = (data || []).length === limit;
+      state.deliverables = mergeDeliverableGroups(state.deliverables, groupDeliverableVersions(data || []));
+      return true;
+    } finally {
+      page.loading = false;
+    }
+  }
+
+  if (key === "clientFiles") {
+    let loaded = false;
+    const requestPage = state.remotePagination.clientRequestFiles;
+    if (requestPage.hasMore && !requestPage.loading) {
+      const limit = remotePageSizes.clientRequestFiles;
+      requestPage.loading = true;
+      try {
+        const { data, error } = await supabaseClient
+          .from("request_files")
+          .select("id,request_id,project_id,organization_id,uploaded_by,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_projects(id,name,project_code,status)")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .range(requestPage.offset, requestPage.offset + limit - 1);
+        if (error) throw error;
+        requestPage.offset += (data || []).length;
+        requestPage.hasMore = (data || []).length === limit;
+        state.requestFiles = mergeById(state.requestFiles, (data || []).map(normalizeRequestFile), (file) => file.fileId || file.id);
+        loaded = true;
+      } finally {
+        requestPage.loading = false;
+      }
+    }
+    const uploadPage = state.remotePagination.clientUploads;
+    if (uploadPage.hasMore && !uploadPage.loading) {
+      const limit = remotePageSizes.clientUploads;
+      uploadPage.loading = true;
+      try {
+        const { data, error } = await supabaseClient
+          .from("client_uploads")
+          .select("id,organization_id,project_id,deliverable_id,request_id,uploaded_by,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .range(uploadPage.offset, uploadPage.offset + limit - 1);
+        if (error) throw error;
+        uploadPage.offset += (data || []).length;
+        uploadPage.hasMore = (data || []).length === limit;
+        state.clientUploads = mergeById(state.clientUploads, (data || []).map(normalizeClientUpload), (file) => file.fileId || file.id);
+        loaded = true;
+      } finally {
+        uploadPage.loading = false;
+      }
+    }
+    return loaded;
+  }
+
+  if (key === "clientActivity") {
+    let loaded = false;
+    const messagePage = state.remotePagination.clientMessages;
+    if (messagePage.hasMore && !messagePage.loading) {
+      const limit = remotePageSizes.clientMessages;
+      messagePage.loading = true;
+      try {
+        const { data, error } = await supabaseClient
+          .from("client_deliverable_messages")
+          .select("id,project_id,deliverable_id,request_id,subject,body,status,created_at,client_projects(id,name,project_code,status)")
+          .eq("organization_id", organizationId)
+          .order("created_at", { ascending: false })
+          .range(messagePage.offset, messagePage.offset + limit - 1);
+        if (error) throw error;
+        messagePage.offset += (data || []).length;
+        messagePage.hasMore = (data || []).length === limit;
+        state.clientMessages = mergeById(state.clientMessages, (data || []).map(normalizeClientMessage));
+        loaded = true;
+      } finally {
+        messagePage.loading = false;
+      }
+    }
+    const uploadPage = state.remotePagination.clientUploads;
+    if (uploadPage.hasMore && !uploadPage.loading) {
+      const limit = remotePageSizes.clientUploads;
+      uploadPage.loading = true;
+      try {
+        const { data, error } = await supabaseClient
+          .from("client_uploads")
+          .select("id,organization_id,project_id,deliverable_id,request_id,uploaded_by,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_projects(id,name,project_code,status)")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .range(uploadPage.offset, uploadPage.offset + limit - 1);
+        if (error) throw error;
+        uploadPage.offset += (data || []).length;
+        uploadPage.hasMore = (data || []).length === limit;
+        state.clientUploads = mergeById(state.clientUploads, (data || []).map(normalizeClientUpload), (file) => file.fileId || file.id);
+        loaded = true;
+      } finally {
+        uploadPage.loading = false;
+      }
+    }
+    return loaded;
+  }
+
+  return false;
 }
 
 async function writeToSupabase(table, payload) {
@@ -3452,6 +3709,7 @@ function renderRequests() {
     shown: visibleRequests.length,
     label: "requests",
     increment: 25,
+    hasMore: hasRemoteMoreForVisibleKey("clientRequests"),
   });
 
   const adminSource = state.adminQueue.length ? getSelectedAdminQueueItems() : state.requests.map((request) => ({
@@ -3520,6 +3778,7 @@ function renderRequests() {
     shown: visibleAdminSource.length,
     label: "queue items",
     increment: 50,
+    hasMore: hasRemoteMoreForVisibleKey("adminQueue"),
   });
 }
 
@@ -3552,7 +3811,16 @@ function renderClientDeliverables() {
 
   const deliverables = getVisibleDeliverables();
   if (!deliverables.length) {
-    list.innerHTML = `<div class="empty-cell">No completed deliverables have been released for this project view yet.</div>`;
+    list.innerHTML =
+      `<div class="empty-cell">No completed deliverables have been released for this project view yet.</div>` +
+      loadMoreControlHtml({
+        key: "clientDeliverables",
+        total: 0,
+        shown: 0,
+        label: "deliverables",
+        increment: 8,
+        hasMore: hasRemoteMoreForVisibleKey("clientDeliverables"),
+      });
     return;
   }
 
@@ -3629,6 +3897,7 @@ function renderClientDeliverables() {
       shown: visibleDeliverables.length,
       label: "deliverables",
       increment: 8,
+      hasMore: hasRemoteMoreForVisibleKey("clientDeliverables"),
     });
 }
 
@@ -3680,7 +3949,16 @@ function renderClientCommunicationLog() {
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
   if (!entries.length) {
-    log.innerHTML = `<div class="empty-cell">No client messages or uploads have been added yet.</div>`;
+    log.innerHTML =
+      `<div class="empty-cell">No client messages or uploads have been added yet.</div>` +
+      loadMoreControlHtml({
+        key: "clientActivity",
+        total: 0,
+        shown: 0,
+        label: "activity records",
+        increment: 8,
+        hasMore: hasRemoteMoreForVisibleKey("clientActivity"),
+      });
     return;
   }
 
@@ -3706,6 +3984,7 @@ function renderClientCommunicationLog() {
       shown: visibleEntries.length,
       label: "activity records",
       increment: 8,
+      hasMore: hasRemoteMoreForVisibleKey("clientActivity"),
     });
 }
 
@@ -4343,7 +4622,16 @@ function renderClientFileRoom() {
   if (!list) return;
   const files = getClientFileEntries();
   if (!files.length) {
-    list.innerHTML = `<div class="empty-cell">No source files or revision uploads are attached yet.</div>`;
+    list.innerHTML =
+      `<div class="empty-cell">No source files or revision uploads are attached yet.</div>` +
+      loadMoreControlHtml({
+        key: "clientFiles",
+        total: 0,
+        shown: 0,
+        label: "files",
+        increment: 12,
+        hasMore: hasRemoteMoreForVisibleKey("clientFiles"),
+      });
     return;
   }
   const visibleFiles = getVisibleSlice(files, "clientFiles");
@@ -4379,6 +4667,7 @@ function renderClientFileRoom() {
       shown: visibleFiles.length,
       label: "files",
       increment: 12,
+      hasMore: hasRemoteMoreForVisibleKey("clientFiles"),
     });
 }
 
@@ -5107,7 +5396,21 @@ function normalizeAdminRequestFile(file) {
   };
 }
 
-function applyAdminQueueData(data) {
+function applyAdminQueueData(data, options = {}) {
+  const previous = options.append
+    ? {
+        adminProjects: state.adminProjects,
+        adminQueue: state.adminQueue,
+        adminClients: state.adminClients,
+        adminClientUploads: state.adminClientUploads,
+        adminRequestFiles: state.adminRequestFiles,
+        adminPaymentHistory: state.adminPaymentHistory,
+        adminCreditLedger: state.adminCreditLedger,
+        adminAuditEvents: state.adminAuditEvents,
+        adminDeliverables: state.adminDeliverables,
+        adminDeliverableFiles: state.adminDeliverableFiles,
+      }
+    : null;
   const projectRows = data.projects || data.clientProjects || [];
   const requests = data.requests || [];
   const quoteItems = data.quotes || data.customQuoteRequests || [];
@@ -5252,6 +5555,13 @@ function applyAdminQueueData(data) {
     ...client,
     projects: client.projects?.length ? client.projects : state.adminProjects.filter((project) => project.organizationId === client.id && isActiveProject(project)),
   }));
+  if (previous) {
+    state.adminProjects = mergeById(previous.adminProjects, state.adminProjects, (project) => project.id || project.projectCode || project.projectLabel);
+    state.adminQueue = mergeById(previous.adminQueue, state.adminQueue, buildAdminQueueKey);
+    state.adminClientUploads = mergeById(previous.adminClientUploads, state.adminClientUploads, (file) => file.fileId || file.id);
+    state.adminRequestFiles = mergeById(previous.adminRequestFiles, state.adminRequestFiles, (file) => file.fileId || file.id);
+    state.adminClients = mergeById(previous.adminClients, state.adminClients, (client) => client.id || client.selectionId || client.email || client.name);
+  }
   if (state.selectedAdminClientId) {
     const stillValid = state.adminClients.some(
       (client) => client.selectionId === state.selectedAdminClientId || client.id === state.selectedAdminClientId
@@ -5348,13 +5658,22 @@ function applyAdminQueueData(data) {
     fileSize: file.file_size_bytes || 0,
     createdAt: file.created_at || file.deliverable_versions?.released_at || null,
   }));
+  if (previous) {
+    state.adminPaymentHistory = mergeById(previous.adminPaymentHistory, state.adminPaymentHistory, (payment) => `${payment.organizationId || ""}|${payment.rawDate || payment.date || ""}|${payment.item || ""}|${payment.amount || ""}`);
+    state.adminCreditLedger = mergeById(previous.adminCreditLedger, state.adminCreditLedger, (entry) => `${entry.organizationId || ""}|${entry.rawDate || entry.date || ""}|${entry.deliverable || ""}|${entry.credits || ""}`);
+    state.adminAuditEvents = mergeById(previous.adminAuditEvents, state.adminAuditEvents, (entry) => `${entry.organizationId || ""}|${entry.date || ""}|${entry.event || ""}|${entry.details || ""}`);
+    state.adminDeliverables = mergeById(previous.adminDeliverables, state.adminDeliverables, (deliverable) => deliverable.id);
+    state.adminDeliverableFiles = mergeById(previous.adminDeliverableFiles, state.adminDeliverableFiles, (file) => file.fileId || `${file.deliverableId}|${file.fileName}|${file.versionNumber}`);
+  }
 }
 
 async function loadAdminQueue() {
   if (!supabaseClient || !(await ensureAdminAccess())) return;
 
   setAdminStatus("Loading admin queue.");
-  const result = await fetchAdminApi("/api/admin-queue?limit=1000");
+  state.remotePagination.adminQueue.offset = 0;
+  state.remotePagination.adminQueue.hasMore = false;
+  const result = await fetchAdminApi(`/api/admin-queue?limit=${remotePageSizes.adminQueue}&offset=0`);
 
   if (!result.ok) {
     setAdminStatus(result.error || "Admin queue could not be loaded.");
@@ -5363,9 +5682,36 @@ async function loadAdminQueue() {
   }
 
   applyAdminQueueData(result.data || {});
+  state.remotePagination.adminQueue.offset = Number(result.data?.pagination?.nextOffset ?? remotePageSizes.adminQueue);
+  state.remotePagination.adminQueue.hasMore = Boolean(result.data?.pagination?.hasMore);
   const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
   setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
   render();
+}
+
+async function loadMoreAdminQueue() {
+  if (!supabaseClient || !(await ensureAdminAccess())) return false;
+  const page = state.remotePagination.adminQueue;
+  if (!page.hasMore || page.loading) return false;
+  page.loading = true;
+  setAdminStatus("Loading older admin records.");
+  const offset = Number(page.offset || 0);
+  try {
+    const result = await fetchAdminApi(`/api/admin-queue?limit=${remotePageSizes.adminQueue}&offset=${offset}`);
+    if (!result.ok) {
+      setAdminStatus(result.error || "Older admin records could not be loaded.");
+      showToast(result.error || "Older admin records could not be loaded.");
+      return false;
+    }
+    applyAdminQueueData(result.data || {}, { append: true });
+    page.offset = Number(result.data?.pagination?.nextOffset ?? offset + remotePageSizes.adminQueue);
+    page.hasMore = Boolean(result.data?.pagination?.hasMore);
+    const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
+    setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
+    return true;
+  } finally {
+    page.loading = false;
+  }
 }
 
 const countries = [
@@ -5862,7 +6208,7 @@ async function beginCheckout(type, options = {}) {
   }
 }
 
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const signOutTarget = event.target.closest("[data-sign-out]");
   if (signOutTarget) {
     signOutCurrentUser(event);
@@ -5875,6 +6221,20 @@ document.addEventListener("click", (event) => {
     const key = loadMoreTarget.dataset.loadMore;
     if (!key || !Object.prototype.hasOwnProperty.call(visibleCountDefaults, key)) return;
     const increment = Math.max(1, Number(loadMoreTarget.dataset.loadIncrement || visibleCountDefaults[key]));
+    const currentTotal = getCurrentTotalForVisibleKey(key);
+    if (getVisibleLimit(key) >= currentTotal && hasRemoteMoreForVisibleKey(key)) {
+      loadMoreTarget.disabled = true;
+      const originalText = loadMoreTarget.textContent;
+      loadMoreTarget.textContent = "Loading older records";
+      try {
+        await loadRemoteRowsForVisibleKey(key);
+      } catch (error) {
+        showToast(error.message || "Older records could not be loaded.");
+      } finally {
+        loadMoreTarget.disabled = false;
+        loadMoreTarget.textContent = originalText;
+      }
+    }
     state.visibleCounts[key] = getVisibleLimit(key) + increment;
     render();
     return;

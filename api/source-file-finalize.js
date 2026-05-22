@@ -193,6 +193,7 @@ module.exports = async function handler(req, res) {
   const supabase = getSupabaseAdmin();
   let body = {};
   let userId = "";
+  let files = [];
 
   try {
     body = parseBody(req);
@@ -214,7 +215,7 @@ module.exports = async function handler(req, res) {
     userId = userData.user.id;
 
     const action = String(body.action || "finalize").toLowerCase();
-    const files = normalizeFileRecords(body.files);
+    files = normalizeFileRecords(body.files);
     if (action === "abort") {
       await abortUploadedFiles(supabase, userId, files.length ? files : body.storagePaths || []);
       res.status(200).json({ aborted: true });
@@ -286,22 +287,28 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    for (const file of files) {
-      const validation = await validateStoredFile({
-        supabase,
-        bucket: BUCKET,
-        storagePath: file.storagePath,
-        fileName: file.fileName,
-        fileSizeBytes: file.fileSizeBytes,
-        contentType: file.contentType,
-      });
-      if (!validation.ok) {
-        await abortUploadedFiles(supabase, userId, files);
-        res.status(400).json({ error: validation.error || "Uploaded file could not be verified." });
-        return;
+    try {
+      for (const file of files) {
+        const validation = await validateStoredFile({
+          supabase,
+          bucket: BUCKET,
+          storagePath: file.storagePath,
+          fileName: file.fileName,
+          fileSizeBytes: file.fileSizeBytes,
+          contentType: file.contentType,
+        });
+        if (!validation.ok) {
+          await abortUploadedFiles(supabase, userId, files);
+          res.status(400).json({ error: validation.error || "Uploaded file could not be verified." });
+          return;
+        }
+        file.contentType = validation.contentType;
+        file.fileSizeBytes = validation.fileSizeBytes;
       }
-      file.contentType = validation.contentType;
-      file.fileSizeBytes = validation.fileSizeBytes;
+    } catch (validationError) {
+      await abortUploadedFiles(supabase, userId, files);
+      res.status(400).json({ error: validationError.message || "Uploaded file could not be verified." });
+      return;
     }
 
     let records;
@@ -331,6 +338,9 @@ module.exports = async function handler(req, res) {
       files: records,
     });
   } catch (error) {
+    if (userId && files.length) {
+      await abortUploadedFiles(supabase, userId, files).catch(() => null);
+    }
     const message = error.message || "Files could not be attached to the workspace.";
     res.status(500).json({ error: message });
   }

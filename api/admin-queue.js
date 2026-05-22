@@ -8,6 +8,12 @@ function readLimit(req) {
   return Math.min(Math.floor(value), 1000);
 }
 
+function readOffset(req) {
+  const value = Number(req.query?.offset || 0);
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.floor(value);
+}
+
 function parseBody(req) {
   if (typeof req.body === "string") {
     return JSON.parse(req.body || "{}");
@@ -101,8 +107,34 @@ async function updateByTarget(supabase, target) {
     if (!target.status) {
       return { ok: false, status: 400, error: "Request status is required." };
     }
+    const normalizedTargetStatus = String(target.status).trim().toLowerCase().replace(/\s+/g, "_");
+    const allowedRequestStatuses = new Set([
+      "pending_scope",
+      "approved",
+      "in_progress",
+      "delivered",
+      "completed",
+      "completed_and_shipped",
+      "paused_awaiting_credits",
+      "new",
+      "received",
+      "in_review",
+      "paused",
+      "awaiting_credits",
+      "closed",
+    ]);
+    if (!allowedRequestStatuses.has(normalizedTargetStatus)) {
+      return { ok: false, status: 400, error: "Request status is not allowed." };
+    }
+    if (target.shipped && target.creditsApproved > 0) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Use the controlled release flow to ship credit based work. This keeps deliverables, files, and credit settlement connected.",
+      };
+    }
     const update = {
-      status: target.status,
+      status: normalizedTargetStatus,
       credits_approved: target.creditsApproved > 0 ? target.creditsApproved : null,
       shipped_at: target.shipped ? now : null,
       updated_at: now,
@@ -113,7 +145,7 @@ async function updateByTarget(supabase, target) {
       .eq("id", target.id)
       .eq("organization_id", target.organizationId);
     if (target.projectId) query = query.eq("project_id", target.projectId);
-    return finishUpdate(query, target.status);
+    return finishUpdate(query, normalizedTargetStatus);
   }
 
   if (target.queueType === "quote") {
@@ -408,70 +440,72 @@ module.exports = async function handler(req, res) {
 
     const supabase = getSupabaseAdmin();
     const limit = readLimit(req);
+    const offset = readOffset(req);
+    const rangeEnd = offset + limit - 1;
 
     const [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles] = await Promise.all([
       supabase
         .from("client_projects")
         .select("id,organization_id,name,project_code,status,is_default,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
         .order("updated_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("requests")
         .select("id,organization_id,project_id,request_code,request_type,status,credits_estimated,credits_approved,business_goal,target_audience,attachment_description,due_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("custom_quote_requests")
         .select("id,organization_id,project_id,work_email,company_type,estimated_budget,request_summary,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("credit_accounts")
         .select("id,organization_id,balance,reserved_balance,low_credit_threshold,status,last_low_credit_reminder_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
         .order("updated_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("payment_orders")
         .select("id,organization_id,user_id,product_type,amount_cents,currency,credits,status,stripe_checkout_session_id,stripe_payment_intent_id,stripe_invoice_id,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("notifications")
         .select("id,organization_id,project_id,recipient_email,channel,template_key,subject,body,status,failure_reason,related_entity_type,related_entity_id,sent_at,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("credit_ledger")
         .select("id,organization_id,project_id,related_request_id,related_deliverable_id,related_payment_id,entry_type,entry_reason,credits,balance_after,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("audit_events")
         .select("id,organization_id,project_id,event_type,event_detail,related_entity_type,related_entity_id,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("client_deliverable_messages")
         .select("id,organization_id,project_id,deliverable_id,request_id,subject,body,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("client_uploads")
         .select("id,organization_id,project_id,deliverable_id,request_id,upload_type,original_file_name,file_size_bytes,note,status,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("request_files")
         .select("id,request_id,project_id,organization_id,file_name,file_size_bytes,mime_type,created_at,requests(request_code,request_type,project_id),client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
       supabase
         .from("profiles")
         .select("id,organization_id,first_name,last_name,work_email,phone,job_title,department,preferred_working_style,primary_business_need,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .range(offset, rangeEnd),
     ]);
 
     const firstError = [projects, requests, quoteRequests, creditAccounts, paymentOrders, notifications, creditLedger, auditEvents, clientMessages, clientUploads, requestFiles, clientProfiles].find((result) => result.error);
@@ -551,7 +585,7 @@ module.exports = async function handler(req, res) {
       .from("deliverables")
       .select("id,request_id,organization_id,project_id,title,deliverable_type,status,current_version_number,latest_version_id,created_at,updated_at,client_projects(id,name,project_code,status)")
       .order("updated_at", { ascending: false })
-      .limit(limit);
+      .range(offset, rangeEnd);
 
     if (deliverablesError) throw deliverablesError;
 
@@ -599,6 +633,26 @@ module.exports = async function handler(req, res) {
       clientProfiles: clientProfiles.data || [],
       deliverables: deliverables || [],
       deliverableFiles: deliverableFiles || [],
+      pagination: {
+        limit,
+        offset,
+        nextOffset: offset + limit,
+        hasMore: [
+          projects.data,
+          requests.data,
+          quoteRequests.data,
+          creditAccounts.data,
+          paymentOrderRows,
+          notifications.data,
+          creditLedger.data,
+          auditEvents.data,
+          clientMessages.data,
+          clientUploads.data,
+          requestFileRows,
+          clientProfiles.data,
+          deliverables,
+        ].some((rows) => Array.isArray(rows) && rows.length === limit),
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message || "Admin queue could not be loaded." });

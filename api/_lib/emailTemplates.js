@@ -107,7 +107,7 @@ function paymentConfirmed({ order, balanceAfter }) {
 }
 
 function lowCredit({ balance, threshold }) {
-  const workspaceUrl = `${publicBaseUrl()}/index.html#pricing`;
+  const workspaceUrl = `${publicBaseUrl()}/index.html#billing`;
   return {
     templateKey: "low_credit_reminder",
     subject: "BA Advisory Desk credits are running low",
@@ -116,14 +116,14 @@ function lowCredit({ balance, threshold }) {
       heading: "Credits are running low",
       intro: `Your workspace has ${balance} Advisory Credit${balance === 1 ? "" : "s"} remaining.`,
       paragraphs: [`The low credit threshold is ${threshold}. Please top up before starting new work.`],
-      actionLabel: "Review credit options",
+      actionLabel: "Open billing and top up",
       actionUrl: workspaceUrl,
     }),
   };
 }
 
 function depletedCredit() {
-  const workspaceUrl = `${publicBaseUrl()}/index.html#pricing`;
+  const workspaceUrl = `${publicBaseUrl()}/index.html#billing`;
   return {
     templateKey: "credits_depleted",
     subject: "BA Advisory Desk credits are depleted",
@@ -132,7 +132,7 @@ function depletedCredit() {
       heading: "Credits are depleted",
       intro: "Your workspace has no Advisory Credits remaining.",
       paragraphs: ["New credit based work should be paused until credits are topped up or a new plan is active."],
-      actionLabel: "Review credit options",
+      actionLabel: "Open billing and top up",
       actionUrl: workspaceUrl,
     }),
   };
