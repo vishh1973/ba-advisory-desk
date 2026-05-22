@@ -2,7 +2,6 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { chromium } = require("playwright");
-const Stripe = require("stripe");
 
 const qaFile = path.join(os.tmpdir(), "baad-qa-accounts.txt");
 const appUrl = (process.env.BAAD_APP_URL || process.env.BAAD_BROWSER_QA_APP_URL || "https://baadvisorydesk.com").replace(/\/$/, "");
@@ -162,6 +161,7 @@ async function run() {
     if (!process.env.STRIPE_SECRET_KEY) {
       throw new Error("STRIPE_SECRET_KEY is required when STRIPE_TOPUP_PRICE_ID is provided for local price verification.");
     }
+    const Stripe = require("stripe");
     const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
     const price = await stripe.prices.retrieve(topUpPriceId);
     if (price.livemode) throw new Error("STRIPE_TOPUP_PRICE_ID points to a live Stripe price. Use a sandbox price for QA.");
