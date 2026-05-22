@@ -29,7 +29,7 @@ function requireEnabled() {
   if (process.env.BAAD_RUN_STRIPE_E2E !== "1" && process.env.BAAD_STRIPE_E2E !== "1") {
     throw new Error("Stripe checkout QA is gated. Set BAAD_RUN_STRIPE_E2E=1 only when you intend to run a sandbox paid checkout.");
   }
-  if (!/^sk_test_/.test(process.env.STRIPE_SECRET_KEY || "")) {
+  if (process.env.STRIPE_SECRET_KEY && !/^sk_test_/.test(process.env.STRIPE_SECRET_KEY || "")) {
     throw new Error("STRIPE_SECRET_KEY must be a Stripe test key that starts with sk_test_.");
   }
 }
@@ -157,9 +157,12 @@ async function run() {
   const email = requireValue(process.env.BAAD_QA_CLIENT_EMAIL || qa.client, "BAAD_QA_CLIENT_EMAIL");
   const password = requireValue(process.env.BAAD_QA_CLIENT_PASSWORD || qa.password, "BAAD_QA_CLIENT_PASSWORD");
 
-  const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
   const topUpPriceId = process.env.STRIPE_TOPUP_PRICE_ID;
   if (topUpPriceId) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("STRIPE_SECRET_KEY is required when STRIPE_TOPUP_PRICE_ID is provided for local price verification.");
+    }
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
     const price = await stripe.prices.retrieve(topUpPriceId);
     if (price.livemode) throw new Error("STRIPE_TOPUP_PRICE_ID points to a live Stripe price. Use a sandbox price for QA.");
   }
