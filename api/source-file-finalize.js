@@ -131,6 +131,7 @@ async function finalizeClientUploads({ supabase, body, files, userId }) {
     upload_type: body.uploadType || "Supporting file",
     original_file_name: file.fileName,
     file_size_bytes: file.fileSizeBytes,
+    mime_type: file.contentType,
     storage_bucket: BUCKET,
     storage_path: file.storagePath,
     note: body.note || "",

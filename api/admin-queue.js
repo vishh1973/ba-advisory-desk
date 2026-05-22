@@ -1,6 +1,6 @@
 const { requireAdmin } = require("./_lib/adminAuth");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
-const { getCreditBalance } = require("./_lib/paymentAndCredit");
+const { detectAndNotifyCreditStatus, getCreditBalance } = require("./_lib/paymentAndCredit");
 
 function readLimit(req) {
   const value = Number(req.query?.limit || 100);
@@ -226,6 +226,164 @@ async function handleQueueAction(req, res) {
   res.status(200).json({ ok: true, status: result.status });
 }
 
+async function handleLedgerAction(req, res) {
+  const body = parseBody(req);
+  const organizationId = body.organizationId;
+  const type = body.type;
+  const credits = Number(body.credits || 0);
+  const reason = body.reason || "Admin adjustment";
+  const requestId = body.requestId || null;
+  const deliverableId = body.deliverableId || null;
+  const projectId = body.projectId || null;
+  const recipientEmail = body.email || body.clientEmail || body.recipientEmail || null;
+  const requestedThreshold = Number(body.lowCreditThreshold);
+  const thresholdProvided = Number.isFinite(requestedThreshold);
+
+  if (!organizationId || !["grant", "reserve", "consume", "release", "adjust"].includes(type)) {
+    res.status(400).json({ error: "Missing or invalid ledger request." });
+    return;
+  }
+
+  if ((type === "adjust" && credits === 0 && !thresholdProvided) || (type !== "adjust" && credits <= 0)) {
+    res.status(400).json({ error: "Credit amount must be greater than zero." });
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (projectId) {
+    const { data: project, error: projectError } = await supabase
+      .from("client_projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (projectError) throw projectError;
+    if (!project?.id) {
+      res.status(400).json({ error: "Project workspace does not belong to this client." });
+      return;
+    }
+  }
+
+  let currentBalanceInfo = null;
+  if (type === "adjust" && credits < 0) {
+    currentBalanceInfo = await getCreditBalance(supabase, organizationId);
+    const nextBalance = Number(currentBalanceInfo.balance || 0) + credits;
+    const reservedBalance = Number(currentBalanceInfo.reservedBalance || 0);
+    if (nextBalance < reservedBalance) {
+      res.status(409).json({
+        error: `This change would reduce available credits below the ${reservedBalance} credits already reserved for active work. Release or complete the reserved work first.`,
+      });
+      return;
+    }
+  }
+
+  if (type === "adjust" && credits === 0 && thresholdProvided) {
+    await supabase.rpc("expire_credit_grants", { p_organization_id: organizationId }).then(() => null, () => null);
+    const { data: account, error: accountError } = await supabase
+      .from("credit_accounts")
+      .select("id,balance,low_credit_threshold")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+
+    if (accountError) throw accountError;
+    if (!account?.id) {
+      res.status(404).json({ error: "Credit account was not found." });
+      return;
+    }
+
+    const lowCreditThreshold = Math.max(0, requestedThreshold);
+    const { error: thresholdError } = await supabase
+      .from("credit_accounts")
+      .update({
+        low_credit_threshold: lowCreditThreshold,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", account.id);
+
+    if (thresholdError) throw thresholdError;
+
+    res.status(200).json({ balance: Number(account.balance || 0), lowCreditThreshold, thresholdOnly: true });
+    return;
+  }
+
+  const rpcCredits = type === "adjust" ? credits : Math.abs(credits);
+  const { data: ledgerResult, error: ledgerError } = await supabase
+    .rpc("apply_credit_change", {
+      p_organization_id: organizationId,
+      p_entry_type: type,
+      p_credits: rpcCredits,
+      p_entry_reason: reason,
+      p_related_request_id: requestId,
+      p_related_deliverable_id: deliverableId,
+      p_related_payment_id: null,
+      p_source: "admin",
+      p_idempotency_key: body.idempotencyKey || null,
+      p_actor_id: body.actorId || null,
+    })
+    .single();
+
+  if (ledgerError) throw ledgerError;
+
+  if (projectId && ledgerResult?.ledger_id) {
+    await supabase
+      .from("credit_ledger")
+      .update({ project_id: projectId })
+      .eq("id", ledgerResult.ledger_id)
+      .then(() => null, () => null);
+    if (body.idempotencyKey) {
+      await supabase
+        .from("audit_events")
+        .update({ project_id: projectId })
+        .eq("idempotency_key", `${body.idempotencyKey}:audit`)
+        .then(() => null, () => null);
+    }
+  }
+
+  let balanceAfter = Number(ledgerResult?.balance || 0);
+  let reservedBalanceAfter = Number(currentBalanceInfo?.reservedBalance || 0);
+  let lowCreditThreshold = 2;
+
+  const refreshedBalance = await getCreditBalance(supabase, organizationId);
+  balanceAfter = Number(refreshedBalance.balance ?? balanceAfter);
+  reservedBalanceAfter = Number(refreshedBalance.reservedBalance || 0);
+  lowCreditThreshold = Number(refreshedBalance.lowCreditThreshold || 2);
+
+  const { data: account, error: accountError } = await supabase
+    .from("credit_accounts")
+    .select("id,balance,low_credit_threshold")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (accountError) throw accountError;
+
+  if (Number.isFinite(requestedThreshold) && account?.id) {
+    lowCreditThreshold = Math.max(0, requestedThreshold);
+    const { error: thresholdError } = await supabase
+      .from("credit_accounts")
+      .update({
+        low_credit_threshold: lowCreditThreshold,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", account.id);
+
+    if (thresholdError) throw thresholdError;
+  }
+
+  if (["reserve", "consume", "adjust"].includes(type)) {
+    await detectAndNotifyCreditStatus(supabase, {
+      organizationId,
+      balance: balanceAfter,
+      availableBalance: balanceAfter - reservedBalanceAfter,
+      threshold: lowCreditThreshold,
+      recipientEmail,
+      relatedEntityId: deliverableId || requestId,
+    });
+  }
+
+  res.status(200).json({ balance: balanceAfter, lowCreditThreshold });
+}
+
 module.exports = async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) {
     res.status(405).json({ error: "Method not allowed." });
@@ -239,6 +397,11 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === "POST") {
+      const body = parseBody(req);
+      if (body.organizationId && body.type && ["grant", "reserve", "consume", "release", "adjust"].includes(body.type)) {
+        await handleLedgerAction(req, res);
+        return;
+      }
       await handleQueueAction(req, res);
       return;
     }

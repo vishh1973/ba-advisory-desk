@@ -2060,7 +2060,7 @@ function notifyAdvisorEventInBackground(payload) {
 }
 
 async function updateServerCreditLedger(payload) {
-  return fetchAdminApi("/api/ledger", {
+  return fetchAdminApi("/api/admin-queue", {
     method: "POST",
     body: payload,
   });
@@ -3162,11 +3162,13 @@ async function uploadAdminDeliverable() {
     return { ok: false, error: validationError };
   }
 
+  const fileRecords = [];
+
   setAdminReleaseStatus("Creating the controlled client release record.");
   const prepareResult = await withClientTimeout(
     fetchAdminApi("/api/deliverable-ready-notification", {
       method: "POST",
-      timeoutMs: getUploadOperationTimeoutMs(fileRecords, 30000, 180000),
+      timeoutMs: getUploadOperationTimeoutMs(files, 30000, 180000),
       body: {
         action: "prepare",
         organizationId,
@@ -3193,7 +3195,6 @@ async function uploadAdminDeliverable() {
   const versionNumber = prepared.versionNumber;
   const storagePrefix = prepared.storagePrefix || `clients/${organizationId}/deliverables/${deliverableId}/v${versionNumber}/`;
   const storagePaths = [];
-  const fileRecords = [];
   let uploaded = 0;
 
   const abortPreparedRelease = async () => {
