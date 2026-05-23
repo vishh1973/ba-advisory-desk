@@ -671,7 +671,7 @@ async function handleChargeRefundEvent(supabase, charge, eventType, eventId) {
     : [];
   const latestRefundId = refundIds[0] || null;
   let reversal = { reversed: false, needsReview: true, reason: "Partial refund or missing payment order requires admin review." };
-  let paymentStatus = isFullRefund ? "refunded_review_required" : "partial_refund_review_required";
+  let paymentStatus = isFullRefund ? "refund_review_required" : "partial_refund_review_required";
 
   if (isFullRefund && order?.id) {
     reversal = await reversePurchaseCreditsForStripeEvent(supabase, {
@@ -733,7 +733,7 @@ async function handleChargeRefundEvent(supabase, charge, eventType, eventId) {
       review_status: reversal.reversed ? "auto_reconciled" : "admin_review_required",
       reason: reversal.reversed
         ? "Full refund received. Unused Advisory Credits were reversed once."
-        : "Refund received. Admin review is required because the refund is partial, credits were already used, or the payment order could not be linked.",
+        : reversal.reason || "Refund received. Admin review is required before changing the client balance.",
     },
   });
 
@@ -749,7 +749,7 @@ async function handleChargeRefundEvent(supabase, charge, eventType, eventId) {
       credit_reversal: reversal,
       reason: reversal.reversed
         ? "Full refund processed and unused credits reversed."
-        : "Refund review event received. Review credits manually before changing the client balance.",
+        : reversal.reason || "Refund review event received. Review credits manually before changing the client balance.",
     },
   });
 }
