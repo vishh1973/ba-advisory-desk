@@ -48,6 +48,7 @@ ADMIN_EMAIL=vishh1973@gmail.com
 ADMIN_NOTIFICATION_EMAIL=vishh1973@gmail.com
 NOTIFICATION_FROM_EMAIL=BA Advisory Desk <support@baadvisorydesk.com>
 ADMIN_API_SECRET=
+CRON_SECRET=
 
 SUPABASE_URL=https://ydkehgqitnxmvqoicxwu.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
@@ -77,6 +78,7 @@ supabase/20260519_final_auth_workspace_hardening.sql
 supabase/20260520_client_project_workspaces.sql
 supabase/20260520_admin_deliverable_release_repair.sql
 supabase/20260520_security_qa_hardening.sql
+supabase/20260522_refund_dispute_review_pagination.sql
 ```
 
 This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, low-credit reminders, and final profile or workspace access hardening.
@@ -185,8 +187,20 @@ https://baadvisorydesk.com/api/stripe-webhook
 Events to send:
 
 - `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `checkout.session.async_payment_failed`
+- `checkout.session.expired`
 - `invoice.paid`
+- `invoice.payment_failed`
+- `invoice.payment_action_required`
+- `customer.subscription.updated`
+- `customer.subscription.paused`
+- `customer.subscription.resumed`
 - `customer.subscription.deleted`
+- `charge.refunded`
+- `charge.dispute.created`
+- `charge.dispute.updated`
+- `charge.dispute.closed`
 
 Copy the webhook signing secret into Vercel as:
 

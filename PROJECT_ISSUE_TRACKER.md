@@ -1,6 +1,6 @@
 # BA Advisory Desk Running Issue Tracker
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 ## Addressed In Code
 
@@ -118,6 +118,10 @@ Last updated: 2026-05-21
 - [x] Production deployment for commit `42743d8` verified as READY on Vercel after upload recovery and available-credit display updates.
 - [x] Live browser QA passed for client Messages And Files upload, billing view, sign out, and live file removal on 2026-05-21.
 - [x] Live admin release QA passed for controlled release preparation, private file upload, finalization, admin signed download, client signed download, and project-scoped client visibility on 2026-05-21.
+
+## Addressed In Documentation
+
+- [x] Refund, partial refund, dispute outcome, manual review, and idempotency rules are documented in `docs/refund-dispute-credit-reconciliation-rules.md`. Related code hardening remains tracked under Pending Architecture Work.
 
 ## In Progress
 

@@ -5,6 +5,7 @@ const {
   notifyPaymentConfirmed,
   recordAuditEvent,
   recordPaymentHistory,
+  reversePurchaseCreditsForStripeEvent,
   shouldIgnoreOptionalSchemaError,
 } = require("./_lib/paymentAndCredit");
 
@@ -57,14 +58,14 @@ async function insertWebhookEvent(supabase, event) {
     id: event.id,
     event_type: event.type,
     payload: event,
-    processing_status: "received",
+    processing_status: "processing",
   });
 
   if (!error) return { duplicate: false };
   if (error.code === "23505") {
     const { data: existingEvent, error: existingError } = await supabase
       .from("stripe_webhook_events")
-      .select("processing_status")
+      .select("processing_status,received_at,created_at,processed_at")
       .eq("id", event.id)
       .maybeSingle();
 
@@ -73,12 +74,18 @@ async function insertWebhookEvent(supabase, event) {
     if (status === "processed") {
       return { duplicate: true };
     }
+    const eventTime = existingEvent?.received_at || existingEvent?.created_at || existingEvent?.processed_at || null;
+    const eventAgeMs = eventTime ? Date.now() - new Date(eventTime).getTime() : 0;
+    if (status === "processing" && eventAgeMs < 10 * 60 * 1000) {
+      return { duplicate: true, processing: true };
+    }
 
     const { error: retryError } = await supabase
       .from("stripe_webhook_events")
       .update({
         payload: event,
-        processing_status: "received",
+        processing_status: "processing",
+        received_at: new Date().toISOString(),
         processed_at: null,
       })
       .eq("id", event.id);
@@ -465,9 +472,38 @@ async function updateOrderStatus(supabase, order, status, extra = {}) {
   if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
 }
 
+async function updatePaymentOrderReview(supabase, order, payload = {}) {
+  if (!order?.id || !Object.keys(payload).length) return;
+  const { error } = await supabase
+    .from("payment_orders")
+    .update({
+      ...payload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", order.id);
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+}
+
+function isFinalPaymentStatus(status) {
+  return ["paid", "refunded", "partially_refunded", "dispute_lost", "dispute_won"].includes(String(status || "").toLowerCase());
+}
+
 async function handleCheckoutPaymentIssue(supabase, session, eventType) {
   const order = await findOrderForCheckoutSession(supabase, session);
   if (!order) return;
+  if (isFinalPaymentStatus(order.status)) {
+    await recordAuditEvent(supabase, {
+      organizationId: order.organization_id,
+      eventType: "stale_checkout_issue_ignored",
+      eventDetail: {
+        payment_order_id: order.id,
+        stripe_checkout_session_id: session.id,
+        stripe_event_type: eventType,
+        current_status: order.status,
+      },
+    });
+    return;
+  }
   const status = eventType === "checkout.session.expired" ? "expired" : "payment_failed";
   await updateOrderStatus(supabase, order, status, {
     stripe_checkout_session_id: session.id || order.stripe_checkout_session_id || null,
@@ -501,6 +537,19 @@ async function handleInvoicePaymentIssue(supabase, stripe, invoice, eventType) {
   if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
 
   if (order?.id) {
+    if (isFinalPaymentStatus(order.status)) {
+      await recordAuditEvent(supabase, {
+        organizationId: order.organization_id,
+        eventType: "stale_invoice_issue_ignored",
+        eventDetail: {
+          payment_order_id: order.id,
+          stripe_invoice_id: invoice.id,
+          stripe_event_type: eventType,
+          current_status: order.status,
+        },
+      });
+      return;
+    }
     await updateOrderStatus(supabase, order, eventType === "invoice.payment_action_required" ? "payment_action_required" : "payment_failed", {
       stripe_payment_intent_id: invoice.payment_intent || order.stripe_payment_intent_id || null,
       stripe_customer_id: stripeCustomerIdFrom(invoice.customer) || order.stripe_customer_id || null,
@@ -533,55 +582,289 @@ async function handleSubscriptionUpdated(supabase, subscription, eventType) {
   });
 }
 
-async function handleChargeReviewEvent(supabase, charge, eventType, eventId) {
+async function findOrderForCharge(supabase, charge) {
   const paymentIntentId = typeof charge?.payment_intent === "string" ? charge.payment_intent : charge?.payment_intent?.id;
+  if (!paymentIntentId) return { order: null, paymentIntentId: null };
   let order = null;
-  if (paymentIntentId) {
-    const { data, error } = await supabase
-      .from("payment_orders")
-      .select("*")
-      .eq("stripe_payment_intent_id", paymentIntentId)
-      .maybeSingle();
-    if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
-    order = data || null;
-  }
+  const { data, error } = await supabase
+    .from("payment_orders")
+    .select("*")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (error && !shouldIgnoreOptionalSchemaError(error)) throw error;
+  order = data || null;
+  return { order, paymentIntentId };
+}
 
+async function insertPaymentReviewEvent(supabase, {
+  order,
+  eventType,
+  eventId,
+  paymentStatus,
+  amountCents,
+  currency,
+  paymentIntentId,
+  idempotencySuffix,
+  payload,
+}) {
+  const idempotencyKey = eventId ? `payment-review:${eventId}:${idempotencySuffix || "event"}` : null;
+  const reviewStatus = payload?.review_status || (paymentStatus?.includes("review") ? "admin_review_required" : "auto_reconciled");
+  const reviewKind = payload?.refund_scope ? "refund" : payload?.stripe_dispute_id ? "dispute" : "payment_review";
+  const basePayload = {
+    organization_id: order?.organization_id || null,
+    payment_order_id: order?.id || null,
+    stripe_event_id: eventId || null,
+    event_type: eventType,
+    payment_status: paymentStatus || "review_required",
+    amount_cents: Number(amountCents || 0),
+    currency: currency || order?.currency || "usd",
+    stripe_payment_intent_id: paymentIntentId || null,
+    stripe_charge_id: payload?.stripe_charge_id || null,
+    stripe_refund_id: payload?.stripe_refund_id || null,
+    stripe_dispute_id: payload?.stripe_dispute_id || null,
+    review_kind: reviewKind,
+    review_status: reviewStatus,
+    review_reason: payload?.reason || null,
+    review_required_at: reviewStatus === "admin_review_required" ? new Date().toISOString() : null,
+    credit_action_status: payload?.credit_reversal?.reversed ? "auto_reversed" : reviewStatus === "admin_review_required" ? "needs_review" : "not_required",
+    credit_action_ledger_id: payload?.credit_reversal?.ledgerId || null,
+    amount_refunded_cents: payload?.refunded_amount_cents || null,
+    disputed_amount_cents: payload?.stripe_dispute_id ? Number(amountCents || 0) : null,
+    idempotency_key: idempotencyKey,
+    event_payload: {
+      ...payload,
+      stripe_payment_intent_id: paymentIntentId || null,
+    },
+  };
+  const { error } = await supabase.from("payment_events").insert(basePayload);
+  if (!error) return;
+  if (error.code === "23505") return;
+  if (!shouldIgnoreOptionalSchemaError(error)) throw error;
+
+  const fallbackPayload = {
+    organization_id: basePayload.organization_id,
+    payment_order_id: basePayload.payment_order_id,
+    stripe_event_id: basePayload.stripe_event_id,
+    event_type: basePayload.event_type,
+    payment_status: basePayload.payment_status,
+    amount_cents: basePayload.amount_cents,
+    currency: basePayload.currency,
+    stripe_payment_intent_id: basePayload.stripe_payment_intent_id,
+    idempotency_key: basePayload.idempotency_key,
+    event_payload: basePayload.event_payload,
+  };
+  await supabase
+    .from("payment_events")
+    .insert(fallbackPayload)
+    .then(() => null, (fallbackError) => {
+      if (fallbackError?.code !== "23505") throw fallbackError;
+    });
+}
+
+async function handleChargeRefundEvent(supabase, charge, eventType, eventId) {
+  const { order, paymentIntentId } = await findOrderForCharge(supabase, charge);
+  const amount = Number(charge?.amount || order?.amount_cents || 0);
+  const amountRefunded = Number(charge?.amount_refunded || 0);
+  const isFullRefund = amount > 0 && amountRefunded >= amount;
   const refundIds = Array.isArray(charge?.refunds?.data)
     ? charge.refunds.data.map((refund) => refund.id).filter(Boolean)
     : [];
-  await supabase
-    .from("payment_events")
-    .insert({
-      organization_id: order?.organization_id || null,
-      payment_order_id: order?.id || null,
-      stripe_event_id: eventId || null,
-      event_type: eventType,
-      payment_status: "review_required",
-      amount_cents: Number(charge?.amount_refunded || charge?.amount || 0),
-      currency: charge?.currency || order?.currency || "usd",
-      stripe_payment_intent_id: paymentIntentId || null,
-      idempotency_key: eventId ? `payment-review:${eventId}` : null,
-      event_payload: {
-        stripe_charge_id: charge?.id || null,
-        stripe_payment_intent_id: paymentIntentId || null,
-        refund_ids: refundIds,
-        disputed: Boolean(charge?.disputed),
-        reason: "Manual credit review required. Do not adjust credits until the payment outcome is confirmed.",
-      },
-    })
-    .then(() => null, (error) => {
-      if (error?.code !== "23505") throw error;
+  const latestRefundId = refundIds[0] || null;
+  let reversal = { reversed: false, needsReview: true, reason: "Partial refund or missing payment order requires admin review." };
+  let paymentStatus = isFullRefund ? "refunded_review_required" : "partial_refund_review_required";
+
+  if (isFullRefund && order?.id) {
+    reversal = await reversePurchaseCreditsForStripeEvent(supabase, {
+      order,
+      stripeSourceId: `refund-${latestRefundId || charge?.id || eventId}`,
+      stripeChargeId: charge?.id || null,
+      stripeRefundId: latestRefundId,
+      reason: "Full Stripe refund credit reversal",
     });
+    paymentStatus = reversal.reversed ? "refunded" : "refund_review_required";
+    await updateOrderStatus(supabase, order, reversal.reversed ? "refunded" : "refund_review_required", {
+      stripe_payment_intent_id: paymentIntentId || order.stripe_payment_intent_id || null,
+    });
+    await updatePaymentOrderReview(supabase, order, {
+      stripe_charge_id: charge?.id || null,
+      stripe_refund_id: latestRefundId,
+      payment_review_status: reversal.reversed ? "resolved" : "open",
+      payment_review_kind: "refund",
+      payment_review_reason: reversal.reason || null,
+      payment_review_required_at: reversal.needsReview ? new Date().toISOString() : null,
+      payment_review_resolved_at: reversal.reversed ? new Date().toISOString() : null,
+      credit_action_status: reversal.reversed ? "auto_reversed" : "needs_review",
+      credit_action_ledger_id: reversal.ledgerId || null,
+      refunded_amount_cents: amountRefunded,
+    });
+  } else if (order?.id) {
+    await updateOrderStatus(supabase, order, "partially_refunded", {
+      stripe_payment_intent_id: paymentIntentId || order.stripe_payment_intent_id || null,
+    });
+    await updatePaymentOrderReview(supabase, order, {
+      stripe_charge_id: charge?.id || null,
+      stripe_refund_id: latestRefundId,
+      payment_review_status: "open",
+      payment_review_kind: "partial_refund",
+      payment_review_reason: "Partial refund requires manual Advisory Credit review.",
+      payment_review_required_at: new Date().toISOString(),
+      credit_action_status: "needs_review",
+      refunded_amount_cents: amountRefunded,
+    });
+  }
+
+  await insertPaymentReviewEvent(supabase, {
+    order,
+    eventType,
+    eventId,
+    paymentStatus,
+    amountCents: amountRefunded || amount,
+    currency: charge?.currency,
+    paymentIntentId,
+    idempotencySuffix: latestRefundId || charge?.id || "refund",
+    payload: {
+      stripe_charge_id: charge?.id || null,
+      stripe_refund_id: latestRefundId,
+      refund_ids: refundIds,
+      refunded_amount_cents: amountRefunded,
+      original_amount_cents: amount,
+      refund_scope: isFullRefund ? "full" : "partial",
+      credit_reversal: reversal,
+      review_status: reversal.reversed ? "auto_reconciled" : "admin_review_required",
+      reason: reversal.reversed
+        ? "Full refund received. Unused Advisory Credits were reversed once."
+        : "Refund received. Admin review is required because the refund is partial, credits were already used, or the payment order could not be linked.",
+    },
+  });
 
   await recordAuditEvent(supabase, {
     organizationId: order?.organization_id || null,
-    eventType: "payment_admin_review_required",
+    eventType: reversal.reversed ? "payment_credit_reversal_recorded" : "payment_admin_review_required",
     eventDetail: {
       payment_order_id: order?.id || null,
       stripe_charge_id: charge?.id || null,
       stripe_payment_intent_id: paymentIntentId || null,
       stripe_event_type: eventType,
-      reason: "Refund, dispute, or charge review event received. Review credits manually before changing the client balance.",
+      stripe_refund_id: latestRefundId,
+      credit_reversal: reversal,
+      reason: reversal.reversed
+        ? "Full refund processed and unused credits reversed."
+        : "Refund review event received. Review credits manually before changing the client balance.",
+    },
+  });
+}
+
+async function handleDisputeReviewEvent(supabase, stripe, dispute, eventType, eventId) {
+  const embeddedCharge = typeof dispute?.charge === "object" ? dispute.charge : null;
+  const chargeId = typeof dispute?.charge === "string" ? dispute.charge : embeddedCharge?.id;
+  let charge = embeddedCharge;
+  if (!charge && chargeId) {
+    charge = await stripe.charges.retrieve(chargeId);
+  }
+  const { order, paymentIntentId } = await findOrderForCharge(supabase, charge || {});
+  const status = String(dispute?.status || "").toLowerCase();
+  const isLost = ["lost", "charge_refunded"].includes(status);
+  const isWon = ["won"].includes(status);
+  const isClosed = eventType === "charge.dispute.closed" || isLost || isWon;
+  let reversal = {
+    reversed: false,
+    needsReview: !isWon,
+    reason: isWon ? "Dispute was won. No credit change needed." : "Dispute is open or needs admin review.",
+  };
+  let paymentStatus = isWon ? "dispute_won" : "dispute_review_required";
+
+  if (isClosed && isLost && order?.id) {
+    reversal = await reversePurchaseCreditsForStripeEvent(supabase, {
+      order,
+      stripeSourceId: `dispute-${dispute?.id || eventId}`,
+      stripeChargeId: chargeId,
+      stripeDisputeId: dispute?.id || null,
+      reason: "Lost Stripe dispute credit reversal",
+    });
+    paymentStatus = reversal.reversed ? "dispute_lost" : "dispute_lost_review_required";
+    await updateOrderStatus(supabase, order, reversal.reversed ? "dispute_lost" : "dispute_lost_review_required", {
+      stripe_payment_intent_id: paymentIntentId || order.stripe_payment_intent_id || null,
+    });
+    await updatePaymentOrderReview(supabase, order, {
+      stripe_charge_id: chargeId || null,
+      stripe_dispute_id: dispute?.id || null,
+      payment_review_status: reversal.reversed ? "resolved" : "open",
+      payment_review_kind: "lost_dispute",
+      payment_review_reason: reversal.reason || null,
+      payment_review_required_at: reversal.needsReview ? new Date().toISOString() : null,
+      payment_review_resolved_at: reversal.reversed ? new Date().toISOString() : null,
+      credit_action_status: reversal.reversed ? "auto_reversed" : "needs_review",
+      credit_action_ledger_id: reversal.ledgerId || null,
+      disputed_amount_cents: Number(dispute?.amount || charge?.amount || order?.amount_cents || 0),
+    });
+  } else if (isWon && order?.id) {
+    await updateOrderStatus(supabase, order, "dispute_won", {
+      stripe_payment_intent_id: paymentIntentId || order.stripe_payment_intent_id || null,
+    });
+    await updatePaymentOrderReview(supabase, order, {
+      stripe_charge_id: chargeId || null,
+      stripe_dispute_id: dispute?.id || null,
+      payment_review_status: "resolved",
+      payment_review_kind: "won_dispute",
+      payment_review_reason: "Stripe dispute was won. No credit change required.",
+      payment_review_resolved_at: new Date().toISOString(),
+      credit_action_status: "not_required",
+      disputed_amount_cents: Number(dispute?.amount || charge?.amount || order?.amount_cents || 0),
+    });
+  } else if (order?.id) {
+    await updateOrderStatus(supabase, order, "disputed", {
+      stripe_payment_intent_id: paymentIntentId || order.stripe_payment_intent_id || null,
+    });
+    await updatePaymentOrderReview(supabase, order, {
+      stripe_charge_id: chargeId || null,
+      stripe_dispute_id: dispute?.id || null,
+      payment_review_status: "open",
+      payment_review_kind: "open_dispute",
+      payment_review_reason: "Open dispute requires manual Advisory Credit review.",
+      payment_review_required_at: new Date().toISOString(),
+      credit_action_status: "needs_review",
+      disputed_amount_cents: Number(dispute?.amount || charge?.amount || order?.amount_cents || 0),
+    });
+  }
+
+  await insertPaymentReviewEvent(supabase, {
+    order,
+    eventType,
+    eventId,
+    paymentStatus,
+    amountCents: Number(dispute?.amount || charge?.amount || order?.amount_cents || 0),
+    currency: dispute?.currency || charge?.currency,
+    paymentIntentId,
+    idempotencySuffix: dispute?.id || chargeId || "dispute",
+    payload: {
+      stripe_charge_id: chargeId || null,
+      stripe_dispute_id: dispute?.id || null,
+      dispute_status: status || "unknown",
+      dispute_reason: dispute?.reason || null,
+      credit_reversal: reversal,
+      review_status: reversal.reversed || isWon ? "auto_reconciled" : "admin_review_required",
+      reason: reversal.reversed
+        ? "Lost dispute received. Unused Advisory Credits were reversed once."
+        : isWon
+          ? "Dispute was won. No credit change is required."
+          : "Dispute event received. Keep the payment in review until Stripe confirms the outcome.",
+    },
+  });
+
+  await recordAuditEvent(supabase, {
+    organizationId: order?.organization_id || null,
+    eventType: reversal.reversed ? "payment_credit_reversal_recorded" : "payment_admin_review_required",
+    eventDetail: {
+      payment_order_id: order?.id || null,
+      stripe_charge_id: chargeId || null,
+      stripe_dispute_id: dispute?.id || null,
+      stripe_payment_intent_id: paymentIntentId || null,
+      stripe_event_type: eventType,
+      dispute_status: status || "unknown",
+      credit_reversal: reversal,
+      reason: reversal.reversed
+        ? "Lost dispute processed and unused credits reversed."
+        : "Dispute review event received. Review credits manually before changing the client balance.",
     },
   });
 }
@@ -631,8 +914,12 @@ module.exports = async function handler(req, res) {
       await handleSubscriptionDeleted(supabase, event.data.object);
     }
 
-    if (["charge.refunded", "charge.dispute.created", "charge.dispute.updated"].includes(event.type)) {
-      await handleChargeReviewEvent(supabase, event.data.object, event.type, event.id);
+    if (event.type === "charge.refunded") {
+      await handleChargeRefundEvent(supabase, event.data.object, event.type, event.id);
+    }
+
+    if (["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"].includes(event.type)) {
+      await handleDisputeReviewEvent(supabase, stripe, event.data.object, event.type, event.id);
     }
 
     await markWebhookEvent(supabase, event.id, "processed");

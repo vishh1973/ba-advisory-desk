@@ -10,7 +10,7 @@ const {
 } = require("./_lib/paymentAndCredit");
 
 const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
-const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created"];
+const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created", "checkout_completed"];
 const CHECKOUT_REUSE_WINDOW_MS = 23 * 60 * 60 * 1000;
 
 function normalizeEmail(email) {
@@ -169,8 +169,13 @@ async function findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKe
       if (String(session.status || "").toLowerCase() === "open" && session.url) {
         return { order, session };
       }
-      if (["complete", "expired"].includes(String(session.status || "").toLowerCase())) {
-        await markOrderStatusQuietly(supabase, order.id, String(session.status || "").toLowerCase() === "complete" ? "checkout_completed" : "expired");
+      const sessionStatus = String(session.status || "").toLowerCase();
+      if (sessionStatus === "complete") {
+        await markOrderStatusQuietly(supabase, order.id, "checkout_completed");
+        return { order, session, completed: true, paid: isSessionPaid(session) };
+      }
+      if (sessionStatus === "expired") {
+        await markOrderStatusQuietly(supabase, order.id, "expired");
       }
     } catch (_error) {
       return { order, lookupBlocked: true };
@@ -435,6 +440,53 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
   };
 }
 
+async function readCheckoutSessionStatus({ supabase, stripe, bearerToken, sessionId }) {
+  if (!bearerToken) {
+    return { status: 401, body: { error: "Please sign in before checking checkout status." } };
+  }
+
+  if (!sessionId) {
+    return { status: 400, body: { error: "Checkout session was not provided." } };
+  }
+
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const metadata = session.metadata || {};
+  const paymentOrderId = metadata.payment_order_id || null;
+  let orderQuery = supabase.from("payment_orders").select("*");
+  orderQuery = paymentOrderId
+    ? orderQuery.eq("id", paymentOrderId)
+    : orderQuery.eq("stripe_checkout_session_id", session.id);
+
+  const { data: order, error: orderError } = await orderQuery.maybeSingle();
+  if (orderError) throw orderError;
+  if (!order) {
+    return { status: 404, body: { error: "Payment record could not be found for this checkout session." } };
+  }
+
+  const organizationId = order.organization_id || metadata.organization_id || metadata.workspace_id || null;
+  const workspace = await getAuthenticatedWorkspace({ supabase, bearerToken, organizationId });
+  if (workspace.error) {
+    return { status: workspace.status, body: { error: workspace.error } };
+  }
+
+  const balance = await getCreditBalance(supabase, organizationId);
+  return {
+    status: 200,
+    body: {
+      confirmed: String(order.status || "").toLowerCase() === "paid" || isSessionPaid(session),
+      orderStatus: order.status || "pending",
+      stripeStatus: session.status || "unknown",
+      paymentStatus: session.payment_status || "unknown",
+      productType: order.product_type,
+      credits: Number(order.credits || 0),
+      amountCents: Number(order.amount_cents || 0),
+      currency: order.currency || "usd",
+      balance: balance.balance,
+      lowCreditThreshold: balance.lowCreditThreshold,
+    },
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed." });
@@ -454,6 +506,17 @@ module.exports = async function handler(req, res) {
 
     if (action === "reconcile_checkout") {
       const result = await reconcileCheckoutSession({
+        supabase,
+        stripe,
+        bearerToken,
+        sessionId: body.sessionId || body.session_id,
+      });
+      res.status(result.status).json(result.body);
+      return;
+    }
+
+    if (action === "checkout_status") {
+      const result = await readCheckoutSessionStatus({
         supabase,
         stripe,
         bearerToken,
@@ -524,6 +587,15 @@ module.exports = async function handler(req, res) {
       res.status(200).json({ url: reusableAttempt.session.url, reused: true });
       return;
     }
+    if (reusableAttempt?.completed) {
+      res.status(409).json({
+        error: reusableAttempt.paid
+          ? "A completed checkout is already being confirmed for this workspace. Please open billing before starting another checkout."
+          : "A recent checkout is closed and still being verified. Please open billing before starting another checkout.",
+        sessionId: reusableAttempt.session?.id || null,
+      });
+      return;
+    }
     if (reusableAttempt?.lookupBlocked) {
       res.status(409).json({ error: "Secure checkout is already open or being verified. Please wait a moment and try again." });
       return;
@@ -545,6 +617,15 @@ module.exports = async function handler(req, res) {
         const waitingAttempt = await findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKey });
         if (waitingAttempt?.session?.url) {
           res.status(200).json({ url: waitingAttempt.session.url, reused: true });
+          return;
+        }
+        if (waitingAttempt?.completed) {
+          res.status(409).json({
+            error: waitingAttempt.paid
+              ? "A completed checkout is already being confirmed for this workspace. Please open billing before starting another checkout."
+              : "A recent checkout is closed and still being verified. Please open billing before starting another checkout.",
+            sessionId: waitingAttempt.session?.id || null,
+          });
           return;
         }
         if (waitingAttempt?.lookupBlocked) {

@@ -46,7 +46,7 @@ const remotePageSizes = {
 
 function createRemotePaginationState() {
   return {
-    adminQueue: { offset: 0, hasMore: false, loading: false },
+    adminQueue: { offset: 0, hasMore: false, loading: false, sources: {} },
     clientRequests: { offset: 0, hasMore: false, loading: false },
     clientDeliverables: { offset: 0, hasMore: false, loading: false },
     clientRequestFiles: { offset: 0, hasMore: false, loading: false },
@@ -2062,15 +2062,39 @@ async function handleCheckoutSuccessView() {
 
   if (!result.ok) {
     checkoutReconcileSessionId = "";
+    let statusResult = null;
+    try {
+      statusResult = await withClientTimeout(
+        fetchClientApi("/api/create-checkout-session", {
+          method: "POST",
+          body: {
+            action: "checkout_status",
+            sessionId,
+          },
+        }),
+        8000,
+        "Checkout status is still being refreshed."
+      );
+    } catch (_statusError) {
+      statusResult = null;
+    }
     await withClientTimeout(loadClientWorkspaceData(), 8000, "Workspace refresh is taking longer than expected.").catch(() => null);
     render();
     const creditsNow = Number(state.creditsLeft || 0);
-    if (creditsNow > priorCredits) {
+    const statusData = statusResult?.ok ? statusResult.data || {} : {};
+    const statusConfirmed = Boolean(statusData.confirmed || String(statusData.orderStatus || "").toLowerCase() === "paid");
+    if (creditsNow > priorCredits || statusConfirmed) {
       clearPendingCheckoutType();
       clearPendingCheckoutSessionId();
+      state.creditsLeft = Number(statusData.balance ?? state.creditsLeft);
+      state.creditThreshold = Number(statusData.lowCreditThreshold ?? state.creditThreshold);
+      const confirmedCredits = Number(statusData.credits || 0);
+      const creditSummary = confirmedCredits > 0
+        ? `Your current Advisory Credit balance is ${Number(state.creditsLeft || creditsNow)}.`
+        : "Your payment is connected to this client workspace.";
       setCheckoutStatus({
         title: "Payment confirmed.",
-        body: `Your workspace billing has been updated. Your current Advisory Credit balance is ${creditsNow}.`,
+        body: `Your workspace billing has been updated. ${creditSummary}`,
         status: "Use the button below when you are ready to return to the workspace.",
         level: "success",
         panelHtml: `
@@ -2078,7 +2102,7 @@ async function handleCheckoutSuccessView() {
           <ul class="check-list">
             <li>Payment has been matched to this client workspace.</li>
             <li>Billing history has been refreshed.</li>
-            <li>Current Advisory Credit balance: ${escapeHtml(creditsNow)}</li>
+            <li>${escapeHtml(creditSummary)}</li>
           </ul>
         `,
       });
@@ -5673,6 +5697,7 @@ async function loadAdminQueue() {
   setAdminStatus("Loading admin queue.");
   state.remotePagination.adminQueue.offset = 0;
   state.remotePagination.adminQueue.hasMore = false;
+  state.remotePagination.adminQueue.sources = {};
   const result = await fetchAdminApi(`/api/admin-queue?limit=${remotePageSizes.adminQueue}&offset=0`);
 
   if (!result.ok) {
@@ -5684,6 +5709,7 @@ async function loadAdminQueue() {
   applyAdminQueueData(result.data || {});
   state.remotePagination.adminQueue.offset = Number(result.data?.pagination?.nextOffset ?? remotePageSizes.adminQueue);
   state.remotePagination.adminQueue.hasMore = Boolean(result.data?.pagination?.hasMore);
+  state.remotePagination.adminQueue.sources = result.data?.pagination?.sources || {};
   const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
   setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
   render();
@@ -5697,7 +5723,16 @@ async function loadMoreAdminQueue() {
   setAdminStatus("Loading older admin records.");
   const offset = Number(page.offset || 0);
   try {
-    const result = await fetchAdminApi(`/api/admin-queue?limit=${remotePageSizes.adminQueue}&offset=${offset}`);
+    const params = new URLSearchParams({
+      limit: String(remotePageSizes.adminQueue),
+      offset: String(offset),
+    });
+    const sourceOffsets = Object.entries(page.sources || {}).reduce((acc, [key, value]) => {
+      acc[key] = Number(value?.nextOffset ?? offset);
+      return acc;
+    }, {});
+    if (Object.keys(sourceOffsets).length) params.set("sourceOffsets", JSON.stringify(sourceOffsets));
+    const result = await fetchAdminApi(`/api/admin-queue?${params.toString()}`);
     if (!result.ok) {
       setAdminStatus(result.error || "Older admin records could not be loaded.");
       showToast(result.error || "Older admin records could not be loaded.");
@@ -5706,6 +5741,7 @@ async function loadMoreAdminQueue() {
     applyAdminQueueData(result.data || {}, { append: true });
     page.offset = Number(result.data?.pagination?.nextOffset ?? offset + remotePageSizes.adminQueue);
     page.hasMore = Boolean(result.data?.pagination?.hasMore);
+    page.sources = result.data?.pagination?.sources || page.sources || {};
     const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
     setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
     return true;

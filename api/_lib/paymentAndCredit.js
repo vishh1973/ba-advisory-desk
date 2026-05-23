@@ -271,6 +271,199 @@ async function grantPurchaseCreditsWithLegacyRpc(supabase, {
   };
 }
 
+function isInsufficientCreditsError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return message.includes("insufficient credits") || message.includes("available credits");
+}
+
+async function getPaymentCreditReversalReadiness(supabase, order, credits) {
+  const { data: account, error: accountError } = await supabase
+    .from("credit_accounts")
+    .select("balance,reserved_balance")
+    .eq("organization_id", order.organization_id)
+    .maybeSingle();
+
+  if (accountError && !shouldIgnoreOptionalSchemaError(accountError)) throw accountError;
+
+  const balance = Number(account?.balance || 0);
+  const reservedBalance = Number(account?.reserved_balance || 0);
+  if (reservedBalance > 0) {
+    return {
+      ready: false,
+      reason: "Credits are reserved for active work. Review before reversing payment credits.",
+    };
+  }
+
+  if (balance < credits) {
+    return {
+      ready: false,
+      reason: "Credits from this payment have already been used or expired.",
+    };
+  }
+
+  const { data: grantRows, error: grantError } = await supabase
+    .from("credit_ledger")
+    .select("id,credits,grant_remaining,expires_at")
+    .eq("organization_id", order.organization_id)
+    .eq("related_payment_id", order.id);
+
+  if (grantError && shouldIgnoreOptionalSchemaError(grantError)) {
+    return {
+      ready: false,
+      reason: "Credit grant ledger details are not available.",
+    };
+  }
+  if (grantError) throw grantError;
+
+  const rows = Array.isArray(grantRows) ? grantRows : [];
+  const hasRemainingField = rows.some((row) => Object.prototype.hasOwnProperty.call(row, "grant_remaining"));
+  if (!hasRemainingField) {
+    return {
+      ready: false,
+      reason: "Credit grant remaining balance could not be verified.",
+    };
+  }
+
+  const unusedSourceCredits = rows
+    .filter((row) => Number(row.credits || 0) > 0)
+    .reduce((total, row) => {
+      const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : null;
+      if (expiresAt && expiresAt <= Date.now()) return total;
+      return total + Math.max(0, Number(row.grant_remaining || 0));
+    }, 0);
+
+  if (unusedSourceCredits < credits) {
+    return {
+      ready: false,
+      reason: "Credits from this payment have already been used or expired.",
+    };
+  }
+
+  return { ready: true };
+}
+
+async function findExistingCreditReversal(supabase, order, idempotencyKey) {
+  const { data, error } = await supabase
+    .from("credit_ledger")
+    .select("id,balance_after,reserved_balance_after")
+    .eq("organization_id", order.organization_id)
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+
+  if (error && shouldIgnoreOptionalSchemaError(error)) return null;
+  if (error) throw error;
+  if (!data?.id) return null;
+
+  return {
+    reversed: true,
+    needsReview: false,
+    balanceAfter: data.balance_after ?? null,
+    reservedBalanceAfter: data.reserved_balance_after ?? null,
+    ledgerId: data.id,
+    idempotencyKey,
+    duplicate: true,
+    reason: "Credit reversal already recorded.",
+  };
+}
+
+async function reversePurchaseCreditsForStripeEvent(supabase, {
+  order,
+  stripeSourceId,
+  stripeChargeId,
+  stripeRefundId,
+  stripeDisputeId,
+  reason = "Stripe refund or dispute reversal",
+  actorId = null,
+}) {
+  if (!CREDIT_PRODUCTS.has(order?.product_type)) {
+    return { reversed: false, needsReview: false, reason: "Product does not grant credits." };
+  }
+
+  const credits = Number(order.credits || 0);
+  if (!order.organization_id || credits <= 0) {
+    return { reversed: false, needsReview: false, reason: "No eligible workspace or credit amount." };
+  }
+
+  const normalizedSourceId = String(stripeSourceId || "").trim();
+  if (!normalizedSourceId) {
+    return { reversed: false, needsReview: true, reason: "Stripe reversal source is missing." };
+  }
+
+  const idempotencyKey = `stripe-${normalizedSourceId}-credit-reversal`;
+  const existingReversal = await findExistingCreditReversal(supabase, order, idempotencyKey);
+  if (existingReversal) return existingReversal;
+
+  const readiness = await getPaymentCreditReversalReadiness(supabase, order, credits);
+  if (!readiness.ready) {
+    return {
+      reversed: false,
+      needsReview: true,
+      reason: readiness.reason,
+      idempotencyKey,
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .rpc("apply_credit_change", {
+        p_organization_id: order.organization_id,
+        p_entry_type: "refund",
+        p_credits: credits,
+        p_entry_reason: reason,
+        p_related_payment_id: order.id || null,
+        p_source: "stripe",
+        p_idempotency_key: idempotencyKey,
+        p_actor_id: actorId,
+      })
+      .single();
+
+    if (error) throw error;
+
+    if (data?.ledger_id) {
+      await supabase
+        .from("credit_ledger")
+        .update({
+          stripe_charge_id: stripeChargeId || null,
+          stripe_refund_id: stripeRefundId || null,
+          stripe_dispute_id: stripeDisputeId || null,
+        })
+        .eq("id", data.ledger_id)
+        .then(() => null, (updateError) => {
+          if (!shouldIgnoreOptionalSchemaError(updateError)) throw updateError;
+        });
+    }
+
+    return {
+      reversed: true,
+      needsReview: false,
+      balanceAfter: data?.balance ?? null,
+      reservedBalanceAfter: data?.reserved_balance ?? null,
+      ledgerId: data?.ledger_id || null,
+      idempotencyKey,
+    };
+  } catch (error) {
+    if (shouldIgnoreOptionalSchemaError(error)) {
+      return {
+        reversed: false,
+        needsReview: true,
+        reason: "Credit reversal schema is not installed.",
+        error: error.message || String(error),
+        idempotencyKey,
+      };
+    }
+    if (isInsufficientCreditsError(error)) {
+      return {
+        reversed: false,
+        needsReview: true,
+        reason: "Credits from this payment have already been used or expired.",
+        error: error.message || String(error),
+        idempotencyKey,
+      };
+    }
+    throw error;
+  }
+}
+
 function addDaysIso(value, days) {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return new Date(Date.now() + days * 86400000).toISOString();
@@ -419,6 +612,7 @@ module.exports = {
   notifyPaymentConfirmed,
   recordAuditEvent,
   recordPaymentHistory,
+  reversePurchaseCreditsForStripeEvent,
   sendAndRecordEmail,
   shouldIgnoreOptionalSchemaError,
   updateNotificationDeliveryStatus,
