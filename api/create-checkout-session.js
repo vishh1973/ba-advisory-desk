@@ -773,6 +773,13 @@ module.exports = async function handler(req, res) {
         : action === "reconcile_checkout"
           ? "Payment could not be confirmed. Please open billing or contact support if the balance does not update."
           : "Checkout could not be created.";
+    console.error("Checkout API failure", {
+      action,
+      message: error.message || "Unknown checkout error.",
+      type: error.type || null,
+      code: error.code || null,
+      param: error.param || null,
+    });
     res.status(500).json({
       error: errorMessage,
     });
