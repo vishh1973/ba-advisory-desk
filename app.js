@@ -128,6 +128,9 @@ const state = {
   adminUploadProjectId: null,
   adminQueueFocus: "",
   adminMessageContext: null,
+  adminMessageOperationId: "",
+  adminCreditOperationId: "",
+  adminCreditOperationFingerprint: "",
   adminNewCount: 0,
   quoteCount: 0,
   passwordRecovery: false,
@@ -5048,6 +5051,7 @@ function openAdminMessageComposer(queueItem = null) {
 
   const context = resolveAdminMessageContext(queueItem);
   state.adminMessageContext = context;
+  state.adminMessageOperationId = crypto.randomUUID ? crypto.randomUUID() : `admin-message-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   const clientName = context.client?.name || queueItem?.client || "Selected client";
   const projectName = context.project ? getProjectLabel(context.project) : queueItem?.projectLabel || "General advisory work";
   if (contextText) {
@@ -5070,6 +5074,7 @@ function openAdminMessageComposer(queueItem = null) {
 function closeAdminMessageComposer() {
   document.querySelector("#adminMessageComposer")?.classList.add("hidden");
   state.adminMessageContext = null;
+  state.adminMessageOperationId = "";
   clearFieldErrors("#adminMessageComposer");
 }
 
@@ -5110,6 +5115,7 @@ async function sendAdminClientMessage() {
       message,
       relatedEntityType: context.relatedEntityType || "workspace",
       relatedEntityId: context.relatedEntityId || null,
+      operationId: state.adminMessageOperationId || "",
     },
   });
 
@@ -6442,6 +6448,7 @@ document.addEventListener("click", async (event) => {
     syncSelectedAdminProjectToClient();
     saveState();
     render();
+    await loadAdminQueue();
     showToast("Client file opened.");
     return;
   }
@@ -6508,6 +6515,16 @@ document.addEventListener("click", async (event) => {
     }
 
     if (selectedClient.id && (ledgerAdjustment !== 0 || thresholdChanged)) {
+      const creditOperationFingerprint = [
+        selectedClient.id,
+        ledgerAdjustment,
+        lowCreditThreshold,
+        reason || "Credit account update",
+      ].join("|");
+      if (state.adminCreditOperationFingerprint !== creditOperationFingerprint || !state.adminCreditOperationId) {
+        state.adminCreditOperationFingerprint = creditOperationFingerprint;
+        state.adminCreditOperationId = crypto.randomUUID ? crypto.randomUUID() : `admin-credit-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      }
       const result = await updateServerCreditLedger({
         organizationId: selectedClient.id,
         type: "adjust",
@@ -6515,7 +6532,7 @@ document.addEventListener("click", async (event) => {
         reason: reason || "Credit account update",
         lowCreditThreshold,
         recipientEmail: getClientEmail(selectedClient),
-        idempotencyKey: `admin-credit-${selectedClient.id}-${Date.now()}`,
+        idempotencyKey: `admin-credit-${selectedClient.id}-${state.adminCreditOperationId}`,
       });
 
       if (!result.ok) {
@@ -6523,6 +6540,8 @@ document.addEventListener("click", async (event) => {
         return;
       }
 
+      state.adminCreditOperationId = "";
+      state.adminCreditOperationFingerprint = "";
       state.creditsLeft = Number(result.data.balance ?? targetBalance);
     } else {
       state.creditsLeft = targetBalance;
