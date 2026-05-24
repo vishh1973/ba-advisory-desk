@@ -4,11 +4,23 @@ const { MAX_UPLOAD_FILES, removeStorageObjectsQuietly, validateStoredFile } = re
 
 const BUCKET = "client-files";
 
-function parseBody(req) {
-  if (typeof req.body === "string") {
-    return JSON.parse(req.body || "{}");
+class InvalidJsonBodyError extends Error {
+  constructor() {
+    super("Request body must be valid JSON.");
+    this.name = "InvalidJsonBodyError";
   }
-  return req.body || {};
+}
+
+function parseBody(req) {
+  try {
+    const rawBody = req.body;
+    if (typeof rawBody === "string") {
+      return JSON.parse(rawBody || "{}");
+    }
+    return rawBody || {};
+  } catch (error) {
+    throw new InvalidJsonBodyError();
+  }
 }
 
 function readHeader(req, name) {
@@ -190,13 +202,14 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const supabase = getSupabaseAdmin();
+  let supabase;
   let body = {};
   let userId = "";
   let files = [];
 
   try {
     body = parseBody(req);
+    supabase = getSupabaseAdmin();
     const token = readBearerToken(req);
     if (!token) {
       res.status(401).json({ error: "Please sign in before uploading files." });
@@ -338,8 +351,12 @@ module.exports = async function handler(req, res) {
       files: records,
     });
   } catch (error) {
-    if (userId && files.length) {
+    if (supabase && userId && files.length) {
       await abortUploadedFiles(supabase, userId, files).catch(() => null);
+    }
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
     }
     const message = error.message || "Files could not be attached to the workspace.";
     res.status(500).json({ error: message });

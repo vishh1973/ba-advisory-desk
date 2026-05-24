@@ -2415,6 +2415,37 @@ input[type="file"]::file-selector-button:hover {
   min-width: 720px;
 }
 
+.admin-portfolio-controls {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(150px, 0.55fr));
+  margin: 0 0 14px;
+}
+
+.admin-portfolio-controls label {
+  color: var(--slate);
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 5px;
+}
+
+.admin-portfolio-controls input,
+.admin-portfolio-controls select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+@media (max-width: 760px) {
+  .admin-portfolio-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-portfolio-panel td strong,
 .admin-portfolio-panel td span {
   display: block;

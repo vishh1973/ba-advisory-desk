@@ -5,11 +5,23 @@ const { createEmailReference, htmlWithReference, subjectWithReference, textWithR
 const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 
-function parseBody(req) {
-  if (typeof req.body === "string") {
-    return JSON.parse(req.body || "{}");
+class InvalidJsonBodyError extends Error {
+  constructor() {
+    super("Request body must be valid JSON.");
+    this.name = "InvalidJsonBodyError";
   }
-  return req.body || {};
+}
+
+function parseBody(req) {
+  try {
+    const rawBody = req.body;
+    if (typeof rawBody === "string") {
+      return JSON.parse(rawBody || "{}");
+    }
+    return rawBody || {};
+  } catch (error) {
+    throw new InvalidJsonBodyError();
+  }
 }
 
 function escapeHtml(value) {
@@ -208,6 +220,10 @@ module.exports = async function handler(req, res) {
       recipientEmail,
     });
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: error.message || "Deliverable notification could not be sent." });
   }
 };

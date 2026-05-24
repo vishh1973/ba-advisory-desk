@@ -1484,6 +1484,31 @@
                 <p>Scan every client workspace before drilling into one file.</p>
               </div>
             </div>
+            <div class="admin-portfolio-controls" aria-label="Client portfolio controls">
+              <label>
+                Search clients
+                <input id="adminPortfolioSearch" type="search" placeholder="Company, email, project, status" autocomplete="off" />
+              </label>
+              <label>
+                Filter
+                <select id="adminPortfolioFilter">
+                  <option value="all">All clients</option>
+                  <option value="active">Open work</option>
+                  <option value="paid">Paid / credited</option>
+                  <option value="low-credit">Low or blocked credits</option>
+                  <option value="new-requests">New requests</option>
+                </select>
+              </label>
+              <label>
+                Sort
+                <select id="adminPortfolioSort">
+                  <option value="open-desc">Open items first</option>
+                  <option value="activity-desc">Last activity first</option>
+                  <option value="credits-asc">Lowest credits first</option>
+                  <option value="name-asc">Client name A-Z</option>
+                </select>
+              </label>
+            </div>
             <table id="adminClientPortfolioTable">
               <thead>
                 <tr><th>Client</th><th>Health</th><th>Credits</th><th>Open items</th><th>Last activity</th></tr>

@@ -127,6 +127,9 @@ const state = {
   selectedAdminProjectId: "",
   adminUploadProjectId: null,
   adminQueueFocus: "",
+  adminPortfolioSearch: "",
+  adminPortfolioFilter: "all",
+  adminPortfolioSort: "open-desc",
   adminMessageContext: null,
   adminMessageOperationId: "",
   adminCreditOperationId: "",
@@ -3719,7 +3722,9 @@ function setView() {
 
   if (key === "admin" && state.session?.user && !isAdminUser()) {
     key = "dashboard";
-    showToast("Admin access is restricted to the administrator email.");
+    window.history.replaceState(null, "", `${window.location.pathname}#dashboard`);
+    setAuthStatus("You are signed in, but this account is not authorized for the Operations Desk.");
+    showToast("Admin access is restricted to authorized staff accounts.");
   }
 
   if (key === "login" && state.session?.user && !state.passwordRecovery && isEmailVerified()) {
@@ -3840,6 +3845,7 @@ function renderRequests() {
           <td><span class="status-pill ${escapeHtml(statusLevel)}">${escapeHtml(normalizeVerificationStatus(item.status))}</span></td>
           <td>
             <div class="table-actions">
+              <button class="secondary small" type="button" data-admin-action="open-dossier" data-organization-id="${escapeHtml(item.organizationId || "")}" data-project-id="${escapeHtml(item.projectId || "")}">Open dossier</button>
               <button class="secondary small" type="button" data-admin-action="open-message-client" data-queue-key="${escapeHtml(queueKey)}">Message</button>
               ${
                 canUpload
@@ -3861,8 +3867,16 @@ function renderRequests() {
     )
     .join("");
 
+  const adminEmptyText = (() => {
+    if (state.adminQueueFocus === "files") return "No file review items match the current client/project filter.";
+    if (state.adminQueueFocus === "payments") return "No payment review items match the current client/project filter.";
+    if (state.adminQueueFocus === "messages") return "No client messages match the current client/project filter.";
+    if (state.adminQueueFocus === "quote") return "No custom inquiries match the current client/project filter.";
+    if (state.selectedAdminClientId) return "No open admin queue items for the selected client and project scope.";
+    return "No open admin queue items. Use the portfolio filters to review clients, credits, and released work.";
+  })();
   document.querySelector("#adminTable tbody").innerHTML =
-    adminRows || `<tr><td colspan="5" class="empty-cell">No admin queue items for the selected client.</td></tr>`;
+    adminRows || `<tr><td colspan="5" class="empty-cell">${escapeHtml(adminEmptyText)}</td></tr>`;
   renderLoadMoreFooter("#adminTable", {
     key: "adminQueue",
     total: adminSource.length,
@@ -4851,28 +4865,100 @@ function renderAdminSnapshot() {
   if (alertSummary) alertSummary.textContent = lowCreditClients ? `${lowCreditClients} client${lowCreditClients === 1 ? "" : "s"} need review` : "No credit alerts";
 }
 
+function getAdminClientActivityTime(client) {
+  const values = [
+    ...state.adminQueue.filter((item) => isSelectedAdminRecord(item, client)).map((item) => item.dueAt || item.createdAt),
+    ...state.adminDeliverables.filter((item) => isSelectedAdminRecord(item, client)).map((item) => item.updatedAt || item.createdAt),
+    ...state.adminCreditLedger.filter((item) => isSelectedAdminRecord(item, client)).map((item) => item.rawDate || item.date),
+    ...state.adminPaymentHistory.filter((item) => isSelectedAdminRecord(item, client)).map((item) => item.rawDate || item.date),
+  ];
+  return values
+    .map((value) => new Date(value || 0).getTime())
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a)[0] || 0;
+}
+
+function getAdminNewRequestCountForClient(client) {
+  return state.adminQueue.filter(
+    (item) =>
+      item.queueType === "request" &&
+      isSelectedAdminRecord(item, client) &&
+      isAdminQueueOpenItem(item) &&
+      ["new", "submitted", "received", "pending"].includes(normalizeStatusValue(item.status))
+  ).length;
+}
+
+function getFilteredAdminPortfolioClients() {
+  const search = String(state.adminPortfolioSearch || "").trim().toLowerCase();
+  const filter = state.adminPortfolioFilter || "all";
+  const sort = state.adminPortfolioSort || "open-desc";
+  const matchesSearch = (client) => {
+    if (!search) return true;
+    const projects = (client.projects || []).map((project) => getProjectLabel(project)).join(" ");
+    const haystack = [
+      client.name,
+      client.company,
+      client.billingEmail,
+      client.email,
+      getClientEmail(client),
+      getAdminClientHealth(client),
+      projects,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(search);
+  };
+  const matchesFilter = (client) => {
+    const openItems = getAdminOpenItemsForClient(client).length;
+    const creditBalance = getAdminCreditBalanceForOrganization(client.id);
+    const health = getAdminClientHealth(client);
+    if (filter === "active") return openItems > 0;
+    if (filter === "paid") return creditBalance > 0 || state.adminPaymentHistory.some((item) => isSelectedAdminRecord(item, client));
+    if (filter === "low-credit") return ["Blocked", "Needs top up"].includes(health);
+    if (filter === "new-requests") return getAdminNewRequestCountForClient(client) > 0;
+    return true;
+  };
+  const clients = state.adminClients.filter((client) => matchesSearch(client) && matchesFilter(client));
+  return clients.sort((a, b) => {
+    if (sort === "activity-desc") return getAdminClientActivityTime(b) - getAdminClientActivityTime(a);
+    if (sort === "credits-asc") return getAdminCreditBalanceForOrganization(a.id) - getAdminCreditBalanceForOrganization(b.id);
+    if (sort === "name-asc") return String(a.name || getClientEmail(a) || "").localeCompare(String(b.name || getClientEmail(b) || ""));
+    return getAdminOpenItemsForClient(b).length - getAdminOpenItemsForClient(a).length;
+  });
+}
+
 function renderAdminClientPortfolio() {
   const table = document.querySelector("#adminClientPortfolioTable tbody");
   if (!table) return;
-  const clients = state.adminClients;
-  if (!clients.length) {
+  const searchInput = document.querySelector("#adminPortfolioSearch");
+  const filterSelect = document.querySelector("#adminPortfolioFilter");
+  const sortSelect = document.querySelector("#adminPortfolioSort");
+  if (searchInput && searchInput.value !== state.adminPortfolioSearch) searchInput.value = state.adminPortfolioSearch || "";
+  if (filterSelect && filterSelect.value !== state.adminPortfolioFilter) filterSelect.value = state.adminPortfolioFilter || "all";
+  if (sortSelect && sortSelect.value !== state.adminPortfolioSort) sortSelect.value = state.adminPortfolioSort || "open-desc";
+  const clients = getFilteredAdminPortfolioClients();
+  if (!state.adminClients.length) {
     table.innerHTML = `<tr><td colspan="5" class="empty-cell">No client workspaces are available yet.</td></tr>`;
+    return;
+  }
+  if (!clients.length) {
+    table.innerHTML = `<tr><td colspan="5" class="empty-cell">No clients match the current portfolio search or filter. Clear the controls to restore the full book of business.</td></tr>`;
     return;
   }
   table.innerHTML = clients
     .map((client) => {
       const openItems = getAdminOpenItemsForClient(client).length;
+      const newRequests = getAdminNewRequestCountForClient(client);
       const activeProjects = (client.projects || []).filter((project) => !["archived", "closed"].includes(normalizeStatusValue(project.status))).length;
       const selected = state.selectedAdminClientId && (state.selectedAdminClientId === client.selectionId || state.selectedAdminClientId === client.id);
+      const health = getAdminClientHealth(client);
       return `
         <tr class="${selected ? "selected-row" : ""}" aria-selected="${selected ? "true" : "false"}">
           <td>
             <strong>${escapeHtml(client.name || "Client workspace")}</strong>
             <span>${escapeHtml(getClientEmail(client) || "No email recorded")}</span>
-            <small>${escapeHtml(activeProjects ? `${activeProjects} active project${activeProjects === 1 ? "" : "s"}` : "No active project yet")}</small>
+            <small>${escapeHtml(activeProjects ? `${activeProjects} active project${activeProjects === 1 ? "" : "s"}` : "No active project yet")}${newRequests ? ` | ${escapeHtml(newRequests)} new request${newRequests === 1 ? "" : "s"}` : ""}</small>
             <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">${selected ? "Viewing dossier" : "View dossier"}</button>
           </td>
-          <td>${escapeHtml(getAdminClientHealth(client))}</td>
+          <td><span class="status-pill ${escapeHtml(getAdminStatusLevel(health))}">${escapeHtml(health)}</span></td>
           <td>${escapeHtml(getCreditBalanceLabelForAdmin(client))}</td>
           <td>${escapeHtml(openItems)}</td>
           <td>${escapeHtml(getAdminLastActivityForClient(client))}</td>
@@ -6400,6 +6486,10 @@ document.querySelector("#toastClose")?.addEventListener("click", hideToast);
 
 document.addEventListener("input", (event) => {
   clearFieldErrorForInput(event.target);
+  if (event.target.id === "adminPortfolioSearch") {
+    state.adminPortfolioSearch = event.target.value || "";
+    renderAdminClientPortfolio();
+  }
 });
 
 document.addEventListener("change", (event) => {
@@ -6418,6 +6508,11 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (["adminPortfolioFilter", "adminPortfolioSort"].includes(event.target.id)) {
+    if (event.target.id === "adminPortfolioFilter") state.adminPortfolioFilter = event.target.value || "all";
+    if (event.target.id === "adminPortfolioSort") state.adminPortfolioSort = event.target.value || "open-desc";
+    renderAdminClientPortfolio();
+  }
   if (event.target.id === "adminClientSelect" || event.target.id === "adminUploadClientSelect") {
     state.selectedAdminClientId = event.target.value;
     state.adminUploadProjectId = null;
@@ -6495,6 +6590,26 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.adminAction === "mark-queue-item") {
     const queueItem = getAdminQueueItemByKey(target.dataset.queueKey || "");
     await markAdminQueueItem(queueItem, target.dataset.queueStatusAction || "addressed");
+    return;
+  }
+
+  if (target.dataset.adminAction === "open-dossier") {
+    const organizationId = target.dataset.organizationId || "";
+    if (!organizationId) {
+      showToast("This queue item is not linked to a client workspace yet.");
+      return;
+    }
+    state.selectedAdminClientId = organizationId;
+    state.selectedAdminProjectId = target.dataset.projectId || ADMIN_ALL_PROJECTS_VALUE;
+    state.adminUploadProjectId = null;
+    resetVisibleCounts(["adminQueue", "adminDossierRequests", "adminDossierFiles", "adminDossierDeliverables", "adminDossierMessages"]);
+    syncSelectedAdminClientToState();
+    syncSelectedAdminProjectToClient();
+    saveState();
+    render();
+    await loadAdminQueue();
+    scrollToAdminSection("adminDossierProfile");
+    showToast("Client dossier opened from the queue.");
     return;
   }
 
