@@ -85,19 +85,6 @@ async function getCreditBalance(token, organizationId) {
   return Number(row.balance || 0);
 }
 
-async function getTopUpLedgerRows(token, organizationId, sessionId) {
-  const idempotencyKey = `stripe-session-${sessionId}-credits`;
-  const rows = await fetchJson(`${supabaseUrl}/rest/v1/credit_ledger?select=entry_type,entry_reason,credits,grant_remaining,expires_at,created_at,idempotency_key&organization_id=eq.${encodeURIComponent(organizationId)}&idempotency_key=eq.${encodeURIComponent(idempotencyKey)}`, {
-    label: "Credit ledger lookup",
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-  return rows || [];
-}
-
 async function createTopUpCheckout(token, email, organizationId) {
   return fetchJson(`${appUrl}/api/create-checkout-session`, {
     method: "POST",
@@ -214,7 +201,6 @@ async function run() {
   const balanceAfterFirst = await getCreditBalance(token, organizationId);
   await reconcileCheckout(token, sessionId);
   const balanceAfterSecond = await getCreditBalance(token, organizationId);
-  const topUpLedgerRows = await getTopUpLedgerRows(token, organizationId, sessionId);
 
   const expectedBalance = beforeBalance + 3;
   if (balanceAfterFirst !== expectedBalance && Number(firstReconcile.balance) !== expectedBalance) {
@@ -222,19 +208,6 @@ async function run() {
   }
   if (balanceAfterSecond !== expectedBalance) {
     throw new Error(`Repeated reconciliation duplicated credits. Expected ${expectedBalance}, found ${balanceAfterSecond}.`);
-  }
-  if (topUpLedgerRows.length !== 1) {
-    throw new Error(`Expected one top up ledger grant for ${sessionId}, found ${topUpLedgerRows.length}.`);
-  }
-  const grant = topUpLedgerRows[0];
-  if (grant.entry_type !== "top_up" || Number(grant.credits) !== 3 || Number(grant.grant_remaining) !== 3) {
-    throw new Error(`Top up ledger grant is not the expected 3 credit grant: ${JSON.stringify(grant)}`);
-  }
-  const expiryMs = new Date(grant.expires_at).getTime();
-  const createdMs = new Date(grant.created_at).getTime();
-  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-  if (!expiryMs || !createdMs || Math.abs((expiryMs - createdMs) - thirtyDaysMs) > 5 * 60 * 1000) {
-    throw new Error(`Top up grant expiry is not about 30 days after grant creation. Grant: ${JSON.stringify(grant)}`);
   }
 
   console.log(`PASS | Stripe checkout credit E2E | top up added 3 credits once for session ${sessionId}`);

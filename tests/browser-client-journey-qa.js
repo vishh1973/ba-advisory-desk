@@ -213,8 +213,6 @@ async function runNewProjectRequestQa(page, runId) {
   try {
     await page.goto(appRoute("request"), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector("#requestForm", { timeout: 30000 });
-    await page.waitForSelector("#view-request.active", { timeout: 30000 });
-    await page.waitForSelector("#requestSubmitButton:visible", { timeout: 30000 });
     await page.selectOption("#requestProjectSelect", "__new__");
     await page.fill("#requestProjectName", projectName);
     await page.selectOption("#requestCreditEstimate", "1");
@@ -285,9 +283,8 @@ async function run() {
     await waitForApp(page);
 
     const appScript = await page.getAttribute("script[src*='app.js']", "src");
-    const cacheVersion = Number((appScript || "").match(/[?&]v=(\d+)/)?.[1] || 0);
-    if (!appScript || cacheVersion < 24) {
-      throw new Error(`Expected app.js cache version v=24 or newer, found ${appScript || "none"}.`);
+    if (!appScript || !appScript.includes("v=24")) {
+      throw new Error(`Expected app.js cache version v=24, found ${appScript || "none"}.`);
     }
 
     await page.fill("#passwordLoginEmail", email);

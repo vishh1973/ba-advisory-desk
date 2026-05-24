@@ -11,10 +11,6 @@ function publicBaseUrl() {
   return process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com";
 }
 
-function supportEmail() {
-  return process.env.SUPPORT_EMAIL || "support@baadvisorydesk.com";
-}
-
 function formatUsd(amountCents, currency) {
   const amount = Number(amountCents || 0) / 100;
   return new Intl.NumberFormat("en-US", {
@@ -23,7 +19,7 @@ function formatUsd(amountCents, currency) {
   }).format(amount);
 }
 
-function wrapEmail({ heading, intro, paragraphs = [], actionLabel, actionUrl, supportText }) {
+function wrapEmail({ heading, intro, paragraphs = [], actionLabel, actionUrl }) {
   const paragraphHtml = [intro, ...paragraphs]
     .filter(Boolean)
     .map((text) => `<p style="margin:0 0 14px;">${escapeHtml(text)}</p>`)
@@ -33,16 +29,12 @@ function wrapEmail({ heading, intro, paragraphs = [], actionLabel, actionUrl, su
     actionLabel && actionUrl
       ? `<p style="margin:22px 0 0;"><a href="${escapeHtml(actionUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">${escapeHtml(actionLabel)}</a></p>`
       : "";
-  const supportHtml = supportText
-    ? `<p style="margin:18px 0 0;color:#17324d;font-size:14px;">${escapeHtml(supportText)}</p>`
-    : "";
 
   return `
     <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:620px;">
       <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">${escapeHtml(heading)}</h1>
       ${paragraphHtml}
       ${actionHtml}
-      ${supportHtml}
       <p style="margin:24px 0 0;color:#5c6670;font-size:13px;">BA Advisory Desk</p>
     </div>
   `;
@@ -53,23 +45,18 @@ function paymentConfirmed({ order, balanceAfter }) {
   const productType = order?.product_type;
   const credits = Number(order?.credits || 0);
   const amount = formatUsd(order?.amount_cents, order?.currency);
-  const helpText = `Questions about payment, access, files, or next steps? Reply to this email or contact ${supportEmail()}.`;
 
   if (productType === "rescue_sprint") {
     return {
       templateKey: "payment_confirmation",
       subject: "Requirements Rescue Sprint payment confirmed",
-      body: `Your Requirements Rescue Sprint payment has been confirmed. Amount paid: ${amount}. Your next step is to open BA Advisory Desk with the same checkout email, complete your profile if needed, and upload the material for your sprint. ${helpText}`,
+      body: `Your Requirements Rescue Sprint payment has been confirmed. Amount paid: ${amount}. Please use your checkout email to access BA Advisory Desk and share the material needed for your sprint.`,
       html: wrapEmail({
         heading: "Requirements Rescue Sprint payment confirmed",
         intro: `Your Requirements Rescue Sprint payment has been confirmed. Amount paid: ${amount}.`,
-        paragraphs: [
-          "Open BA Advisory Desk with the same checkout email so your payment, files, messages, and deliverables stay connected to the right workspace.",
-          "Complete your profile if needed, then upload the material for your sprint.",
-        ],
+        paragraphs: ["Please use your checkout email to access BA Advisory Desk and share the material needed for your sprint."],
         actionLabel: "Open BA Advisory Desk",
         actionUrl: workspaceUrl,
-        supportText: helpText,
       }),
     };
   }
@@ -79,14 +66,13 @@ function paymentConfirmed({ order, balanceAfter }) {
     return {
       templateKey: "payment_confirmation",
       subject: "BA Advisory Desk Monthly Support payment confirmed",
-      body: `Your BA Advisory Desk Monthly Support payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText} Use your workspace for requests, files, messages, delivery updates, and credit history. ${helpText}`,
+      body: `Your BA Advisory Desk Monthly Support payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText}`,
       html: wrapEmail({
         heading: "BA Advisory Desk Monthly Support payment confirmed",
         intro: `Your BA Advisory Desk Monthly Support payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.`,
-        paragraphs: [balanceText.trim(), "Use your workspace for requests, files, messages, delivery updates, deliverables, and credit history."],
+        paragraphs: [balanceText.trim(), "Use your workspace for requests, delivery updates, files, and credit history."],
         actionLabel: "Open your workspace",
         actionUrl: workspaceUrl,
-        supportText: helpText,
       }),
     };
   }
@@ -96,14 +82,13 @@ function paymentConfirmed({ order, balanceAfter }) {
     return {
       templateKey: "payment_confirmation",
       subject: "3 Advisory Credit Top Up payment confirmed",
-      body: `Your 3 Advisory Credit Top Up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText} ${helpText}`,
+      body: `Your 3 Advisory Credit Top Up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.${balanceText}`,
       html: wrapEmail({
         heading: "3 Advisory Credit Top Up payment confirmed",
         intro: `Your 3 Advisory Credit Top Up payment has been confirmed. ${credits} Advisory Credits have been added to your workspace.`,
         paragraphs: [balanceText.trim()],
         actionLabel: "Open your workspace",
         actionUrl: workspaceUrl,
-        supportText: helpText,
       }),
     };
   }
@@ -111,13 +96,12 @@ function paymentConfirmed({ order, balanceAfter }) {
   return {
     templateKey: "payment_confirmation",
     subject: "BA Advisory Desk payment confirmed",
-    body: `Your BA Advisory Desk payment has been confirmed. Amount paid: ${amount}. ${helpText}`,
+    body: `Your BA Advisory Desk payment has been confirmed. Amount paid: ${amount}.`,
     html: wrapEmail({
       heading: "Payment confirmed",
       intro: `Your BA Advisory Desk payment has been confirmed. Amount paid: ${amount}.`,
       actionLabel: "Open BA Advisory Desk",
       actionUrl: workspaceUrl,
-      supportText: helpText,
     }),
   };
 }
@@ -134,7 +118,6 @@ function lowCredit({ balance, threshold }) {
       paragraphs: [`The low credit threshold is ${threshold}. Please top up before starting new work.`],
       actionLabel: "Open billing and top up",
       actionUrl: workspaceUrl,
-      supportText: `Questions about your credit balance? Reply to this email or contact ${supportEmail()}.`,
     }),
   };
 }
@@ -151,7 +134,6 @@ function depletedCredit() {
       paragraphs: ["New credit based work should be paused until credits are topped up or a new plan is active."],
       actionLabel: "Open billing and top up",
       actionUrl: workspaceUrl,
-      supportText: `Questions about your credit balance? Reply to this email or contact ${supportEmail()}.`,
     }),
   };
 }

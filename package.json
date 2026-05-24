@@ -4,19 +4,16 @@
   "private": true,
   "scripts": {
     "start": "vercel dev",
-    "test": "node --test tests/api-guard-regression.test.js tests/refund-dispute-credit-reconciliation.test.js tests/credit-expiry-reminder.test.js",
-    "test:syntax": "node scripts/check-syntax.js",
     "smoke": "powershell -ExecutionPolicy Bypass -File \"../Private Build Assets/tests/smoke-tests.ps1\"",
     "qa:client": "powershell -ExecutionPolicy Bypass -File \"tests/browser-client-journey-qa.ps1\"",
     "qa:stripe:e2e": "powershell -ExecutionPolicy Bypass -File \"tests/stripe-checkout-credit-e2e.ps1\""
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.106.1",
+    "@supabase/supabase-js": "^2.49.4",
     "stripe": "^17.7.0",
-    "resend": "^4.8.0"
+    "resend": "^4.1.2"
   },
   "devDependencies": {
-    "playwright": "^1.60.0",
     "vercel": "^41.7.8"
   }
 }

@@ -254,7 +254,6 @@ module.exports = async function handler(req, res) {
     const organizationId = body.organizationId || null;
     const relatedEntityType = body.relatedEntityType || "workspace";
     const relatedEntityId = body.relatedEntityId || null;
-    const operationId = String(body.operationId || "").trim();
 
     if (!to) {
       res.status(400).json({ error: "Recipient email is required." });
@@ -277,29 +276,6 @@ module.exports = async function handler(req, res) {
     const emailReference = createEmailReference();
     const finalSubject = subjectWithReference(subject, emailReference);
     const finalBody = textWithReference(message, emailReference);
-    const dedupeKey = organizationId && operationId
-      ? `admin-client-message:${organizationId}:${operationId}`
-      : null;
-
-    if (dedupeKey) {
-      const { data: existingNotification, error: existingError } = await supabase
-        .from("notifications")
-        .select("id,status,subject,failure_reason")
-        .eq("dedupe_key", dedupeKey)
-        .maybeSingle();
-      if (existingError) throw existingError;
-      if (existingNotification?.id) {
-        const sent = existingNotification.status === "sent";
-        res.status(200).json({
-          queued: true,
-          sent,
-          duplicate: true,
-          warning: sent ? "" : existingNotification.failure_reason || "This message was already saved and is still being reviewed.",
-        });
-        return;
-      }
-    }
-
     const messagePayload = organizationId
       ? {
           organization_id: organizationId,
@@ -331,7 +307,6 @@ module.exports = async function handler(req, res) {
         status: "queued",
         related_entity_type: scope.relatedEntityType,
         related_entity_id: scope.relatedEntityId,
-        dedupe_key: dedupeKey,
       })
       .select("id")
       .single();

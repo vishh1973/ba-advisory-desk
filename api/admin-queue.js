@@ -530,7 +530,7 @@ module.exports = async function handler(req, res) {
         .range(ranges.notifications.offset, ranges.notifications.end),
       supabase
         .from("credit_ledger")
-        .select("id,organization_id,project_id,related_request_id,related_deliverable_id,related_payment_id,entry_type,entry_reason,credits,balance_after,expires_at,grant_remaining,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
+        .select("id,organization_id,project_id,related_request_id,related_deliverable_id,related_payment_id,entry_type,entry_reason,credits,balance_after,source,created_at,client_organizations(name,billing_email,industry,country,timezone,status),client_projects(id,name,project_code,status)")
         .order("created_at", { ascending: false })
         .range(ranges.creditLedger.offset, ranges.creditLedger.end),
       supabase

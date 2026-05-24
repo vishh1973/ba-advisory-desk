@@ -78,19 +78,15 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  if (!(await requireAdmin(req, { allowSecret: true }))) {
+    res.status(401).json({ error: "Unauthorized." });
+    return;
+  }
+
   try {
     const body = parseBody(req);
     if (["prepare", "finalize", "abort"].includes(body.action)) {
-      if (!(await requireAdmin(req))) {
-        res.status(401).json({ error: "Unauthorized." });
-        return;
-      }
       await handleAdminDeliverableAction(req, res, body);
-      return;
-    }
-
-    if (!(await requireAdmin(req, { allowSecret: true }))) {
-      res.status(401).json({ error: "Unauthorized." });
       return;
     }
 
