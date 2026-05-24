@@ -213,6 +213,120 @@ test("inbound resend webhook forwards readable body and original attachments", a
   }
 });
 
+test("inbound resend webhook returns retryable failure when forward is not sent", async () => {
+  const secret = `whsec_${Buffer.from("test-secret").toString("base64")}`;
+  process.env.RESEND_WEBHOOK_SECRET = secret;
+  process.env.RESEND_API_KEY = "re_test";
+  process.env.ADMIN_NOTIFICATION_EMAIL = "owner@example.com";
+  let auditInserted = null;
+  const emailModulePath = require.resolve("../api/_lib/email");
+  const supabaseModulePath = require.resolve("../api/_lib/supabaseAdmin");
+  const handlerPath = require.resolve("../api/resend-inbound");
+  const originalFetch = global.fetch;
+  delete require.cache[emailModulePath];
+  delete require.cache[supabaseModulePath];
+  require.cache[emailModulePath] = {
+    id: emailModulePath,
+    filename: emailModulePath,
+    loaded: true,
+    exports: {
+      sendEmail: async () => ({ sent: false, error: "provider rejected message" }),
+    },
+  };
+  require.cache[supabaseModulePath] = {
+    id: supabaseModulePath,
+    filename: supabaseModulePath,
+    loaded: true,
+    exports: {
+      getSupabaseAdmin: () => ({
+        from: () => ({
+          insert: (payload) => {
+            auditInserted = payload;
+            return Promise.resolve({ error: null });
+          },
+        }),
+      }),
+    },
+  };
+  delete require.cache[handlerPath];
+
+  global.fetch = async () => ({
+    ok: true,
+    async json() {
+      return {
+        data: {
+          id: "inbound_fail_1",
+          from: "Client <client@example.com>",
+          to: ["support@baadvisorydesk.com"],
+          subject: "Forward failure",
+          text: "Please review this.",
+          attachments: [],
+        },
+      };
+    },
+  });
+
+  try {
+    const handler = require("../api/resend-inbound");
+    const payload = JSON.stringify({ type: "email.received", data: { email_id: "inbound_fail_1", subject: "Forward failure" } });
+    const res = createResponse();
+
+    await handler(createRawRequest({ payload, headers: createSvixHeaders({ payload, secret }) }), res);
+
+    assert.equal(res.statusCode, 502);
+    assert.match(res.body.error, /could not be forwarded/i);
+    assert.equal(auditInserted.event_type, "inbound_email_forward_failed");
+    assert.equal(auditInserted.event_detail.resend_email_id, "inbound_fail_1");
+  } finally {
+    global.fetch = originalFetch;
+    delete require.cache[handlerPath];
+    delete require.cache[emailModulePath];
+    delete require.cache[supabaseModulePath];
+  }
+});
+
+test("email helper creates plain text fallback when only html is provided", async () => {
+  process.env.RESEND_API_KEY = "re_test";
+  let sentPayload = null;
+  const resendPath = require.resolve("resend");
+  const emailPath = require.resolve("../api/_lib/email");
+  delete require.cache[resendPath];
+  delete require.cache[emailPath];
+  require.cache[resendPath] = {
+    id: resendPath,
+    filename: resendPath,
+    loaded: true,
+    exports: {
+      Resend: class {
+        constructor() {
+          this.emails = {
+            send: async (payload) => {
+              sentPayload = payload;
+              return { data: { id: "msg_text_fallback" } };
+            },
+          };
+        }
+      },
+    },
+  };
+
+  try {
+    const { sendEmail } = require("../api/_lib/email");
+    const result = await sendEmail({
+      to: "client@example.com",
+      subject: "HTML only",
+      html: "<p>Payment confirmed.</p><p>Your workspace is ready.</p>",
+    });
+
+    assert.equal(result.sent, true);
+    assert.match(sentPayload.text, /Payment confirmed/);
+    assert.match(sentPayload.text, /Your workspace is ready/);
+  } finally {
+    delete require.cache[emailPath];
+    delete require.cache[resendPath];
+  }
+});
+
 test("payment confirmation uses forwarding email as admin fallback", async () => {
   process.env.RESEND_FORWARD_TO_EMAIL = "owner@example.com";
   delete process.env.ADMIN_NOTIFICATION_EMAIL;

@@ -1,3 +1,20 @@
+function fallbackTextFromHtml(html) {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 async function sendEmail({ to, subject, html, text, replyTo, attachments }) {
   if (!process.env.RESEND_API_KEY) {
     return { skipped: true, reason: "Email provider is not configured." };
@@ -7,7 +24,8 @@ async function sendEmail({ to, subject, html, text, replyTo, attachments }) {
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.NOTIFICATION_FROM_EMAIL || "BA Advisory Desk <support@baadvisorydesk.com>";
   const payload = { from, to, subject, html };
-  if (text) payload.text = text;
+  const textBody = text || fallbackTextFromHtml(html);
+  if (textBody) payload.text = textBody;
   if (replyTo) payload.replyTo = replyTo;
   if (attachments?.length) payload.attachments = attachments;
   let result;

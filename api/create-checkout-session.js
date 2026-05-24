@@ -1,3 +1,4 @@
+const { PRODUCT_CATALOG } = require("./_lib/products");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { getStripe, getPriceConfig } = require("./_lib/stripeClient");
 const {
@@ -10,6 +11,7 @@ const {
 } = require("./_lib/paymentAndCredit");
 
 const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
+const CHECKOUT_PRODUCTS = new Set(Object.keys(PRODUCT_CATALOG));
 const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created", "checkout_completed"];
 const CHECKOUT_REUSE_WINDOW_MS = 23 * 60 * 60 * 1000;
 
@@ -113,6 +115,31 @@ function customerEmailFromSession(session) {
 
 function isSessionPaid(session) {
   return String(session?.payment_status || "").toLowerCase() === "paid";
+}
+
+function isCreditGrantReady(order, creditGrant) {
+  if (!CREDIT_PRODUCTS.has(order?.product_type)) return true;
+  if (!Number(order?.credits || 0)) return true;
+  if (creditGrant?.granted) return true;
+  return String(creditGrant?.reason || "").toLowerCase().includes("already recorded");
+}
+
+async function hasRecordedCreditGrant(supabase, order, session) {
+  if (!CREDIT_PRODUCTS.has(order?.product_type) || !Number(order?.credits || 0)) return true;
+  const idempotencyKey = `stripe-session-${session.id}-credits`;
+  try {
+    const { data, error } = await supabase
+      .from("credit_ledger")
+      .select("id")
+      .eq("organization_id", order.organization_id)
+      .eq("idempotency_key", idempotencyKey)
+      .limit(1)
+      .maybeSingle();
+    if (error) return false;
+    return Boolean(data?.id);
+  } catch (_error) {
+    return false;
+  }
 }
 
 function buildCheckoutAttemptKey({ organizationId, productType, priceId }) {
@@ -325,10 +352,11 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
     }
 
     const balance = await getCreditBalance(supabase, organizationId);
+    const creditReady = isCreditGrantReady(order, creditGrant);
     return {
-      status: 200,
+      status: creditReady ? 200 : 202,
       body: {
-        confirmed: true,
+        confirmed: creditReady,
         productType: order.product_type,
         credits: Number(order.credits || 0),
         amountCents: Number(order.amount_cents || 0),
@@ -338,6 +366,9 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
         creditGranted: Boolean(creditGrant.granted),
         alreadyRecorded: true,
         creditGrantReason: creditGrant.reason,
+        message: creditReady
+          ? "Payment and credits are confirmed."
+          : "Payment was received. The credit balance is still being updated.",
         email: { attempted: false },
       },
     };
@@ -424,10 +455,11 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
   }
 
   const balance = await getCreditBalance(supabase, organizationId);
+  const creditReady = isCreditGrantReady(paidOrder, creditGrant);
   return {
-    status: 200,
+    status: creditReady ? 200 : 202,
     body: {
-      confirmed: true,
+      confirmed: creditReady,
       productType: order.product_type,
       credits: Number(order.credits || 0),
       amountCents: Number(order.amount_cents || 0),
@@ -435,6 +467,10 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
       balance: balance.balance,
       lowCreditThreshold: balance.lowCreditThreshold,
       creditGranted: Boolean(creditGrant.granted),
+      creditGrantReason: creditGrant.reason,
+      message: creditReady
+        ? "Payment and credits are confirmed."
+        : "Payment was received. The credit balance is still being updated.",
       email: emailResult,
     },
   };
@@ -470,10 +506,12 @@ async function readCheckoutSessionStatus({ supabase, stripe, bearerToken, sessio
   }
 
   const balance = await getCreditBalance(supabase, organizationId);
+  const creditProductReady = await hasRecordedCreditGrant(supabase, order, session);
+  const confirmed = isSessionPaid(session) && creditProductReady;
   return {
     status: 200,
     body: {
-      confirmed: String(order.status || "").toLowerCase() === "paid" || isSessionPaid(session),
+      confirmed,
       orderStatus: order.status || "pending",
       stripeStatus: session.status || "unknown",
       paymentStatus: session.payment_status || "unknown",
@@ -500,11 +538,11 @@ module.exports = async function handler(req, res) {
     const organizationId = body.organizationId || null;
     const workspaceId = body.workspaceId || organizationId || null;
     const baseUrl = process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com";
-    const supabase = getSupabaseAdmin();
-    const stripe = getStripe();
     const bearerToken = getBearerToken(req);
 
     if (action === "reconcile_checkout") {
+      const supabase = getSupabaseAdmin();
+      const stripe = getStripe();
       const result = await reconcileCheckoutSession({
         supabase,
         stripe,
@@ -516,6 +554,8 @@ module.exports = async function handler(req, res) {
     }
 
     if (action === "checkout_status") {
+      const supabase = getSupabaseAdmin();
+      const stripe = getStripe();
       const result = await readCheckoutSessionStatus({
         supabase,
         stripe,
@@ -527,6 +567,8 @@ module.exports = async function handler(req, res) {
     }
 
     if (action === "customer_portal") {
+      const supabase = getSupabaseAdmin();
+      const stripe = getStripe();
       if (!organizationId) {
         res.status(400).json({ error: "Please open your client workspace before managing billing." });
         return;
@@ -552,7 +594,19 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (!productType) {
+      res.status(400).json({ error: "Please choose a BA Advisory Desk service before checkout." });
+      return;
+    }
+
+    if (!CHECKOUT_PRODUCTS.has(productType)) {
+      res.status(400).json({ error: "The selected BA Advisory Desk service is not available for checkout." });
+      return;
+    }
+
     const priceConfig = getPriceConfig(productType);
+    const supabase = getSupabaseAdmin();
+    const stripe = getStripe();
 
     if ((productType === "rescue_sprint" || productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
       res.status(400).json({ error: "Please create or access your client workspace before purchasing this service." });

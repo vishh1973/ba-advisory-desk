@@ -542,8 +542,9 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
     eventDetail: { balance: normalizedBalance, threshold: normalizedThreshold, related_entity_id: relatedEntityId || null },
   });
 
+  let reminderEmailResult = null;
   if (recipientEmail) {
-    await sendAndRecordEmail(supabase, {
+    reminderEmailResult = await sendAndRecordEmail(supabase, {
       to: recipientEmail,
       organizationId,
       relatedEntityType: "credit_account",
@@ -551,7 +552,7 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
       ...template,
     });
   } else if (adminNotificationEmail()) {
-    await sendAndRecordEmail(supabase, {
+    reminderEmailResult = await sendAndRecordEmail(supabase, {
       to: adminNotificationEmail(),
       organizationId,
       relatedEntityType: "credit_account",
@@ -560,7 +561,7 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
     });
   }
 
-  if (account?.id) {
+  if (account?.id && reminderEmailResult?.sent) {
     const reminderUpdate =
       status === "depleted"
         ? { last_depleted_credit_reminder_at: now, updated_at: now }

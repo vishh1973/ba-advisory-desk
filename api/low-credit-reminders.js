@@ -3,6 +3,22 @@ const { sendEmail } = require("./_lib/email");
 const { requireAdmin } = require("./_lib/adminAuth");
 const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 
+async function markCreditReminderSent(supabase, notification) {
+  if (!notification?.related_entity_id) return;
+  const now = new Date().toISOString();
+  const update = notification.template_key === "credits_depleted"
+    ? { last_depleted_credit_reminder_at: now, updated_at: now }
+    : notification.template_key === "low_credit_reminder"
+      ? { last_low_credit_reminder_at: now, updated_at: now }
+      : null;
+  if (!update) return;
+  await supabase
+    .from("credit_accounts")
+    .update(update)
+    .eq("id", notification.related_entity_id)
+    .then(() => null, () => null);
+}
+
 module.exports = async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) {
     res.status(405).json({ error: "Method not allowed." });
@@ -50,6 +66,7 @@ module.exports = async function handler(req, res) {
 
       if (result.sent) {
         sent += 1;
+        await markCreditReminderSent(supabase, notification);
       } else if (!result.skipped) {
         failed += 1;
       }

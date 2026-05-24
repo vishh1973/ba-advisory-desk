@@ -455,20 +455,31 @@ async function abortRelease({ supabase, body }) {
     : [];
   const paths = Array.from(new Set([...explicitPaths, ...filePaths]));
 
+  let allowedStoragePrefix = "";
   if (versionId) {
     const { data: version } = await supabase
       .from("deliverable_versions")
-      .select("id,status")
+      .select("id,status,version_number,deliverable_id,organization_id")
       .eq("id", versionId)
       .eq("organization_id", organizationId)
       .maybeSingle();
     if (version?.status && version.status !== "draft") {
       return { status: 200, data: { aborted: false, released: true } };
     }
+    if (version?.deliverable_id && version?.version_number && version?.organization_id) {
+      allowedStoragePrefix = `clients/${version.organization_id}/deliverables/${version.deliverable_id}/v${version.version_number}/`;
+    }
   }
   if (paths.length) {
-    const linkedPaths = await getLinkedDeliverableStoragePaths(supabase, paths);
-    await supabase.storage.from("private-deliverables").remove(paths.filter((path) => !linkedPaths.has(path))).then(() => null, () => null);
+    if (!allowedStoragePrefix) {
+      return { status: 400, data: { error: "Draft release context is required before uploaded files can be cleaned up." } };
+    }
+    const scopedPaths = paths.filter((path) => path.startsWith(allowedStoragePrefix));
+    if (scopedPaths.length !== paths.length) {
+      return { status: 400, data: { error: "One or more uploaded file paths did not match the draft release scope." } };
+    }
+    const linkedPaths = await getLinkedDeliverableStoragePaths(supabase, scopedPaths);
+    await supabase.storage.from("private-deliverables").remove(scopedPaths.filter((path) => !linkedPaths.has(path))).then(() => null, () => null);
   }
   if (versionId) {
     await supabase.from("deliverable_version_files").delete().eq("deliverable_version_id", versionId).then(() => null, () => null);

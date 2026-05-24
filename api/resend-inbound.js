@@ -9,6 +9,9 @@ function readRawBody(req) {
 
 const crypto = require("crypto");
 const { sendEmail } = require("./_lib/email");
+const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
+
+const MAX_INBOUND_FORWARD_BYTES = 35 * 1024 * 1024;
 
 function escapeHtml(value) {
   return String(value || "")
@@ -107,18 +110,34 @@ function asAddressList(value) {
 
 async function downloadReceivedAttachments(attachments = []) {
   const downloaded = [];
+  const failures = [];
+  let totalBytes = 0;
   for (const attachment of attachments || []) {
     if (!attachment?.download_url) continue;
+    const expectedSize = Number(attachment.size || attachment.size_bytes || attachment.content_length || 0);
+    if (expectedSize && totalBytes + expectedSize > MAX_INBOUND_FORWARD_BYTES) {
+      failures.push(`${attachment.filename || attachment.name || "attachment"} was not forwarded because the inbound attachments exceeded the safe forwarding limit.`);
+      continue;
+    }
     try {
+      const content = await fetchBase64(attachment.download_url);
+      const contentBytes = Buffer.byteLength(content, "base64");
+      if (totalBytes + contentBytes > MAX_INBOUND_FORWARD_BYTES) {
+        failures.push(`${attachment.filename || attachment.name || "attachment"} was not forwarded because the inbound attachments exceeded the safe forwarding limit.`);
+        continue;
+      }
+      totalBytes += contentBytes;
       downloaded.push({
         filename: attachment.filename || attachment.name || `attachment-${downloaded.length + 1}`,
-        content: await fetchBase64(attachment.download_url),
+        content,
         contentType: attachment.content_type || attachment.contentType || "application/octet-stream",
       });
     } catch (error) {
+      failures.push(`${attachment.filename || attachment.name || "attachment"} could not be downloaded from Resend.`);
       console.warn("Inbound attachment download failed", attachment.filename || attachment.id || "attachment", error.message);
     }
   }
+  downloaded.failures = failures;
   return downloaded;
 }
 
@@ -307,7 +326,22 @@ function textToHtml(text) {
   return escapeHtml(text).replace(/\n/g, "<br>");
 }
 
-function buildNaturalForwardHtml({ parsed, eventData }) {
+function attachmentFailureText(failures = []) {
+  if (!failures.length) return "";
+  return `\n\nAttachment forwarding notes:\n${failures.map((failure) => `- ${failure}`).join("\n")}`;
+}
+
+function attachmentFailureHtml(failures = []) {
+  if (!failures.length) return "";
+  return `
+    <div style="border:1px solid #f3c27a;background:#fff8ed;padding:12px;margin:16px 0;">
+      <strong>Attachment forwarding notes</strong>
+      <ul>${failures.map((failure) => `<li>${escapeHtml(failure)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
+function buildNaturalForwardHtml({ parsed, eventData, attachmentFailures = [] }) {
   const from = parsed.from || eventData?.from || "Unknown sender";
   const to = parsed.to || (Array.isArray(eventData?.to) ? eventData.to.join(", ") : eventData?.to) || "BA Advisory Desk";
   const date = parsed.date || eventData?.created_at || "";
@@ -326,11 +360,12 @@ function buildNaturalForwardHtml({ parsed, eventData }) {
       <div style="border-top:1px solid #dbe5ec;margin-top:16px;padding-top:16px;">
         ${originalHtml}
       </div>
+      ${attachmentFailureHtml(attachmentFailures)}
     </div>
   `;
 }
 
-function buildNaturalForwardText({ parsed, eventData }) {
+function buildNaturalForwardText({ parsed, eventData, attachmentFailures = [] }) {
   const from = parsed.from || eventData?.from || "Unknown sender";
   const to = parsed.to || (Array.isArray(eventData?.to) ? eventData.to.join(", ") : eventData?.to) || "BA Advisory Desk";
   const date = parsed.date || eventData?.created_at || "";
@@ -343,6 +378,7 @@ function buildNaturalForwardText({ parsed, eventData }) {
     `To: ${to}`,
     "",
     parsed.text || "",
+    attachmentFailureText(attachmentFailures),
   ].join("\n");
 }
 
@@ -426,10 +462,11 @@ module.exports = async function handler(req, res) {
 
       const email = await fetchJson(`https://api.resend.com/emails/receiving/${encodeURIComponent(event.data.email_id)}`, process.env.RESEND_API_KEY);
       let rawEmailContent = "";
+      const downloadedAttachments = await downloadReceivedAttachments(email?.attachments);
       let parsed = buildReceivedEmailForward({
         email,
         eventData: event.data,
-        attachments: await downloadReceivedAttachments(email?.attachments),
+        attachments: downloadedAttachments,
       });
       if (email?.raw?.download_url) {
         try {
@@ -452,14 +489,14 @@ module.exports = async function handler(req, res) {
           attachments: parsed.attachments?.length ? parsed.attachments : parsedRaw.attachments,
         };
       }
-      await sendEmail({
+      const sendResult = await sendEmail({
         to: forwardTo,
         subject: subject.startsWith("Fwd:") ? subject : `Fwd: ${subject}`,
         html: parsed?.html || parsed?.text
-          ? buildNaturalForwardHtml({ parsed, eventData: event.data })
+          ? buildNaturalForwardHtml({ parsed, eventData: event.data, attachmentFailures: downloadedAttachments.failures || [] })
           : buildFallbackInboundForwardHtml({ email, eventData: event.data, rawAttached: Boolean(rawEmailContent) }),
         text: parsed?.text || parsed?.html
-          ? buildNaturalForwardText({ parsed, eventData: event.data })
+          ? buildNaturalForwardText({ parsed, eventData: event.data, attachmentFailures: downloadedAttachments.failures || [] })
           : `Inbound email received from ${email?.from || event.data.from || "Unknown sender"}.\nSubject: ${subject}\nResend email id: ${email?.id || event.data.email_id}`,
         attachments: parsed?.attachments?.length
           ? parsed.attachments
@@ -472,6 +509,27 @@ module.exports = async function handler(req, res) {
             : undefined,
         replyTo: email?.from || event.data.from || undefined,
       });
+      if (!sendResult.sent) {
+        try {
+          const supabase = getSupabaseAdmin();
+          await supabase.from("audit_events").insert({
+            event_type: "inbound_email_forward_failed",
+            event_detail: {
+              resend_email_id: email?.id || event.data.email_id,
+              subject,
+              from: email?.from || event.data.from || null,
+              to: forwardTo,
+              error: sendResult.error || sendResult.reason || "Inbound email forward did not receive a delivery reference.",
+            },
+            source: "resend_inbound",
+            idempotency_key: `inbound-forward-failed:${email?.id || event.data.email_id}`,
+          }).then(() => null, () => null);
+        } catch (_auditError) {
+          // Keep the webhook retryable even if durable audit logging is unavailable.
+        }
+        res.status(502).json({ error: "Inbound email could not be forwarded." });
+        return;
+      }
     }
 
     res.status(200).json({ received: true });

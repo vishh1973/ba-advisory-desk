@@ -2089,7 +2089,7 @@ async function handleCheckoutSuccessView() {
     render();
     const creditsNow = Number(state.creditsLeft || 0);
     const statusData = statusResult?.ok ? statusResult.data || {} : {};
-    const statusConfirmed = Boolean(statusData.confirmed || String(statusData.orderStatus || "").toLowerCase() === "paid");
+    const statusConfirmed = Boolean(statusData.confirmed);
     if (creditsNow > priorCredits || statusConfirmed) {
       clearPendingCheckoutType();
       clearPendingCheckoutSessionId();

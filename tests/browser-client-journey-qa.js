@@ -213,6 +213,8 @@ async function runNewProjectRequestQa(page, runId) {
   try {
     await page.goto(appRoute("request"), { waitUntil: "domcontentloaded", timeout: 30000 });
     await page.waitForSelector("#requestForm", { timeout: 30000 });
+    await page.waitForSelector("#view-request.active", { timeout: 30000 });
+    await page.waitForSelector("#requestSubmitButton:visible", { timeout: 30000 });
     await page.selectOption("#requestProjectSelect", "__new__");
     await page.fill("#requestProjectName", projectName);
     await page.selectOption("#requestCreditEstimate", "1");
