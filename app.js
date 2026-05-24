@@ -930,6 +930,13 @@ function renderContentDrivenSections() {
   setTextContent('[data-content="hero-benefit"]', hero.benefit);
   setTextContent('[data-content="hero-body"]', hero.body);
 
+  const trustStrip = document.querySelector('[data-render="hero-trust"]');
+  if (trustStrip && Array.isArray(hero.trustSignals)) {
+    trustStrip.innerHTML = hero.trustSignals
+      .map((signal) => `<span>${escapeHtml(signal)}</span>`)
+      .join("");
+  }
+
   const proofGrid = document.querySelector('[data-render="hero-proof"]');
   if (proofGrid && Array.isArray(hero.proofPoints)) {
     proofGrid.innerHTML = hero.proofPoints

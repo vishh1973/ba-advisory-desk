@@ -6,6 +6,11 @@ window.BAAD_CONTENT = {
       "Why add fixed BA capacity when you can access focused requirements, business case, UAT, SOP, vendor, and AI readiness support on demand?",
     body:
       "Send the business problem, source material, and decision pressure. We structure the evidence, identify gaps and risks, and return clear deliverables your team can approve, build from, or share with clients.",
+    trustSignals: [
+      "Private client workspace",
+      "Controlled file handling",
+      "NDA review available before sensitive uploads",
+    ],
     proofPoints: [
       {
         title: "Start with a concrete rescue outcome.",
@@ -16,8 +21,8 @@ window.BAAD_CONTENT = {
         body: "Business cases, UAT packs, SOPs, vendor material, and executive summaries are shaped for next-step decisions.",
       },
       {
-        title: "Use a premium desk without large-firm overhead.",
-        body: "A private workspace, structured intake, and senior review give teams focused support without a long consulting setup.",
+        title: "Work in a controlled, confidential path.",
+        body: "Account based access, private file handling, and controlled downloads keep client material organized and protected.",
       },
     ],
   },
