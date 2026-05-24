@@ -1,7 +1,16 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
 const { requireAdmin } = require("./_lib/adminAuth");
-const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
+const { shouldIgnoreOptionalSchemaError, updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 async function markCreditReminderSent(supabase, notification) {
   if (!notification?.related_entity_id) return;
@@ -45,13 +54,18 @@ module.exports = async function handler(req, res) {
     }
 
     await supabase.rpc("queue_low_credit_reminders");
+    const reminderWindowDays = Number(process.env.CREDIT_EXPIRY_REMINDER_DAYS || 7);
+    const { error: expiryReminderError } = await supabase.rpc("queue_top_up_credit_expiry_reminders", {
+      p_window_days: Number.isFinite(reminderWindowDays) ? reminderWindowDays : 7,
+    });
+    if (expiryReminderError && !shouldIgnoreOptionalSchemaError(expiryReminderError)) throw expiryReminderError;
 
     const { data: notifications, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("status", "queued")
-      .in("template_key", ["low_credit_reminder", "credits_depleted"])
-      .limit(25);
+      .in("template_key", ["low_credit_reminder", "credits_depleted", "top_up_credit_expiry_reminder"])
+      .limit(50);
 
     if (error) throw error;
 
@@ -61,7 +75,7 @@ module.exports = async function handler(req, res) {
       const result = await sendEmail({
         to: notification.recipient_email,
         subject: notification.subject,
-        html: `<p>${String(notification.body).replace(/\n/g, "</p><p>")}</p>`,
+        html: `<p>${escapeHtml(notification.body).replace(/\n/g, "</p><p>")}</p>`,
       });
 
       if (result.sent) {
@@ -77,4 +91,8 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: error.message || "Reminder job failed." });
   }
+};
+
+module.exports.__test = {
+  escapeHtml,
 };

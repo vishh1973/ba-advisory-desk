@@ -345,7 +345,7 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
         stripePaymentIntentId: session.payment_intent || order.stripe_payment_intent_id,
         stripeInvoiceId: session.invoice || order.stripe_invoice_id,
         stripeCheckoutSessionId: session.id,
-        paidAt: order.paid_at || isoFromUnixSeconds(session.created) || new Date().toISOString(),
+        paidAt: order.paid_at || new Date().toISOString(),
         billingPeriodStart: period.start,
         billingPeriodEnd: period.end,
       });
@@ -392,7 +392,7 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
     await upsertSubscriptionRecord(supabase, subscription, metadata);
   }
 
-  const paidAt = isoFromUnixSeconds(session.created) || new Date().toISOString();
+  const paidAt = new Date().toISOString();
   const paidOrder = {
     ...order,
     stripe_payment_intent_id: session.payment_intent || null,

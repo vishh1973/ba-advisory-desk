@@ -335,6 +335,23 @@ function formatDateTime(value) {
   return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+function formatCreditExpiryText(expiresAt, remainingCredits) {
+  if (!expiresAt) return "";
+  const expiryTime = new Date(expiresAt).getTime();
+  if (!expiryTime || Number.isNaN(expiryTime)) return "";
+  const remaining = Number(remainingCredits || 0);
+  const remainingText = remaining > 0 ? `${remaining} remaining | ` : "";
+  return `${remainingText}Expires ${formatDisplayDate(expiresAt)}`;
+}
+
+function getNextCreditExpiry() {
+  const upcoming = state.creditHistory
+    .filter((item) => item.expiresAt && Number(item.grantRemaining || 0) > 0 && new Date(item.expiresAt).getTime() > Date.now())
+    .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime())[0];
+  if (!upcoming) return "";
+  return formatCreditExpiryText(upcoming.expiresAt, upcoming.grantRemaining);
+}
+
 function getIsoNow() {
   return new Date().toISOString();
 }
@@ -2133,6 +2150,27 @@ async function handleCheckoutSuccessView() {
   const data = result.data || {};
   state.creditsLeft = Number(data.balance ?? state.creditsLeft);
   state.creditThreshold = Number(data.lowCreditThreshold ?? state.creditThreshold);
+
+  if (result.status === 202 || data.confirmed === false) {
+    await withClientTimeout(loadClientWorkspaceData(), 10000, "Workspace refresh is taking longer than expected.").catch(() => null);
+    render();
+    setCheckoutStatus({
+      title: "Payment received. Credits are still updating.",
+      body: "Stripe has confirmed the payment, but the Advisory Credit balance is still being finalized. Please open Billing again in a moment. If the balance does not update, contact support with the checkout email.",
+      status: "Your workspace is safe. We are waiting for the credit ledger to finish updating.",
+      level: "warning",
+      panelHtml: `
+        <h3>Payment received</h3>
+        <ul class="check-list">
+          <li>Payment has been matched to this client workspace.</li>
+          <li>Credit balance update is still in progress.</li>
+          <li>Use Billing to refresh the balance before starting new work.</li>
+        </ul>
+      `,
+    });
+    return;
+  }
+
   addPaymentHistory(productLabel(data.productType), Number(data.amountCents || 0) ? formatUsdFromCents(data.amountCents, data.currency) : "Paid", "Paid");
   if (Number(data.credits || 0) > 0) {
     addCreditHistory(productLabel(data.productType), `+${data.credits}`, state.creditsLeft);
@@ -2551,7 +2589,7 @@ async function loadClientWorkspaceData() {
         .maybeSingle(),
       supabaseClient
         .from("credit_ledger")
-        .select("entry_type,entry_reason,credits,balance_after,created_at,project_id,client_projects(id,name,project_code,status)")
+        .select("entry_type,entry_reason,credits,balance_after,expires_at,grant_remaining,created_at,project_id,client_projects(id,name,project_code,status)")
         .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(100),
@@ -2613,6 +2651,8 @@ async function loadClientWorkspaceData() {
         ].filter(Boolean).join(" | "),
         credits: item.credits > 0 ? `+${item.credits}` : String(item.credits || 0),
         balance: item.balance_after ?? "",
+        expiresAt: item.expires_at || "",
+        grantRemaining: Number(item.grant_remaining || 0),
       }));
     }
 
@@ -4029,7 +4069,7 @@ function renderCreditHistory() {
           (item) => `
         <tr>
           <td>${escapeHtml(item.date)}</td>
-          <td>${escapeHtml(item.deliverable)}</td>
+          <td>${escapeHtml(item.deliverable)}${item.expiresAt ? `<br /><small>${escapeHtml(formatCreditExpiryText(item.expiresAt, item.grantRemaining))}</small>` : ""}</td>
           <td>${escapeHtml(item.credits)}</td>
           <td>${escapeHtml(item.balance)}</td>
         </tr>
@@ -4082,7 +4122,7 @@ function renderCreditHistory() {
           (item) => `
         <tr>
           <td>${escapeHtml(item.date)}</td>
-          <td>${escapeHtml(item.deliverable)}</td>
+          <td>${escapeHtml(item.deliverable)}${item.expiresAt ? `<br /><small>${escapeHtml(formatCreditExpiryText(item.expiresAt, item.grantRemaining))}</small>` : ""}</td>
           <td>${escapeHtml(item.credits)}</td>
           <td>${escapeHtml(item.balance)}</td>
         </tr>
@@ -4188,10 +4228,15 @@ function renderCreditControls() {
   }
   const accountBalance = document.querySelector("#accountCreditBalance");
   const accountPrompt = document.querySelector("#accountCreditPrompt");
+  const accountExpiryNote = document.querySelector("#accountCreditExpiryNote");
   if (accountBalance) accountBalance.textContent = getCreditBalanceLabel();
   if (accountPrompt) {
     accountPrompt.innerHTML = getCreditPromptHtml();
     accountPrompt.classList.toggle("warning", creditAlertState.level !== "healthy");
+  }
+  if (accountExpiryNote) {
+    const expiryText = getNextCreditExpiry();
+    accountExpiryNote.textContent = expiryText ? `Next credit expiry: ${expiryText}.` : "Top up credits expire 30 days after purchase.";
   }
   if (adminBalance) adminBalance.value = state.creditsLeft;
   if (adminThreshold) adminThreshold.value = state.creditThreshold;
@@ -5649,6 +5694,8 @@ function applyAdminQueueData(data, options = {}) {
     deliverable: entry.deliverable || entry.action || entry.reason || entry.entry_reason || entry.entry_type || "Credit activity",
     credits: entry.credits ?? entry.delta ?? entry.credit_delta ?? "Recorded",
     balance: entry.balance ?? entry.balance_after ?? state.creditsLeft,
+    expiresAt: entry.expires_at || entry.expiresAt || "",
+    grantRemaining: Number(entry.grant_remaining ?? entry.grantRemaining ?? 0),
   }));
 
   const auditEvents = data.auditEvents || [];
