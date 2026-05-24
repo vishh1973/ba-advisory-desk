@@ -188,7 +188,7 @@ module.exports = async function handler(req, res) {
           ? [{
               filename: "forwarded-message.eml",
               content: Buffer.from(rawEmailContent).toString("base64"),
-              content_type: "message/rfc822",
+              contentType: "message/rfc822",
             }]
           : undefined,
         replyTo: email?.from || event.data.from || undefined,
