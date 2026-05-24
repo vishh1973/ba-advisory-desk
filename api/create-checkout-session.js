@@ -25,6 +25,26 @@ function getBearerToken(req) {
   return match ? match[1] : null;
 }
 
+function parseRequestBody(req) {
+  if (typeof req.body !== "string") return req.body || {};
+  try {
+    return JSON.parse(req.body || "{}");
+  } catch (_error) {
+    return { __invalidJson: true };
+  }
+}
+
+async function validateBearerUser(supabase, bearerToken, error = "Please sign in before checkout.") {
+  if (!bearerToken) {
+    return { status: 401, error };
+  }
+  const { data: authResult, error: authError } = await supabase.auth.getUser(bearerToken);
+  if (authError || !authResult?.user) {
+    return { status: 401, error };
+  }
+  return { user: authResult.user };
+}
+
 async function getAuthenticatedWorkspace({ supabase, bearerToken, organizationId, requireConfirmedEmail = true }) {
   if (!bearerToken) {
     return { status: 401, error: "Please sign in before checkout." };
@@ -282,8 +302,9 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
 }
 
 async function reconcileCheckoutSession({ supabase, stripe, bearerToken, sessionId }) {
-  if (!bearerToken) {
-    return { status: 401, body: { error: "Please sign in before confirming checkout." } };
+  const auth = await validateBearerUser(supabase, bearerToken, "Please sign in before confirming checkout.");
+  if (auth.error) {
+    return { status: auth.status, body: { error: auth.error } };
   }
 
   if (!sessionId) {
@@ -477,8 +498,9 @@ async function reconcileCheckoutSession({ supabase, stripe, bearerToken, session
 }
 
 async function readCheckoutSessionStatus({ supabase, stripe, bearerToken, sessionId }) {
-  if (!bearerToken) {
-    return { status: 401, body: { error: "Please sign in before checking checkout status." } };
+  const auth = await validateBearerUser(supabase, bearerToken, "Please sign in before checking checkout status.");
+  if (auth.error) {
+    return { status: auth.status, body: { error: auth.error } };
   }
 
   if (!sessionId) {
@@ -531,9 +553,14 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  let action = "checkout";
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
-    const action = body.action || "checkout";
+    const body = parseRequestBody(req);
+    if (body.__invalidJson) {
+      res.status(400).json({ error: "Request body must be valid JSON." });
+      return;
+    }
+    action = body.action || "checkout";
     const productType = body.productType;
     const organizationId = body.organizationId || null;
     const workspaceId = body.workspaceId || organizationId || null;
@@ -772,7 +799,9 @@ module.exports = async function handler(req, res) {
         ? "Subscription management could not be opened."
         : action === "reconcile_checkout"
           ? "Payment could not be confirmed. Please open billing or contact support if the balance does not update."
-          : "Checkout could not be created.";
+          : action === "checkout_status"
+            ? "Checkout status could not be checked."
+            : "Checkout could not be created.";
     console.error("Checkout API failure", {
       action,
       message: error.message || "Unknown checkout error.",
