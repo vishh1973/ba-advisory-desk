@@ -26,9 +26,10 @@ function getBearerToken(req) {
 }
 
 function parseRequestBody(req) {
-  if (typeof req.body !== "string") return req.body || {};
   try {
-    return JSON.parse(req.body || "{}");
+    const rawBody = req.body;
+    if (typeof rawBody !== "string") return rawBody || {};
+    return JSON.parse(rawBody || "{}");
   } catch (_error) {
     return { __invalidJson: true };
   }
