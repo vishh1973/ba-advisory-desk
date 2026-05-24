@@ -1,7 +1,7 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
 const { requireAdmin } = require("./_lib/adminAuth");
-const { shouldIgnoreOptionalSchemaError, updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
+const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
 
 function escapeHtml(value) {
   return String(value || "")
@@ -9,23 +9,15 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replace(/'/g, "&#39;");
 }
 
-async function markCreditReminderSent(supabase, notification) {
-  if (!notification?.related_entity_id) return;
-  const now = new Date().toISOString();
-  const update = notification.template_key === "credits_depleted"
-    ? { last_depleted_credit_reminder_at: now, updated_at: now }
-    : notification.template_key === "low_credit_reminder"
-      ? { last_low_credit_reminder_at: now, updated_at: now }
-      : null;
-  if (!update) return;
-  await supabase
-    .from("credit_accounts")
-    .update(update)
-    .eq("id", notification.related_entity_id)
-    .then(() => null, () => null);
+function bodyToHtml(body) {
+  return String(body || "")
+    .split(/\n+/)
+    .filter(Boolean)
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("");
 }
 
 module.exports = async function handler(req, res) {
@@ -54,18 +46,14 @@ module.exports = async function handler(req, res) {
     }
 
     await supabase.rpc("queue_low_credit_reminders");
-    const reminderWindowDays = Number(process.env.CREDIT_EXPIRY_REMINDER_DAYS || 7);
-    const { error: expiryReminderError } = await supabase.rpc("queue_top_up_credit_expiry_reminders", {
-      p_window_days: Number.isFinite(reminderWindowDays) ? reminderWindowDays : 7,
-    });
-    if (expiryReminderError && !shouldIgnoreOptionalSchemaError(expiryReminderError)) throw expiryReminderError;
+    await supabase.rpc("queue_top_up_credit_expiry_reminders").then(() => null, () => null);
 
     const { data: notifications, error } = await supabase
       .from("notifications")
       .select("*")
       .eq("status", "queued")
       .in("template_key", ["low_credit_reminder", "credits_depleted", "top_up_credit_expiry_reminder"])
-      .limit(50);
+      .limit(25);
 
     if (error) throw error;
 
@@ -75,12 +63,11 @@ module.exports = async function handler(req, res) {
       const result = await sendEmail({
         to: notification.recipient_email,
         subject: notification.subject,
-        html: `<p>${escapeHtml(notification.body).replace(/\n/g, "</p><p>")}</p>`,
+        html: bodyToHtml(notification.body),
       });
 
       if (result.sent) {
         sent += 1;
-        await markCreditReminderSent(supabase, notification);
       } else if (!result.skipped) {
         failed += 1;
       }
@@ -91,8 +78,4 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: error.message || "Reminder job failed." });
   }
-};
-
-module.exports.__test = {
-  escapeHtml,
 };

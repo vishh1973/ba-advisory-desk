@@ -1,21 +1,22 @@
-function fallbackTextFromHtml(html) {
+function htmlToText(html) {
   return String(html || "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\/(p|div|li|br|tr|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
 
-async function sendEmail({ to, subject, html, text, replyTo, attachments }) {
+async function sendEmail({ to, subject, html, text, replyTo }) {
   if (!process.env.RESEND_API_KEY) {
     return { skipped: true, reason: "Email provider is not configured." };
   }
@@ -23,11 +24,8 @@ async function sendEmail({ to, subject, html, text, replyTo, attachments }) {
   const { Resend } = require("resend");
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.NOTIFICATION_FROM_EMAIL || "BA Advisory Desk <support@baadvisorydesk.com>";
-  const payload = { from, to, subject, html };
-  const textBody = text || fallbackTextFromHtml(html);
-  if (textBody) payload.text = textBody;
+  const payload = { from, to, subject, html, text: text || htmlToText(html) };
   if (replyTo) payload.replyTo = replyTo;
-  if (attachments?.length) payload.attachments = attachments;
   let result;
   try {
     result = await Promise.race([

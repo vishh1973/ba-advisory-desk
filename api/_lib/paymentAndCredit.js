@@ -17,10 +17,6 @@ function isMissingStripeGrantRpc(error) {
   );
 }
 
-function adminNotificationEmail() {
-  return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || process.env.ADMIN_EMAIL || "";
-}
-
 async function safeInsert(supabase, table, payload) {
   const { data, error } = await supabase.from(table).insert(payload).select("id").maybeSingle();
   if (error && shouldIgnoreOptionalSchemaError(error)) {
@@ -487,7 +483,7 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
   });
 
   let adminEmailResult = { skipped: true, reason: "No admin email configured." };
-  const adminEmail = adminNotificationEmail();
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL;
   if (adminEmail) {
     const admin = templates.adminPaymentNotification({ order, customerEmail, source });
     adminEmailResult = await sendAndRecordEmail(supabase, {
@@ -542,18 +538,17 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
     eventDetail: { balance: normalizedBalance, threshold: normalizedThreshold, related_entity_id: relatedEntityId || null },
   });
 
-  let reminderEmailResult = null;
   if (recipientEmail) {
-    reminderEmailResult = await sendAndRecordEmail(supabase, {
+    await sendAndRecordEmail(supabase, {
       to: recipientEmail,
       organizationId,
       relatedEntityType: "credit_account",
       relatedEntityId: account?.id || relatedEntityId || null,
       ...template,
     });
-  } else if (adminNotificationEmail()) {
-    reminderEmailResult = await sendAndRecordEmail(supabase, {
-      to: adminNotificationEmail(),
+  } else if (process.env.ADMIN_NOTIFICATION_EMAIL) {
+    await sendAndRecordEmail(supabase, {
+      to: process.env.ADMIN_NOTIFICATION_EMAIL,
       organizationId,
       relatedEntityType: "credit_account",
       relatedEntityId: account?.id || relatedEntityId || null,
@@ -561,7 +556,7 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
     });
   }
 
-  if (account?.id && reminderEmailResult?.sent) {
+  if (account?.id) {
     const reminderUpdate =
       status === "depleted"
         ? { last_depleted_credit_reminder_at: now, updated_at: now }

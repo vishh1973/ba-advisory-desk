@@ -11,10 +11,10 @@ const config = {
   topUpExpiryDays: 30,
   lowCreditThreshold: 2,
   stripePrices: {
-    rescueSprint: "price_1TYXC8APPPI08UZD46QIjVCk",
-    monthlySupport: "price_1TYXCtAPPPI08UZDJVWzzJhv",
-    starterMonthly: "price_1TYXCtAPPPI08UZDJVWzzJhv",
-    creditTopUp: "price_1TYXDQAPPPI08UZDPKSUXUQv",
+    rescueSprint: "price_1TajESAPPPI08UZDZ7qG1Hnq",
+    monthlySupport: "price_1TajESAPPPI08UZDXEvMxp61",
+    starterMonthly: "price_1TajESAPPPI08UZDXEvMxp61",
+    creditTopUp: "price_1TajETAPPPI08UZD2dMx5tFP",
   },
   stripePaymentLinks: {
   },
@@ -1669,6 +1669,22 @@ function setAuthStatus(message) {
   }
 }
 
+function setFormControlsDisabled(selector, disabled) {
+  document.querySelector(selector)?.querySelectorAll("input, select, textarea, button").forEach((field) => {
+    field.disabled = Boolean(disabled);
+  });
+}
+
+function syncAuthFormAvailability() {
+  const emailAuthVisible = !document.querySelector(".email-auth-grid")?.classList.contains("hidden");
+  const resetVisible = !document.querySelector("#passwordResetForm")?.classList.contains("hidden");
+  const recoveryVisible = !document.querySelector("#passwordRecoveryForm")?.classList.contains("hidden");
+  setFormControlsDisabled("#passwordSignInForm", !emailAuthVisible);
+  setFormControlsDisabled("#passwordSignUpForm", !emailAuthVisible);
+  setFormControlsDisabled("#passwordResetForm", !resetVisible);
+  setFormControlsDisabled("#passwordRecoveryForm", !recoveryVisible);
+}
+
 function updateAuthUi() {
   const isSignedIn = Boolean(state.session?.user);
   const loginButton = document.querySelector("#loginButton");
@@ -1710,6 +1726,7 @@ function updateAuthUi() {
   emailAuthGrid?.classList.toggle("hidden", !showEmailOptions);
   resetForm?.classList.add("hidden");
   recoveryForm?.classList.toggle("hidden", !state.passwordRecovery);
+  syncAuthFormAvailability();
 
   signOutButtons.forEach((button) => button.classList.toggle("hidden", !isSignedIn));
 
@@ -6778,6 +6795,7 @@ document.querySelector("#passwordSignInForm")?.addEventListener("submit", async 
 document.querySelector("#showResetPassword")?.addEventListener("click", () => {
   const resetForm = document.querySelector("#passwordResetForm");
   resetForm?.classList.toggle("hidden");
+  syncAuthFormAvailability();
   const typedEmail = document.querySelector("#passwordLoginEmail")?.value;
   if (typedEmail) syncAuthEmailFields(typedEmail);
   setAuthStatus("Enter your work email and request secure reset instructions.");
