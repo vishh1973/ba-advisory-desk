@@ -62,7 +62,6 @@ begin
   on conflict (dedupe_key) where dedupe_key is not null do nothing;
 
   get diagnostics queued_count = row_count;
-
   return queued_count;
 end;
 $$;

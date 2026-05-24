@@ -918,7 +918,7 @@
               </div>
             </div>
             <div class="tile-row focus-tiles">
-              <article><span>Advisory Credits left</span><strong id="creditsLeft">0</strong></article>
+              <article><span>Available Advisory Credits</span><strong id="creditsLeft">0</strong></article>
               <article><span>Active requests</span><strong id="activeCount">0</strong></article>
               <article><span>Ready for review</span><strong id="newDeliverableCount">0</strong></article>
             </div>
@@ -956,6 +956,7 @@
                 <p class="eyebrow">Account credit balance</p>
                 <h3><span id="accountCreditBalance">5</span> Advisory Credits available</h3>
                 <p>Monthly support credits and 3 Advisory Credit Top Ups attach to this workspace. They are used only for deliverables requested from this account.</p>
+                <p id="accountCreditExpiryNote" class="scope-note">Top up credits expire 30 days after purchase.</p>
               </div>
               <div class="account-actions">
                 <p id="accountCreditPrompt" class="credit-alert"></p>
@@ -1362,7 +1363,7 @@
           <article>
             <h3>3 Advisory Credit Top Up</h3>
             <strong>$1,000 USD</strong>
-            <p>3 additional Advisory Credits. A client workspace is required so the top up is applied to the right account.</p>
+            <p>3 additional Advisory Credits. A client workspace is required so the top up is applied to the right account. Top up credits expire 30 days after purchase.</p>
             <button data-action="buy-topup">Buy 3 Advisory Credit Top Up</button>
           </article>
           <article>
@@ -1853,7 +1854,6 @@
       <button type="button" id="toastClose" aria-label="Dismiss message">Close</button>
     </div>
     <script src="./content.js?v=10"></script>
-    <script src="./app.js?v=25"></script>
+    <script src="./app.js?v=28"></script>
   </body>
 </html>
-

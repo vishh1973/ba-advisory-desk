@@ -209,7 +209,7 @@ async function persistStripeCustomer(supabase, order, stripeCustomerId) {
     .then(() => null, () => null);
 }
 
-async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
+async function handleCheckoutCompleted(supabase, stripe, session, eventType, eventCreated) {
   const paymentOrderId = session.metadata?.payment_order_id;
   if (!paymentOrderId) return;
 
@@ -245,8 +245,10 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
     await upsertSubscriptionRecord(supabase, subscription, session.metadata);
   }
 
+  const confirmedPaidAt = isoFromUnixSeconds(eventCreated) || new Date().toISOString();
+
   await markOrderPaid(supabase, order, {
-    paidAt: isoFromUnixSeconds(session.created) || new Date().toISOString(),
+    paidAt: confirmedPaidAt,
     stripePaymentIntentId: session.payment_intent || null,
     stripeInvoiceId: session.invoice || null,
     stripeCheckoutSessionId: session.id,
@@ -272,7 +274,7 @@ async function handleCheckoutCompleted(supabase, stripe, session, eventType) {
     stripePaymentIntentId: session.payment_intent,
     stripeInvoiceId: session.invoice,
     stripeCheckoutSessionId: session.id,
-    paidAt: isoFromUnixSeconds(session.created) || new Date().toISOString(),
+    paidAt: confirmedPaidAt,
     billingPeriodStart: period.start,
     billingPeriodEnd: period.end,
   });
@@ -891,7 +893,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-      await handleCheckoutCompleted(supabase, stripe, event.data.object, event.type);
+      await handleCheckoutCompleted(supabase, stripe, event.data.object, event.type, event.created);
     }
 
     if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
