@@ -114,7 +114,7 @@ function buildInboundForwardHtml({ email, eventData, rawAttached }) {
   return `
     <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:720px;">
       <h1 style="font-size:20px;margin:0 0 12px;">Inbound email received</h1>
-      <p>Resend received an email for BA Advisory Desk. The original message is ${rawAttached ? "attached as an .eml file" : "available in Resend"}.</p>
+      <p>Resend received an email for BA Advisory Desk. The original message is ${rawAttached ? "attached as a raw email text file" : "available in Resend"}.</p>
       <table style="border-collapse:collapse;width:100%;border:1px solid #dbe5ec;margin:16px 0;">
         <tr><td style="padding:8px;border-bottom:1px solid #dbe5ec;font-weight:700;">From</td><td style="padding:8px;border-bottom:1px solid #dbe5ec;">${escapeHtml(from)}</td></tr>
         <tr><td style="padding:8px;border-bottom:1px solid #dbe5ec;font-weight:700;">To</td><td style="padding:8px;border-bottom:1px solid #dbe5ec;">${escapeHtml(to)}</td></tr>
@@ -186,9 +186,9 @@ module.exports = async function handler(req, res) {
         text: `Inbound email received from ${email?.from || event.data.from || "Unknown sender"}.\nSubject: ${subject}\nResend email id: ${email?.id || event.data.email_id}`,
         attachments: rawEmailContent
           ? [{
-              filename: "forwarded-message.eml",
+              filename: "forwarded-message.txt",
               content: Buffer.from(rawEmailContent).toString("base64"),
-              contentType: "message/rfc822",
+              contentType: "text/plain",
             }]
           : undefined,
         replyTo: email?.from || event.data.from || undefined,
