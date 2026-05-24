@@ -168,7 +168,7 @@ module.exports = async function handler(req, res) {
 
     if (error) throw error;
 
-    const supportEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "support@baadvisorydesk.com";
+    const supportEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
     const emailResult = await sendEmail({
       to: supportEmail,
       subject: "New BA Advisory Desk custom advisory request",

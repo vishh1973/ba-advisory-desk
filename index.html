@@ -1460,6 +1460,26 @@
             <strong id="adminNewCount">1</strong>
             <span><span id="adminQuoteCount">0</span> custom inquiries. <span id="adminActiveClientCount">0</span> active clients.</span>
           </button>
+          <button class="admin-metric-card danger" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="overdue" aria-label="Show overdue deliverables and responses">
+            <h3>Overdue</h3>
+            <strong id="adminOverdueCount">0</strong>
+            <span>Past-due requests, client messages, billing checks, and file reviews.</span>
+          </button>
+          <button class="admin-metric-card warning" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="due" aria-label="Show deliverables due soon">
+            <h3>Due soon</h3>
+            <strong id="adminDueSoonCount">0</strong>
+            <span>Open work due within the next 7 days.</span>
+          </button>
+          <button class="admin-metric-card messages" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="messages" aria-label="Show clients needing email response">
+            <h3>Needs response</h3>
+            <strong id="adminMessageResponseCount">0</strong>
+            <span>Client messages waiting for an admin reply.</span>
+          </button>
+          <button class="admin-metric-card requests" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="requests" aria-label="Show new client requests">
+            <h3>New requests</h3>
+            <strong id="adminRequestIntakeCount">0</strong>
+            <span>Scope intake, confirm credits, then release work.</span>
+          </button>
           <button class="admin-metric-card files" type="button" data-admin-action="jump-admin-section" data-target-id="adminQueueBlock" data-queue-filter="files" aria-label="Show file review queue">
             <h3>Files to review</h3>
             <strong id="adminFileInboxCount">0</strong>
@@ -1511,7 +1531,7 @@
             </div>
             <table id="adminClientPortfolioTable">
               <thead>
-                <tr><th>Client</th><th>Health</th><th>Credits</th><th>Open items</th><th>Last activity</th></tr>
+                <tr><th>Client / dossier</th><th>Health</th><th>Credits</th><th>Action mix</th><th>Last activity</th></tr>
               </thead>
               <tbody></tbody>
             </table>

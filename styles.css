@@ -2287,7 +2287,7 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .admin-grid {
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .admin-workbench {
@@ -2857,6 +2857,22 @@ input[type="file"]::file-selector-button:hover {
   background: linear-gradient(145deg, #ffffff, #fff7ed);
 }
 
+.admin-metric-card.danger {
+  background: linear-gradient(145deg, #ffffff, #fff1f2);
+  border-color: #fecdd3;
+}
+
+.admin-metric-card.warning,
+.admin-metric-card.requests {
+  background: linear-gradient(145deg, #ffffff, #fffbeb);
+  border-color: #fde68a;
+}
+
+.admin-metric-card.messages {
+  background: linear-gradient(145deg, #ffffff, #eef6ff);
+  border-color: #bfdbfe;
+}
+
 .admin-metric-card.credits {
   background: linear-gradient(145deg, #ffffff, #f8fafc);
 }
@@ -2873,6 +2889,18 @@ input[type="file"]::file-selector-button:hover {
 .admin-metric-card strong,
 .admin-metric-card span {
   display: block;
+}
+
+.admin-portfolio-panel td small {
+  color: var(--slate);
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+tr.attention-row {
+  background: #fff7ed;
+  box-shadow: inset 4px 0 0 #f97316;
 }
 
 .toast {

@@ -690,6 +690,13 @@ function isDueSoon(value) {
   return dueDate <= limit;
 }
 
+function isOverdue(value) {
+  if (!value) return false;
+  const dueDate = new Date(value);
+  if (Number.isNaN(dueDate.getTime())) return false;
+  return dueDate < new Date();
+}
+
 function getClientEmail(client) {
   return client?.email || client?.billingEmail || client?.billing_email || "";
 }
@@ -832,6 +839,9 @@ function isSelectedAdminScopedRecord(record, client = getSelectedAdminClient(), 
 function getSelectedAdminQueueItems() {
   const selectedClient = getSelectedAdminClient();
   const applyFocus = (items) => {
+    if (state.adminQueueFocus === "due") return items.filter((item) => item.dueAt && !isOverdue(item.dueAt) && isDueSoon(item.dueAt));
+    if (state.adminQueueFocus === "overdue") return items.filter((item) => item.dueAt && isOverdue(item.dueAt));
+    if (state.adminQueueFocus === "requests") return items.filter((item) => item.queueType === "request");
     if (state.adminQueueFocus === "quote") return items.filter((item) => item.queueType === "quote");
     if (state.adminQueueFocus === "files") return items.filter((item) => ["client-upload", "request-file"].includes(item.queueType));
     if (state.adminQueueFocus === "payments") return items.filter((item) => item.queueType === "payment");
@@ -2986,6 +2996,7 @@ async function saveClientProfileToSupabase() {
     return { ok: false, reason: `Please complete these profile fields before saving: ${missingFields.join(", ")}.` };
   }
   const companyName = document.querySelector("#profileCompany").value.trim();
+  const hadWorkspace = Boolean(state.profileOrganizationId);
 
   const { data: organizationId, error } = await supabaseClient.rpc("save_client_workspace_profile", {
     p_org_name: companyName,
@@ -3009,6 +3020,17 @@ async function saveClientProfileToSupabase() {
   }
 
   await loadSignedInProfile();
+  if (!hadWorkspace && organizationId) {
+    notifyAdvisorEventInBackground({
+      eventType: "client_signup_completed",
+      title: "New client workspace created",
+      summary: `${document.querySelector("#profileFirstName")?.value || "Client"} ${document.querySelector("#profileLastName")?.value || ""}`.trim() + ` completed a client workspace profile for ${companyName}. Role: ${document.querySelector("#profileTitle")?.value || "Not provided"}. Need: ${document.querySelector("#profileNeed")?.value || "Not provided"}.`,
+      relatedEntityType: "workspace",
+      relatedEntityId: null,
+      relatedLabel: companyName,
+      projectId: null,
+    });
+  }
   return { ok: true, organizationId };
 }
 
@@ -3829,7 +3851,7 @@ function renderRequests() {
         const nextAction = getAdminNextAction(item);
         const resolution = getAdminQueueResolution(item);
         return `
-        <tr>
+        <tr class="${item.dueAt && isOverdue(item.dueAt) ? "attention-row" : ""}">
           <td>
             <strong class="queue-next-action">${escapeHtml(nextAction)}</strong>
             <small>${escapeHtml(item.dueLabel || item.due || "No due date set")}</small>
@@ -3871,6 +3893,9 @@ function renderRequests() {
     if (state.adminQueueFocus === "files") return "No file review items match the current client/project filter.";
     if (state.adminQueueFocus === "payments") return "No payment review items match the current client/project filter.";
     if (state.adminQueueFocus === "messages") return "No client messages match the current client/project filter.";
+    if (state.adminQueueFocus === "requests") return "No new client requests match the current client/project filter.";
+    if (state.adminQueueFocus === "due") return "No due-soon items match the current client/project filter.";
+    if (state.adminQueueFocus === "overdue") return "No overdue items match the current client/project filter.";
     if (state.adminQueueFocus === "quote") return "No custom inquiries match the current client/project filter.";
     if (state.selectedAdminClientId) return "No open admin queue items for the selected client and project scope.";
     return "No open admin queue items. Use the portfolio filters to review clients, credits, and released work.";
@@ -4844,15 +4869,24 @@ function getAdminClientHealth(client) {
 
 function renderAdminSnapshot() {
   const clients = state.adminClients.filter((client) => client.id);
-  const fileInbox = state.adminQueue.filter((item) => ["client-upload", "request-file"].includes(item.queueType) && isAdminQueueOpenItem(item)).length;
+  const openQueueItems = state.adminQueue.filter(isAdminQueueOpenItem);
+  const fileInbox = openQueueItems.filter((item) => ["client-upload", "request-file"].includes(item.queueType)).length;
   const released = state.adminDeliverables.length;
   const lowCreditClients = clients.filter((client) => getCreditAlertState(getAdminCreditBalanceForOrganization(client.id), Number(client.lowCreditThreshold || config.lowCreditThreshold)).level !== "healthy").length;
-  const openWork = state.adminQueue.filter(isAdminQueueOpenItem).length;
-  const customInquiries = state.adminQueue.filter((item) => item.queueType === "quote" && isAdminQueueOpenItem(item)).length;
+  const openWork = openQueueItems.length;
+  const customInquiries = openQueueItems.filter((item) => item.queueType === "quote").length;
+  const overdueItems = openQueueItems.filter((item) => item.dueAt && isOverdue(item.dueAt)).length;
+  const dueSoonItems = openQueueItems.filter((item) => item.dueAt && !isOverdue(item.dueAt) && isDueSoon(item.dueAt)).length;
+  const clientMessages = openQueueItems.filter((item) => item.queueType === "client-message").length;
+  const newRequests = openQueueItems.filter((item) => item.queueType === "request").length;
   const activeClientCount = document.querySelector("#adminActiveClientCount");
   const openWorkCount = document.querySelector("#adminNewCount");
   const quoteCount = document.querySelector("#adminQuoteCount");
   const fileInboxCount = document.querySelector("#adminFileInboxCount");
+  const overdueCount = document.querySelector("#adminOverdueCount");
+  const dueSoonCount = document.querySelector("#adminDueSoonCount");
+  const messageCount = document.querySelector("#adminMessageResponseCount");
+  const requestCount = document.querySelector("#adminRequestIntakeCount");
   const readyCount = document.querySelector("#adminReadyCount");
   const alertCount = document.querySelector("#adminAlertCount");
   const alertSummary = document.querySelector("#adminAlertSummary");
@@ -4860,6 +4894,10 @@ function renderAdminSnapshot() {
   if (openWorkCount) openWorkCount.textContent = openWork;
   if (quoteCount) quoteCount.textContent = customInquiries;
   if (fileInboxCount) fileInboxCount.textContent = fileInbox;
+  if (overdueCount) overdueCount.textContent = overdueItems;
+  if (dueSoonCount) dueSoonCount.textContent = dueSoonItems;
+  if (messageCount) messageCount.textContent = clientMessages;
+  if (requestCount) requestCount.textContent = newRequests;
   if (readyCount) readyCount.textContent = released;
   if (alertCount) alertCount.textContent = lowCreditClients;
   if (alertSummary) alertSummary.textContent = lowCreditClients ? `${lowCreditClients} client${lowCreditClients === 1 ? "" : "s"} need review` : "No credit alerts";
@@ -4960,7 +4998,11 @@ function renderAdminClientPortfolio() {
           </td>
           <td><span class="status-pill ${escapeHtml(getAdminStatusLevel(health))}">${escapeHtml(health)}</span></td>
           <td>${escapeHtml(getCreditBalanceLabelForAdmin(client))}</td>
-          <td>${escapeHtml(openItems)}</td>
+          <td>${escapeHtml(openItems)}${openItems ? `<small>${escapeHtml([
+            getAdminOpenItemsForClient(client).filter((item) => item.dueAt && isOverdue(item.dueAt)).length ? `${getAdminOpenItemsForClient(client).filter((item) => item.dueAt && isOverdue(item.dueAt)).length} overdue` : "",
+            getAdminOpenItemsForClient(client).filter((item) => item.queueType === "client-message").length ? `${getAdminOpenItemsForClient(client).filter((item) => item.queueType === "client-message").length} messages` : "",
+            getAdminOpenItemsForClient(client).filter((item) => ["client-upload", "request-file"].includes(item.queueType)).length ? `${getAdminOpenItemsForClient(client).filter((item) => ["client-upload", "request-file"].includes(item.queueType)).length} files` : "",
+          ].filter(Boolean).join(" | ") || "Open work")}</small>` : ""}</td>
           <td>${escapeHtml(getAdminLastActivityForClient(client))}</td>
         </tr>
       `;

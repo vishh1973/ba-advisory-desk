@@ -483,7 +483,7 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
   });
 
   let adminEmailResult = { skipped: true, reason: "No admin email configured." };
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL;
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
   if (adminEmail) {
     const admin = templates.adminPaymentNotification({ order, customerEmail, source });
     adminEmailResult = await sendAndRecordEmail(supabase, {
@@ -546,9 +546,10 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
       relatedEntityId: account?.id || relatedEntityId || null,
       ...template,
     });
-  } else if (process.env.ADMIN_NOTIFICATION_EMAIL) {
+  } else {
+    const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
     await sendAndRecordEmail(supabase, {
-      to: process.env.ADMIN_NOTIFICATION_EMAIL,
+      to: adminEmail,
       organizationId,
       relatedEntityType: "credit_account",
       relatedEntityId: account?.id || relatedEntityId || null,

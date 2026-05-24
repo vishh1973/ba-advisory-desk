@@ -1,6 +1,25 @@
 # BA Advisory Desk Storage And Upgrade Guide
 
-Last updated: May 19, 2026
+Last updated: May 24, 2026
+
+## Source Of Record And Retention Position
+
+BA Advisory Desk uses Supabase as the source of record for client, project, request, message, file, payment, credit, notification, audit, and deliverable data.
+
+Permanent retention expectations:
+
+- Client workspace records should remain in Supabase tables unless a deliberate, approved data-retention workflow archives or exports them.
+- Uploaded client source files should remain in the private `client-files` bucket after they are finalized into `request_files` or `client_uploads` records.
+- Released deliverables should remain in the private `private-deliverables` bucket and in the version tables so prior versions stay recoverable.
+- Workspace "delete" actions should be soft delete / removal-from-view actions only. They should set metadata such as `deleted_at`, `deleted_by`, and `deleted_reason`, and should not remove finalized storage objects.
+- Draft/aborted uploads that were never finalized into a database record may be physically removed during cleanup, because they are not yet part of the client source of record.
+
+Important implementation guardrails:
+
+- Do not add client-facing hard-delete operations for organizations, projects, requests, finalized files, messages, or deliverables.
+- Avoid `on delete cascade` for permanent client artifacts unless the application has a separate archive/export process and a very explicit destructive admin workflow.
+- Any future deletion or retention workflow must record an `audit_events` row and should preserve storage objects unless legal/compliance deletion is explicitly required.
+- Source file records in `request_files` and `client_uploads` are not the bytes themselves; the database row plus Supabase Storage object together form the retained artifact.
 
 ## Current File Storage Design
 

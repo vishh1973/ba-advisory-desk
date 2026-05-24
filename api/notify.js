@@ -37,6 +37,14 @@ function clientError(message, statusCode = 400) {
   return error;
 }
 
+function publicBaseUrl() {
+  return process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com";
+}
+
+function resolveAdminNotificationEmail() {
+  return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
+}
+
 function hasVerifiedEmail(user) {
   return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
 }
@@ -96,13 +104,20 @@ async function validateClientNotificationScope(supabase, organizationId, { proje
   };
 }
 
-function buildAdminEmail({ eventType, title, summary, organization, profile, relatedLabel }) {
+function buildAdminEmail({ eventType, title, summary, organization, profile, project, relatedLabel, relatedEntityType, relatedEntityId }) {
+  const workspaceUrl = `${publicBaseUrl()}/#admin`;
   const rows = [
     ["Event", eventType],
     ["Title", title],
     ["Client", organization?.name],
     ["Client email", profile?.work_email || profile?.auth_email],
+    ["Billing email", organization?.billing_email],
+    ["Project", project?.name],
+    ["Project code", project?.project_code],
+    ["Project status", project?.status],
     ["Related item", relatedLabel],
+    ["Related type", relatedEntityType],
+    ["Related id", relatedEntityId],
     ["Summary", summary],
   ];
 
@@ -122,9 +137,22 @@ function buildAdminEmail({ eventType, title, summary, organization, profile, rel
       <h1 style="font-size:20px;line-height:1.3;margin:0 0 14px;">Client workspace activity</h1>
       <p style="margin:0 0 16px;">A client workspace item needs advisory review.</p>
       <table style="border-collapse:collapse;width:100%;border:1px solid #dbe5ec;">${rowHtml}</table>
-      <p style="margin:18px 0 0;color:#5c6670;font-size:13px;">Open the operations desk to review the client file.</p>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open admin workspace</a></p>
+      <p style="margin:18px 0 0;color:#5c6670;font-size:13px;">Open the operations desk to review the client file. Do not reply with sensitive files unless the client context has been verified in the workspace.</p>
     </div>
   `;
+}
+
+async function readProjectForEmail(supabase, organizationId, projectId) {
+  if (!organizationId || !projectId) return null;
+  const { data, error } = await supabase
+    .from("client_projects")
+    .select("id,name,project_code,status")
+    .eq("id", projectId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
 }
 
 function buildClientMessageEmail({ subject, message, emailReference }) {
@@ -187,12 +215,23 @@ async function handleClientWorkspaceNotification(req, res) {
     relatedEntityType,
     relatedEntityId,
   });
-  const supportEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "support@baadvisorydesk.com";
-  const subject = `BA Advisory Desk client update: ${title}`;
+  const supportEmail = resolveAdminNotificationEmail();
+  const project = await readProjectForEmail(supabase, profile.organization_id, scope.projectId);
+  const subject = `[BAAD Admin] ${title} — ${organization?.name || "Client workspace"}`;
   const emailResult = await sendEmail({
     to: supportEmail,
     subject,
-    html: buildAdminEmail({ eventType, title, summary, organization, profile, relatedLabel }),
+    html: buildAdminEmail({
+      eventType,
+      title,
+      summary,
+      organization,
+      profile,
+      project,
+      relatedLabel,
+      relatedEntityType: scope.relatedEntityType,
+      relatedEntityId: scope.relatedEntityId,
+    }),
     replyTo: profile.work_email || profile.auth_email || organization.billing_email || null,
   });
 
@@ -369,3 +408,6 @@ module.exports = async function handler(req, res) {
     res.status(500).json({ error: error.message || "Notification failed." });
   }
 };
+
+module.exports.buildAdminEmail = buildAdminEmail;
+module.exports.resolveAdminNotificationEmail = resolveAdminNotificationEmail;
