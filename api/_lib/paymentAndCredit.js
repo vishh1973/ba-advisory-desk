@@ -17,6 +17,10 @@ function isMissingStripeGrantRpc(error) {
   );
 }
 
+function adminNotificationEmail() {
+  return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || process.env.ADMIN_EMAIL || "";
+}
+
 async function safeInsert(supabase, table, payload) {
   const { data, error } = await supabase.from(table).insert(payload).select("id").maybeSingle();
   if (error && shouldIgnoreOptionalSchemaError(error)) {
@@ -95,7 +99,7 @@ async function sendAndRecordEmail(supabase, payload) {
     return { skipped: true, duplicate: true, reason: "Notification already queued or sent." };
   }
 
-  const sent = await sendEmail({ to: payload.to, subject, html });
+  const sent = await sendEmail({ to: payload.to, subject, html, text: body });
   await updateNotificationDeliveryStatus(supabase, queued?.data?.id, sent);
 
   return sent;
@@ -483,7 +487,7 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
   });
 
   let adminEmailResult = { skipped: true, reason: "No admin email configured." };
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL;
+  const adminEmail = adminNotificationEmail();
   if (adminEmail) {
     const admin = templates.adminPaymentNotification({ order, customerEmail, source });
     adminEmailResult = await sendAndRecordEmail(supabase, {
@@ -546,9 +550,9 @@ async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, 
       relatedEntityId: account?.id || relatedEntityId || null,
       ...template,
     });
-  } else if (process.env.ADMIN_NOTIFICATION_EMAIL) {
+  } else if (adminNotificationEmail()) {
     await sendAndRecordEmail(supabase, {
-      to: process.env.ADMIN_NOTIFICATION_EMAIL,
+      to: adminNotificationEmail(),
       organizationId,
       relatedEntityType: "credit_account",
       relatedEntityId: account?.id || relatedEntityId || null,

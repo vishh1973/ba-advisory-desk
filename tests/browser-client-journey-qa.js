@@ -283,8 +283,9 @@ async function run() {
     await waitForApp(page);
 
     const appScript = await page.getAttribute("script[src*='app.js']", "src");
-    if (!appScript || !appScript.includes("v=24")) {
-      throw new Error(`Expected app.js cache version v=24, found ${appScript || "none"}.`);
+    const cacheVersion = Number((appScript || "").match(/[?&]v=(\d+)/)?.[1] || 0);
+    if (!appScript || cacheVersion < 24) {
+      throw new Error(`Expected app.js cache version v=24 or newer, found ${appScript || "none"}.`);
     }
 
     await page.fill("#passwordLoginEmail", email);

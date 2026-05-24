@@ -213,6 +213,75 @@ test("inbound resend webhook forwards readable body and original attachments", a
   }
 });
 
+test("payment confirmation uses forwarding email as admin fallback", async () => {
+  process.env.RESEND_FORWARD_TO_EMAIL = "owner@example.com";
+  delete process.env.ADMIN_NOTIFICATION_EMAIL;
+  delete process.env.ADMIN_EMAIL;
+  const sent = [];
+  const inserted = [];
+  const emailModulePath = require.resolve("../api/_lib/email");
+  const paymentModulePath = require.resolve("../api/_lib/paymentAndCredit");
+  delete require.cache[emailModulePath];
+  require.cache[emailModulePath] = {
+    id: emailModulePath,
+    filename: emailModulePath,
+    loaded: true,
+    exports: {
+      sendEmail: async (payload) => {
+        sent.push(payload);
+        return { sent: true, messageId: `msg_${sent.length}` };
+      },
+    },
+  };
+  delete require.cache[paymentModulePath];
+  const supabase = {
+    from(table) {
+      return {
+        insert(payload) {
+          inserted.push({ table, payload });
+          return {
+            select() {
+              return {
+                maybeSingle: async () => ({ data: { id: `notification_${inserted.length}` } }),
+              };
+            },
+          };
+        },
+        update() {
+          return {
+            eq: async () => ({ error: null }),
+          };
+        },
+      };
+    },
+  };
+
+  try {
+    const { notifyPaymentConfirmed } = require("../api/_lib/paymentAndCredit");
+    await notifyPaymentConfirmed(supabase, {
+      order: {
+        id: "pay_1",
+        organization_id: "org_1",
+        product_type: "credit_top_up",
+        amount_cents: 100000,
+        currency: "usd",
+        credits: 3,
+      },
+      customerEmail: "client@example.com",
+      balanceAfter: 8,
+      source: "checkout.session.completed",
+    });
+
+    assert.ok(sent.some((item) => item.to === "client@example.com"));
+    assert.ok(sent.some((item) => item.to === "owner@example.com"));
+    assert.ok(sent.every((item) => item.text && item.html));
+  } finally {
+    delete process.env.RESEND_FORWARD_TO_EMAIL;
+    delete require.cache[paymentModulePath];
+    delete require.cache[emailModulePath];
+  }
+});
+
 test("deliverable release actions do not accept the shared admin secret", async () => {
   process.env.ADMIN_API_SECRET = "test-admin-secret";
   const handler = require("../api/deliverable-ready-notification");
