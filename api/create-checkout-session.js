@@ -106,10 +106,11 @@ async function findStripeCustomerId(supabase, organizationId) {
 }
 
 function isMissingStripeCustomerForCurrentMode(error) {
+  const param = String(error?.param || "");
   return (
     error?.type === "StripeInvalidRequestError" &&
     error?.code === "resource_missing" &&
-    error?.param === "customer" &&
+    (param === "customer" || param === "id") &&
     /no such customer/i.test(String(error?.message || ""))
   );
 }

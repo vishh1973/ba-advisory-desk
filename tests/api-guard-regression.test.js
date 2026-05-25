@@ -46,7 +46,7 @@ test("checkout ignores stored Stripe customers from the wrong Stripe mode", asyn
   const staleCustomerError = Object.assign(new Error("No such customer: 'cus_test_123'; a similar object exists in test mode, but a live mode key was used to make this request."), {
     type: "StripeInvalidRequestError",
     code: "resource_missing",
-    param: "customer",
+    param: "id",
   });
   const stripe = {
     customers: {
