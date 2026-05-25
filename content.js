@@ -10,7 +10,7 @@ window.BAAD_CONTENT = {
       "Private client workspace",
       "Controlled file handling",
       "NDA review available before sensitive uploads",
-      "Client files are not used to train public AI models",
+      "Confidential project material handling",
     ],
     proofPoints: [
       {
