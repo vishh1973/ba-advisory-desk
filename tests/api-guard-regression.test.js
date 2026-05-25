@@ -87,6 +87,81 @@ test("checkout keeps stored Stripe customers that are valid for the active Strip
   assert.equal(resolved, "cus_live_123");
 });
 
+test("checkout attempt keys are separated by Stripe mode", async () => {
+  const handlerPath = require.resolve("../api/create-checkout-session");
+  delete require.cache[handlerPath];
+  const handler = require("../api/create-checkout-session");
+
+  const liveKey = handler.__test.buildCheckoutAttemptKey({
+    organizationId: "org_123",
+    productType: "credit_top_up",
+    priceId: "price_shared",
+    stripeMode: "live",
+  });
+  const testKey = handler.__test.buildCheckoutAttemptKey({
+    organizationId: "org_123",
+    productType: "credit_top_up",
+    priceId: "price_shared",
+    stripeMode: "test",
+  });
+
+  assert.equal(liveKey, "checkout-v3:live:org_123:credit_top_up:price_shared");
+  assert.equal(testKey, "checkout-v3:test:org_123:credit_top_up:price_shared");
+  assert.notEqual(liveKey, testKey);
+});
+
+test("checkout does not reuse Stripe sessions that are about to expire", async () => {
+  const handlerPath = require.resolve("../api/create-checkout-session");
+  delete require.cache[handlerPath];
+  const handler = require("../api/create-checkout-session");
+  const nowSeconds = Math.floor(Date.now() / 1000);
+
+  assert.equal(
+    handler.__test.isReusableOpenCheckoutSession({ status: "open", url: "https://checkout.stripe.com/open", expires_at: nowSeconds + 60 }),
+    false
+  );
+  assert.equal(
+    handler.__test.isReusableOpenCheckoutSession({ status: "open", url: "https://checkout.stripe.com/open", expires_at: nowSeconds + 900 }),
+    true
+  );
+  assert.equal(
+    handler.__test.isReusableOpenCheckoutSession({ status: "complete", url: "https://checkout.stripe.com/closed", expires_at: nowSeconds + 900 }),
+    false
+  );
+});
+
+test("Stripe test mode requires explicit test price IDs and never falls back to live prices", async () => {
+  const productsPath = require.resolve("../api/_lib/products");
+  delete require.cache[productsPath];
+  const originalEnv = {
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_RESCUE_PRICE_ID: process.env.STRIPE_RESCUE_PRICE_ID,
+    STRIPE_MONTHLY_SUPPORT_PRICE_ID: process.env.STRIPE_MONTHLY_SUPPORT_PRICE_ID,
+    STRIPE_STARTER_PRICE_ID: process.env.STRIPE_STARTER_PRICE_ID,
+    STRIPE_TOPUP_PRICE_ID: process.env.STRIPE_TOPUP_PRICE_ID,
+  };
+
+  try {
+    process.env.STRIPE_SECRET_KEY = "sk_test_fake";
+    delete process.env.STRIPE_RESCUE_PRICE_ID;
+    assert.throws(
+      () => require("../api/_lib/products").getProductConfig("rescue_sprint"),
+      /Stripe test mode requires a test price ID/i
+    );
+
+    process.env.STRIPE_RESCUE_PRICE_ID = "price_test_rescue";
+    const config = require("../api/_lib/products").getProductConfig("rescue_sprint");
+    assert.equal(config.priceId, "price_test_rescue");
+    assert.equal(config.stripeMode, "test");
+  } finally {
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    delete require.cache[productsPath];
+  }
+});
+
 test("checkout rejects missing product type before server integrations", async () => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -120,6 +195,20 @@ test("custom quote rejects malformed JSON before server integrations", async () 
   delete process.env.RESEND_API_KEY;
   delete require.cache[require.resolve("../api/custom-quote")];
   const handler = require("../api/custom-quote");
+  const res = createResponse();
+
+  await handler(createJsonRequest({ body: "{" }), res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, "Request body must be valid JSON.");
+});
+
+test("notify rejects malformed JSON before auth or email integrations", async () => {
+  delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.RESEND_API_KEY;
+  delete require.cache[require.resolve("../api/notify")];
+  const handler = require("../api/notify");
   const res = createResponse();
 
   await handler(createJsonRequest({ body: "{" }), res);

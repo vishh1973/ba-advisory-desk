@@ -262,7 +262,16 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const body = parseJsonBody(req);
+  let body;
+  try {
+    body = parseJsonBody(req);
+  } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: "Request body must be valid JSON." });
+      return;
+    }
+    throw error;
+  }
   const token = readBearerToken(req);
   const isAdminClientMessage = body.type === "admin_client_message";
   if (token && !isAdminClientMessage) {
