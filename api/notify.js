@@ -3,13 +3,7 @@ const { sendEmail } = require("./_lib/email");
 const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./_lib/emailReference");
 const { requireAdmin } = require("./_lib/adminAuth");
 const { updateNotificationDeliveryStatus } = require("./_lib/paymentAndCredit");
-
-function parseBody(req) {
-  if (typeof req.body === "string") {
-    return JSON.parse(req.body || "{}");
-  }
-  return req.body || {};
-}
+const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 
 function readHeader(req, name) {
   const headers = req.headers || {};
@@ -177,7 +171,7 @@ async function handleClientWorkspaceNotification(req, res) {
     return;
   }
 
-  const body = parseBody(req);
+  const body = parseJsonBody(req);
   const eventType = String(body.eventType || "workspace_activity").trim();
   const title = String(body.title || "Client workspace update").trim();
   const summary = String(body.summary || "A client workspace update was submitted.").trim();
@@ -268,7 +262,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const body = parseBody(req);
+  const body = parseJsonBody(req);
   const token = readBearerToken(req);
   const isAdminClientMessage = body.type === "admin_client_message";
   if (token && !isAdminClientMessage) {
@@ -405,6 +399,10 @@ module.exports = async function handler(req, res) {
 
     res.status(200).json({ queued: true, sent: true, emailReference });
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: error.message || "Notification failed." });
   }
 };

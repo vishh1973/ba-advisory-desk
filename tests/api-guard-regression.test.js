@@ -65,6 +65,21 @@ test("checkout rejects unsupported product type before server integrations", asy
   assert.match(res.body.error, /not available for checkout/i);
 });
 
+
+test("custom quote rejects malformed JSON before server integrations", async () => {
+  delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.RESEND_API_KEY;
+  delete require.cache[require.resolve("../api/custom-quote")];
+  const handler = require("../api/custom-quote");
+  const res = createResponse();
+
+  await handler(createJsonRequest({ body: "{" }), res);
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, "Request body must be valid JSON.");
+});
+
 test("inbound resend webhook rejects missing Svix signature without exposing SDK errors", async () => {
   process.env.RESEND_WEBHOOK_SECRET = "whsec_test";
   delete process.env.RESEND_API_KEY;

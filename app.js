@@ -1415,7 +1415,7 @@ function applyPendingPostAuthRoute() {
   if (!state.session?.user) return;
   const pendingRoute = getPendingPostAuthRoute();
   if (!pendingRoute) return;
-  const route = isAdminUser() ? "admin" : routeAliases[pendingRoute] || pendingRoute;
+  const route = isAdminUser() ? "admin" : pendingRoute;
   localStorage.removeItem("baad-post-auth-route");
   if (route && window.location.hash.replace("#", "") !== route) {
     window.location.hash = route;
@@ -3755,7 +3755,7 @@ function setView() {
   }
 
   if (protectedViews.includes(key) && !state.session?.user) {
-    setPendingPostAuthRoute(key);
+    setPendingPostAuthRoute(routeAliases[rawKey] ? rawKey : key);
     key = "login";
     window.history.replaceState(null, "", `${window.location.pathname}#login`);
     setAuthStatus("Please sign in before opening the client workspace.");
@@ -6896,7 +6896,11 @@ document.addEventListener("click", async (event) => {
   } finally {
     if (shouldLockAction) {
       target.dataset.busy = "false";
-      target.disabled = false;
+      if (target.dataset.adminAction === "upload-deliverable") {
+        updateAdminReleaseReadiness();
+      } else {
+        target.disabled = false;
+      }
     }
   }
 });

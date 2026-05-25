@@ -3,13 +3,14 @@ window.BAAD_CONTENT = {
     eyebrow: "Requirements rescue and decision ready Business Analysis support",
     headline: "Get senior Business Analysis output without adding headcount.",
     benefit:
-      "Why add fixed BA capacity when you can access focused requirements, business case, UAT, SOP, vendor, and AI readiness support on demand?",
+      "Why add fixed BA capacity when you can access focused requirements, business case, UAT, SOP, vendor, AI readiness, and fractional BA support on demand?",
     body:
       "Send the business problem, source material, and decision pressure. We structure the evidence, identify gaps and risks, and return clear deliverables your team can approve, build from, or share with clients.",
     trustSignals: [
       "Private client workspace",
       "Controlled file handling",
       "NDA review available before sensitive uploads",
+      "Client files are not used to train public AI models",
     ],
     proofPoints: [
       {
@@ -113,7 +114,7 @@ window.BAAD_CONTENT = {
       {
         label: "Monthly capacity",
         title: "BA Advisory Desk Monthly Support",
-        body: "Recurring senior Business Analysis support for teams that need ongoing deliverable capacity without adding a full time role.",
+        body: "Recurring senior Business Analysis and fractional BA support for teams that need ongoing deliverable capacity without adding a full time role.",
       },
       {
         label: "Requirements and scope",

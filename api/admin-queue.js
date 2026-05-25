@@ -1,6 +1,7 @@
 const { requireAdmin } = require("./_lib/adminAuth");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { detectAndNotifyCreditStatus, getCreditBalance } = require("./_lib/paymentAndCredit");
+const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 
 function readLimit(req) {
   const value = Number(req.query?.limit || 100);
@@ -51,13 +52,6 @@ function sourcePagination(sourceRanges, sourceRows, limit) {
     };
     return acc;
   }, {});
-}
-
-function parseBody(req) {
-  if (typeof req.body === "string") {
-    return JSON.parse(req.body || "{}");
-  }
-  return req.body || {};
 }
 
 function queueTarget(body) {
@@ -468,7 +462,7 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === "POST") {
-      const body = parseBody(req);
+      const body = parseJsonBody(req);
       if (body.organizationId && body.type && ["grant", "reserve", "consume", "release", "adjust"].includes(body.type)) {
         await handleLedgerAction(req, res);
         return;
@@ -716,6 +710,10 @@ module.exports = async function handler(req, res) {
       },
     });
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: error.message || "Admin queue could not be loaded." });
   }
 };

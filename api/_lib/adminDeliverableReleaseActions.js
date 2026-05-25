@@ -3,13 +3,7 @@ const { createEmailReference, htmlWithReference, subjectWithReference, textWithR
 const { detectAndNotifyCreditStatus, updateNotificationDeliveryStatus } = require("./paymentAndCredit");
 const { getSupabaseAdmin } = require("./supabaseAdmin");
 const { validateStoredFile } = require("./fileValidation");
-
-function parseBody(req) {
-  if (typeof req.body === "string") {
-    return JSON.parse(req.body || "{}");
-  }
-  return req.body || {};
-}
+const { InvalidJsonBodyError, parseJsonBody } = require("./jsonBody");
 
 function readHeader(req, name) {
   const headers = req.headers || {};
@@ -494,8 +488,9 @@ async function abortRelease({ supabase, body }) {
   return { status: 200, data: { aborted: true } };
 }
 
-async function handleAdminDeliverableAction(req, res, body = parseBody(req)) {
+async function handleAdminDeliverableAction(req, res, body = null) {
   try {
+    body = body || parseJsonBody(req);
     const action = body.action;
     const supabase = getSupabaseAdmin();
     const result =
@@ -509,6 +504,10 @@ async function handleAdminDeliverableAction(req, res, body = parseBody(req)) {
 
     res.status(result.status).json(result.data);
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     if (body?.action === "finalize") {
       await abortRelease({ supabase: getSupabaseAdmin(), body }).catch(() => null);
     }

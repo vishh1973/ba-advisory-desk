@@ -1,15 +1,9 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { requireAdmin } = require("./_lib/adminAuth");
+const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 
 const DEFAULT_EXPIRY_SECONDS = 60 * 30;
 const MAX_EXPIRY_SECONDS = 60 * 60 * 4;
-
-function parseBody(req) {
-  if (typeof req.body === "string") {
-    return JSON.parse(req.body || "{}");
-  }
-  return req.body || {};
-}
 
 function readHeader(req, name) {
   const headers = req.headers || {};
@@ -56,7 +50,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const body = parseBody(req);
+    const body = parseJsonBody(req);
     const fileId = body.fileId || body.file_id;
     const versionId = body.versionId || body.version_id;
     const expiresIn = readExpirySeconds(body.expiresIn || body.expires_in);
@@ -195,6 +189,10 @@ module.exports = async function handler(req, res) {
       signedUrl: signed.signedUrl,
     });
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: error.message || "Download link could not be created." });
   }
 };

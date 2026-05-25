@@ -1,5 +1,6 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { sendEmail } = require("./_lib/email");
+const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 
 function escapeHtml(value) {
   return String(value || "")
@@ -106,7 +107,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const body = parseJsonBody(req);
     const supabase = getSupabaseAdmin();
     const workspaceScope = await getVerifiedWorkspaceScope(req, supabase, body.organizationId || null, body.projectId || null);
     if (workspaceScope.authRequired) {
@@ -194,6 +195,10 @@ module.exports = async function handler(req, res) {
 
     res.status(200).json({ ok: true, quoteId: quote.id, emailed: Boolean(emailResult.sent) });
   } catch (error) {
+    if (error instanceof InvalidJsonBodyError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: "Custom advisory request could not be submitted." });
   }
 };
