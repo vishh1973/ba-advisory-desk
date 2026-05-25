@@ -105,6 +105,33 @@ async function findStripeCustomerId(supabase, organizationId) {
   return order?.stripe_customer_id || null;
 }
 
+function isMissingStripeCustomerForCurrentMode(error) {
+  return (
+    error?.type === "StripeInvalidRequestError" &&
+    error?.code === "resource_missing" &&
+    error?.param === "customer" &&
+    /no such customer/i.test(String(error?.message || ""))
+  );
+}
+
+async function resolveReusableStripeCustomerId(stripe, customerId) {
+  if (!customerId) return null;
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (customer?.deleted) return null;
+    return customer?.id || null;
+  } catch (error) {
+    if (isMissingStripeCustomerForCurrentMode(error)) {
+      console.warn("Ignoring stored Stripe customer ID that is not available to the active Stripe mode.", {
+        code: error.code || null,
+        param: error.param || null,
+      });
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function findActiveMonthlySupportSubscription(supabase, organizationId) {
   const { data, error } = await supabase
     .from("subscriptions")
@@ -696,7 +723,13 @@ async function readCheckoutSessionStatus({ supabase, stripe, bearerToken, sessio
   };
 }
 
-module.exports = async function handler(req, res) {
+module.exports = handler;
+module.exports.__test = {
+  isMissingStripeCustomerForCurrentMode,
+  resolveReusableStripeCustomerId,
+};
+
+async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed." });
     return;
@@ -781,7 +814,8 @@ module.exports = async function handler(req, res) {
         return;
       }
 
-      const customerId = await findStripeCustomerId(supabase, organizationId);
+      const storedCustomerId = await findStripeCustomerId(supabase, organizationId);
+      const customerId = await resolveReusableStripeCustomerId(stripe, storedCustomerId);
       if (!customerId) {
         res.status(404).json({ error: "Subscription management is not available for this workspace. If you need to cancel or change billing, contact support@baadvisorydesk.com." });
         return;
@@ -840,9 +874,9 @@ module.exports = async function handler(req, res) {
         });
         return;
       }
-      existingCustomerId = await findStripeCustomerId(supabase, organizationId);
+      existingCustomerId = await resolveReusableStripeCustomerId(stripe, await findStripeCustomerId(supabase, organizationId));
     } else {
-      existingCustomerId = await findStripeCustomerId(supabase, organizationId);
+      existingCustomerId = await resolveReusableStripeCustomerId(stripe, await findStripeCustomerId(supabase, organizationId));
     }
 
     const checkoutAttemptKey = buildCheckoutAttemptKey({ organizationId, productType, priceId: priceConfig.priceId });

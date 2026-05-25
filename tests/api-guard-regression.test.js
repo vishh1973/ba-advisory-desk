@@ -39,6 +39,54 @@ function createSvixHeaders({ payload, secret, id = "msg_test", timestamp = Math.
   };
 }
 
+test("checkout ignores stored Stripe customers from the wrong Stripe mode", async () => {
+  const handlerPath = require.resolve("../api/create-checkout-session");
+  delete require.cache[handlerPath];
+  const handler = require("../api/create-checkout-session");
+  const staleCustomerError = Object.assign(new Error("No such customer: 'cus_test_123'; a similar object exists in test mode, but a live mode key was used to make this request."), {
+    type: "StripeInvalidRequestError",
+    code: "resource_missing",
+    param: "customer",
+  });
+  const stripe = {
+    customers: {
+      async retrieve() {
+        throw staleCustomerError;
+      },
+    },
+  };
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
+
+  try {
+    const resolved = await handler.__test.resolveReusableStripeCustomerId(stripe, "cus_test_123");
+
+    assert.equal(resolved, null);
+    assert.equal(handler.__test.isMissingStripeCustomerForCurrentMode(staleCustomerError), true);
+    assert.equal(warnings.length, 1);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test("checkout keeps stored Stripe customers that are valid for the active Stripe mode", async () => {
+  const handlerPath = require.resolve("../api/create-checkout-session");
+  delete require.cache[handlerPath];
+  const handler = require("../api/create-checkout-session");
+  const stripe = {
+    customers: {
+      async retrieve(customerId) {
+        return { id: customerId, deleted: false };
+      },
+    },
+  };
+
+  const resolved = await handler.__test.resolveReusableStripeCustomerId(stripe, "cus_live_123");
+
+  assert.equal(resolved, "cus_live_123");
+});
+
 test("checkout rejects missing product type before server integrations", async () => {
   delete process.env.SUPABASE_URL;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
