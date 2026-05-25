@@ -11,8 +11,8 @@ function getStripe() {
   return new Stripe(secretKey);
 }
 
-function getPriceConfig(productType) {
-  const config = getProductConfig(productType);
+function getPriceConfig(productType, options = {}) {
+  const config = getProductConfig(productType, options);
   if (!config || !config.priceId) {
     throw new Error("Unsupported or unconfigured product type.");
   }

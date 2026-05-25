@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Private Live Payment Test | BA Advisory Desk</title>
+  <link rel="stylesheet" href="./styles.css?v=19" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js?v=8"></script>
+  <style>
+    body { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .private-card { max-width: 760px; width: 100%; background: rgba(9, 28, 37, 0.94); border: 1px solid rgba(125, 211, 252, 0.24); border-radius: 24px; padding: 32px; box-shadow: 0 28px 90px rgba(0,0,0,.28); }
+    .private-card h1 { margin-top: 0; }
+    .private-card code { overflow-wrap: anywhere; white-space: normal; }
+    .status-box { margin: 18px 0; padding: 16px; border-radius: 16px; background: rgba(255,255,255,.08); }
+    .private-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <main class="private-card">
+    <p class="eyebrow">Private Founder QA</p>
+    <h1>BA Advisory Desk live payment test</h1>
+    <p>This hidden page opens a private Stripe live Checkout session for the selected BA Advisory Desk offer. It is not linked from the public site and requires the private token in the URL plus your signed-in client workspace.</p>
+    <div class="status-box" id="status">Checking your private link and signed-in workspace…</div>
+    <div class="private-actions">
+      <a class="btn secondary" href="/index.html#login">Open Client Login</a>
+      <a class="btn secondary" href="/index.html#billing">Open Billing Dashboard</a>
+    </div>
+  </main>
+
+  <script>
+    const PRODUCT_LABELS = {
+      rescue_sprint: "Requirements Rescue Sprint — $0.50 live test, grants 1 credit",
+      starter_monthly: "BA Advisory Desk Monthly Support — $0.50 live recurring test, grants 5 credits",
+      credit_top_up: "3 Advisory Credit Top Up — $0.50 live test, grants 3 credits"
+    };
+
+    const statusEl = document.querySelector("#status");
+    const params = new URLSearchParams(window.location.search);
+    const productType = params.get("product") || "";
+    const token = params.get("token") || "";
+    const config = window.BAAD_CONFIG || {};
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    async function getOrganizationId(client, userId) {
+      const { data, error } = await client
+        .from("profiles")
+        .select("organization_id")
+        .eq("id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.organization_id || "";
+    }
+
+    async function run() {
+      if (!PRODUCT_LABELS[productType] || !token) {
+        setStatus("This private payment test link is invalid or expired.");
+        return;
+      }
+
+      if (!window.supabase || !config.supabaseUrl || !config.supabaseAnonKey) {
+        setStatus("Client authentication is not available. Please contact support@baadvisorydesk.com.");
+        return;
+      }
+
+      const client = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      const session = sessionData?.session;
+      if (sessionError || !session?.access_token || !session?.user) {
+        setStatus("Please sign in to your BA Advisory Desk client account, then reopen this exact private link.");
+        return;
+      }
+
+      if (!session.user.email_confirmed_at && !session.user.confirmed_at) {
+        setStatus("Please verify your email address first, then reopen this exact private link.");
+        return;
+      }
+
+      setStatus(`Preparing private live checkout: ${PRODUCT_LABELS[productType]}`);
+      const organizationId = await getOrganizationId(client, session.user.id);
+      if (!organizationId) {
+        setStatus("Please complete your client workspace profile first, then reopen this exact private link.");
+        window.location.href = "/index.html#profile";
+        return;
+      }
+
+      const response = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          "X-BAAD-Live-Test-Secret": token
+        },
+        body: JSON.stringify({
+          productType,
+          organizationId,
+          checkoutVariant: "hidden_live_50c",
+          liveTestSecret: token
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) {
+        setStatus(data.error || "Private live checkout could not be opened. Please contact support@baadvisorydesk.com.");
+        return;
+      }
+      window.location.href = data.url;
+    }
+
+    run().catch((error) => {
+      setStatus(error?.message || "Private live checkout could not be opened. Please contact support@baadvisorydesk.com.");
+    });
+  </script>
+</body>
+</html>

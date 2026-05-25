@@ -2,7 +2,7 @@ const { sendEmail } = require("./email");
 const { createEmailReference, htmlWithReference, subjectWithReference, textWithReference } = require("./emailReference");
 const templates = require("./emailTemplates");
 
-const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
+const CREDIT_PRODUCTS = new Set(["rescue_sprint", "starter_monthly", "credit_top_up"]);
 
 function shouldIgnoreOptionalSchemaError(error) {
   return ["42P01", "42703", "42883", "PGRST202", "PGRST204"].includes(error?.code);

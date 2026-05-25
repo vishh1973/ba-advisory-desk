@@ -1,4 +1,5 @@
-const { PRODUCT_CATALOG } = require("./_lib/products");
+const { HIDDEN_LIVE_TEST_VARIANT, PRODUCT_CATALOG } = require("./_lib/products");
+const crypto = require("crypto");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { getStripe, getPriceConfig } = require("./_lib/stripeClient");
 const {
@@ -10,7 +11,7 @@ const {
   recordAuditEvent,
 } = require("./_lib/paymentAndCredit");
 
-const CREDIT_PRODUCTS = new Set(["starter_monthly", "credit_top_up"]);
+const CREDIT_PRODUCTS = new Set(["rescue_sprint", "starter_monthly", "credit_top_up"]);
 const CHECKOUT_PRODUCTS = new Set(Object.keys(PRODUCT_CATALOG));
 const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created", "checkout_completed"];
 const CHECKOUT_REUSE_WINDOW_MS = 23 * 60 * 60 * 1000;
@@ -173,6 +174,150 @@ function isRecentOrder(order) {
   const value = order?.updated_at || order?.created_at;
   const timestamp = value ? new Date(value).getTime() : 0;
   return timestamp && Date.now() - timestamp < CHECKOUT_REUSE_WINDOW_MS;
+}
+
+function safeEqualText(left, right) {
+  const a = Buffer.from(String(left || ""));
+  const b = Buffer.from(String(right || ""));
+  return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function isLiveStripeSecretConfigured() {
+  return /^(rk|sk)_live_/.test(String(process.env.STRIPE_SECRET_KEY || ""));
+}
+
+async function findExistingHiddenLiveProduct(stripe, productType) {
+  const query = `metadata['baad_hidden_live_test']:'true' AND metadata['product_type']:'${productType}'`;
+  try {
+    const result = await stripe.products.search({ query, limit: 1 });
+    return result.data?.[0] || null;
+  } catch (_error) {
+    const result = await stripe.products.list({ active: true, limit: 100 });
+    return (result.data || []).find(
+      (product) => product.metadata?.baad_hidden_live_test === "true" && product.metadata?.product_type === productType
+    ) || null;
+  }
+}
+
+async function findExistingHiddenLivePrice(stripe, productId, productType) {
+  const query = `metadata['baad_hidden_live_test']:'true' AND metadata['product_type']:'${productType}'`;
+  try {
+    const result = await stripe.prices.search({ query, limit: 10 });
+    return (result.data || []).find(
+      (price) => price.product === productId && price.active && price.unit_amount === 50 && price.currency === "usd"
+    ) || null;
+  } catch (_error) {
+    const result = await stripe.prices.list({ product: productId, active: true, limit: 100 });
+    return (result.data || []).find((price) => price.unit_amount === 50 && price.currency === "usd") || null;
+  }
+}
+
+async function getHiddenLiveTestPriceConfig(stripe, productType) {
+  const product = PRODUCT_CATALOG[productType];
+  const hiddenConfig = product?.hiddenLiveTest;
+  if (!product || !hiddenConfig) {
+    throw new Error("Private live payment test product is not configured.");
+  }
+
+  const envPriceId = hiddenConfig.priceEnv ? process.env[hiddenConfig.priceEnv] : "";
+  if (envPriceId) {
+    return getPriceConfig(productType, { variant: HIDDEN_LIVE_TEST_VARIANT });
+  }
+
+  const productName = hiddenConfig.label || `${product.label} - Private Live Payment Test`;
+  const description = `Private founder live payment test for ${product.label}. Charges $0.50 USD and grants ${hiddenConfig.credits} credit${hiddenConfig.credits === 1 ? "" : "s"}.`;
+  let stripeProduct = await findExistingHiddenLiveProduct(stripe, productType);
+  if (!stripeProduct) {
+    stripeProduct = await stripe.products.create({
+      name: productName,
+      description,
+      type: "service",
+      active: true,
+      metadata: {
+        baad_hidden_live_test: "true",
+        product_type: productType,
+        credits: String(hiddenConfig.credits),
+        purpose: "private_founder_live_payment_test",
+        public_visibility: "not_published",
+      },
+    });
+  }
+
+  let price = await findExistingHiddenLivePrice(stripe, stripeProduct.id, productType);
+  if (!price) {
+    price = await stripe.prices.create({
+      product: stripeProduct.id,
+      unit_amount: hiddenConfig.amountCents,
+      currency: "usd",
+      recurring: product.mode === "subscription" ? { interval: "month" } : undefined,
+      metadata: {
+        baad_hidden_live_test: "true",
+        product_type: productType,
+        credits: String(hiddenConfig.credits),
+        purpose: "private_founder_live_payment_test",
+      },
+    });
+  }
+
+  if (stripeProduct.default_price !== price.id) {
+    await stripe.products.update(stripeProduct.id, { default_price: price.id });
+  }
+
+  return {
+    ...product,
+    ...hiddenConfig,
+    productType,
+    checkoutVariant: HIDDEN_LIVE_TEST_VARIANT,
+    priceEnv: hiddenConfig.priceEnv,
+    priceEnvFallbacks: [],
+    priceId: price.id,
+    stripeProductId: stripeProduct.id,
+    livemode: Boolean(stripeProduct.livemode && price.livemode),
+  };
+}
+
+async function setupHiddenLiveTestProducts(stripe) {
+  const results = {};
+  for (const productType of Object.keys(PRODUCT_CATALOG)) {
+    const config = await getHiddenLiveTestPriceConfig(stripe, productType);
+    results[productType] = {
+      productId: config.stripeProductId || null,
+      priceId: config.priceId,
+      amount: config.amountCents,
+      currency: "usd",
+      recurringInterval: config.mode === "subscription" ? "month" : null,
+      credits: config.credits,
+      livemode: config.livemode,
+    };
+  }
+  return results;
+}
+
+function authorizeLiveTestSecret(req, body) {
+  const configuredSecret = process.env.BAAD_LIVE_TEST_CHECKOUT_SECRET || "";
+  const providedSecret =
+    req.headers["x-baad-live-test-secret"] ||
+    req.headers["x-live-test-secret"] ||
+    body.liveTestSecret ||
+    body.checkoutSecret ||
+    body.token ||
+    "";
+  return Boolean(configuredSecret && safeEqualText(providedSecret, configuredSecret));
+}
+
+function getCheckoutVariantAuthorization(req, body) {
+  const requestedVariant = body.checkoutVariant || body.variant || "";
+  if (requestedVariant !== HIDDEN_LIVE_TEST_VARIANT) return { variant: undefined };
+
+  if (!authorizeLiveTestSecret(req, body)) {
+    return { status: 404, error: "The requested checkout link is not available." };
+  }
+
+  if (!isLiveStripeSecretConfigured()) {
+    return { status: 409, error: "Private live checkout is not available until Stripe live mode is configured." };
+  }
+
+  return { variant: HIDDEN_LIVE_TEST_VARIANT };
 }
 
 function shouldIgnoreOptionalColumnError(error) {
@@ -597,6 +742,31 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    if (action === "setup_hidden_live_test_products") {
+      if (!authorizeLiveTestSecret(req, body)) {
+        res.status(404).json({ error: "Not found." });
+        return;
+      }
+      if (!isLiveStripeSecretConfigured()) {
+        res.status(409).json({ error: "Stripe live secret is not configured in this deployment." });
+        return;
+      }
+      const stripe = getStripe();
+      const account = await stripe.accounts.retrieve();
+      const results = await setupHiddenLiveTestProducts(stripe);
+      res.status(200).json({
+        account: {
+          id: account.id,
+          charges_enabled: account.charges_enabled,
+          payouts_enabled: account.payouts_enabled,
+          country: account.country,
+          default_currency: account.default_currency,
+        },
+        results,
+      });
+      return;
+    }
+
     if (action === "customer_portal") {
       const supabase = getSupabaseAdmin();
       const stripe = getStripe();
@@ -635,9 +805,18 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const priceConfig = getPriceConfig(productType);
+    const variantAuthorization = getCheckoutVariantAuthorization(req, body);
+    if (variantAuthorization.error) {
+      res.status(variantAuthorization.status).json({ error: variantAuthorization.error });
+      return;
+    }
+
     const supabase = getSupabaseAdmin();
     const stripe = getStripe();
+    const priceConfig =
+      variantAuthorization.variant === HIDDEN_LIVE_TEST_VARIANT
+        ? await getHiddenLiveTestPriceConfig(stripe, productType)
+        : getPriceConfig(productType, { variant: variantAuthorization.variant });
 
     if ((productType === "rescue_sprint" || productType === "starter_monthly" || productType === "credit_top_up") && !organizationId) {
       res.status(400).json({ error: "Please create or access your client workspace before purchasing this service." });
@@ -732,6 +911,7 @@ module.exports = async function handler(req, res) {
       client_email: clientEmail || "",
       credits: String(priceConfig.credits),
       credit_grant_type: priceConfig.creditGrantType || (priceConfig.credits > 0 ? "purchase" : "none"),
+      checkout_variant: priceConfig.checkoutVariant || "standard",
     };
 
     let session;
