@@ -3,87 +3,136 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BA Advisory Desk terms for advisory services, client accounts, subscriptions, credits, deliverables, and service boundaries." />
+    <meta name="description" content="BA Advisory Desk terms for advisory services, client accounts, subscriptions, credits, deliverables, service boundaries, liability, and acceptable use." />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://baadvisorydesk.com/terms.html" />
+    <link rel="canonical" href="https://baadvisorydesk.com/terms" />
+    <link rel="stylesheet" href="./styles.css?v=18" />
     <title>Terms of Service | BA Advisory Desk</title>
-    <style>
-      :root { color-scheme: light; --ink:#071426; --muted:#536172; --line:#d9e4ec; --teal:#0f8178; --bg:#f6fafc; }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.6; }
-      header, main, footer { width: min(1040px, calc(100% - 32px)); margin: 0 auto; }
-      header { padding: 28px 0 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-      .brand { display: flex; gap: 12px; align-items: center; text-decoration: none; color: var(--ink); font-weight: 800; }
-      .mark { width: 40px; height: 40px; border-radius: 8px; background: #071426; color: #fff; display: grid; place-items: center; }
-      nav { display: flex; gap: 16px; flex-wrap: wrap; }
-      nav a, footer a { color: var(--teal); font-weight: 700; text-decoration: none; }
-      .panel { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: clamp(24px, 4vw, 48px); box-shadow: 0 24px 60px rgba(7,20,38,.08); }
-      h1 { font-size: clamp(32px, 5vw, 54px); line-height: 1.05; margin: 0 0 12px; }
-      h2 { margin-top: 30px; font-size: 22px; }
-      p, li { color: var(--muted); }
-      .eyebrow { color: var(--teal); text-transform: uppercase; font-weight: 800; letter-spacing: .08em; font-size: 13px; }
-      ul { padding-left: 22px; }
-      footer { padding: 26px 0 42px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    </style>
   </head>
   <body>
-    <header>
-      <a class="brand" href="./index.html">
-        <span class="mark">BA</span>
-        <span>BA Advisory Desk</span>
+    <header class="site-header">
+      <a class="brand" href="./index.html#home" aria-label="BA Advisory Desk home">
+        <span class="brand-mark">BA</span>
+        <span>
+          <strong>BA Advisory Desk</strong>
+          <small>Business Analysis Services</small>
+        </span>
       </a>
-      <nav>
-        <a href="./index.html#pricing">Plans</a>
-        <a href="./privacy.html">Privacy</a>
-        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Terms">Contact</a>
+      <nav aria-label="Primary navigation">
+        <a href="./index.html#home">Home</a>
+        <a href="./index.html#services">Services</a>
+        <a href="./index.html#samples">Sample Work</a>
+        <a href="./index.html#pricing">Pricing</a>
+        <a href="./index.html#faq">FAQ</a>
+        <a href="./index.html#security">Security</a>
+        <a href="./index.html#login">Client Login</a>
+        <a href="./support.html">Support</a>
       </nav>
+      <a class="primary small" href="./index.html#pricing">View Plans &amp; Start</a>
     </header>
-    <main>
-      <section class="panel">
-        <p class="eyebrow">Terms of Service</p>
-        <h1>Terms for using BA Advisory Desk.</h1>
-        <p>Last updated: May 19, 2026</p>
-        <p>These terms apply to BA Advisory Desk public pages, client accounts, advisory packages, subscriptions, credit top ups, custom quote requests, uploaded files, messages, and delivered work products.</p>
 
-        <h2>Services</h2>
-        <p>BA Advisory Desk provides business analysis advisory support, including requirements clarification, business cases, SOPs, UAT packs, governance material, stakeholder synthesis, vendor readiness, executive presentations, and related advisory deliverables.</p>
+    <main class="static-page">
+      <div class="static-shell">
+        <section class="static-panel">
+          <p class="eyebrow">Terms of Service</p>
+          <h1>Terms for using BA Advisory Desk.</h1>
+          <p class="static-meta">Last updated: May 25, 2026</p>
+          <p class="static-lead">These Terms of Service govern BA Advisory Desk public pages, client accounts, advisory packages, subscriptions, credit top ups, custom quote requests, uploaded files, messages, support interactions, and delivered work products.</p>
+          <div class="static-callout">By accessing the website, creating an account, submitting a request, purchasing a package, accepting an invoice, or using the service, you agree to these terms. If you use the service for an organization, you confirm that you are authorized to bind that organization.</div>
 
-        <h2>Client Responsibilities</h2>
-        <ul>
-          <li>Provide accurate account, billing, and project information.</li>
-          <li>Submit source material you are authorized to share.</li>
-          <li>Review deliverables before relying on them for approval, build, procurement, implementation, or external use.</li>
-          <li>Keep account credentials secure and notify support of suspected unauthorized access.</li>
-        </ul>
+          <h2>1. Services</h2>
+          <p>BA Advisory Desk provides senior Business Analysis advisory support, including requirements clarification, business cases, SOPs, UAT packs, governance material, stakeholder synthesis, vendor readiness, executive presentations, and related advisory deliverables. Services are advisory and documentation focused.</p>
 
-        <h2>Service Boundaries</h2>
-        <p>Unless separately agreed in writing, the service does not include project management, live meeting facilitation, legal advice, financial advice, code review, direct end user interviews, procurement representation, or implementation ownership.</p>
+          <h2>2. Service Boundaries</h2>
+          <p>Unless separately agreed in writing, the service does not include legal, tax, accounting, investment, regulated compliance, or financial advice; project management ownership; live meeting facilitation; direct end-user interviews; procurement representation; software development; code review; system configuration; testing execution; or implementation ownership.</p>
+          <p>Clients remain responsible for business decisions, approvals, implementation, governance, specialist professional review, and downstream use of deliverables.</p>
 
-        <h2>Payments, Subscriptions, And Credits</h2>
-        <p>Payments are processed through Stripe. Monthly plans, one time packages, and credit top ups are billed according to the selected plan or invoice. Advisory Credits are used to scope, track, and manage defined deliverable work. Credits, expiry, and scope controls are shown in the client workspace and may vary by package.</p>
+          <h2>3. Client Responsibilities</h2>
+          <ul>
+            <li>Provide accurate account, billing, project, deadline, constraint, and stakeholder information.</li>
+            <li>Submit source material that you are authorized to share and that does not breach confidentiality, privacy, intellectual property, employment, procurement, or contractual obligations.</li>
+            <li>Identify required formats, known assumptions, applicable standards, decision owners, and intended use.</li>
+            <li>Review deliverables before relying on them for approval, build, procurement, implementation, external use, or client-facing distribution.</li>
+            <li>Keep account credentials secure and notify support promptly of suspected unauthorized access.</li>
+          </ul>
 
-        <h2>Deliverables</h2>
-        <p>Deliverables are prepared using the information available at the time of review. Delivery targets are service targets, not absolute guarantees. If client inputs are incomplete, unclear, delayed, or unusable, timelines may pause until the required information is provided.</p>
+          <h2>4. Intake, Scope, And Change Control</h2>
+          <p>Requests are scoped based on the submitted brief, available materials, selected package, credits, and accepted proposal or invoice. BA Advisory Desk may decline, split, rescope, pause, or require additional payment or Advisory Credits for requests that exceed the expected package, are incomplete, materially change, or require specialized review outside the agreed scope.</p>
+          <p>Incomplete, inaccessible, late, inaccurate, or changing client inputs may pause timelines and affect delivery targets, price, or credit usage.</p>
 
-        <h2>Confidentiality</h2>
-        <p>We treat client uploaded files, private workspace content, and project information as confidential service material. We may use trusted providers to host, secure, process, deliver, and support the service.</p>
+          <h2>5. Payments, Subscriptions, And Advisory Credits</h2>
+          <p>Payments are processed through Stripe or another approved payment provider. Monthly plans, one-time packages, and credit top ups are billed according to the selected checkout, proposal, or invoice. Clients are responsible for applicable taxes, bank fees, currency conversion, and payment-provider charges unless the accepted terms state otherwise.</p>
+          <p>Advisory Credits are internal service units used to scope, reserve, track, and manage advisory work. Credits are not cash balances, stored value, gift cards, securities, or financial instruments; they have no cash value, are not transferable unless approved in writing, and expire according to the applicable plan or purchase terms.</p>
+          <p>Failed payments, suspected fraud, chargebacks, misuse, security risk, or material breach may result in paused work, suspended access, or withheld delivery until resolved.</p>
 
-        <h2>Limitation Of Liability</h2>
-        <p>To the maximum extent allowed by law, BA Advisory Desk liability for any claim related to the service is limited to the amount paid by the client for the specific package, subscription month, or invoice giving rise to the claim. BA Advisory Desk is not responsible for indirect, incidental, consequential, special, punitive, lost profit, lost revenue, or implementation damages.</p>
+          <h2>6. Deliverables, Review, And Acceptance</h2>
+          <p>Deliverables are prepared using information available at the time of review. Delivery timelines are service targets, not guarantees. Clients should review deliverables promptly and report clear errors or omissions within seven business days unless a different review period is agreed in writing.</p>
+          <p>Corrections address clear errors or misalignment with the agreed scope. New source material, changed priorities, new stakeholders, additional outputs, or expanded requirements may require a new request, additional credits, or a custom scope.</p>
 
-        <h2>White Label And Partner Use</h2>
-        <p>If a consulting firm, agency, or partner uses BA Advisory Desk deliverables with its own client, that partner remains responsible for its client relationship, final review, representation, and downstream use of the deliverables.</p>
+          <h2>7. No Guaranteed Outcome</h2>
+          <p>BA Advisory Desk does not guarantee approval, funding, stakeholder acceptance, procurement results, audit outcomes, implementation success, revenue outcomes, operational performance, regulatory acceptance, or any specific business result. Deliverables support decision-making but do not replace client management judgment, governance, or specialist professional advice.</p>
 
-        <h2>Termination</h2>
-        <p>Clients may stop using the service or cancel subscriptions according to the available subscription controls. BA Advisory Desk may suspend access for non payment, misuse, security risk, or material breach of these terms.</p>
+          <h2>8. Intellectual Property</h2>
+          <p>Clients retain ownership of source materials they provide. Subject to full payment, clients receive a non-exclusive right to use final deliverables internally for their business purposes and, for approved partner or white-label use, with their own clients. BA Advisory Desk retains ownership of pre-existing templates, frameworks, methods, know-how, reusable structures, internal notes, drafts, working files, and general expertise unless expressly agreed otherwise in writing.</p>
 
-        <h2>Contact</h2>
-        <p>For terms, billing, or account questions, contact <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Terms">support@baadvisorydesk.com</a>.</p>
-      </section>
+          <h2>9. Confidentiality And Privacy</h2>
+          <p>We treat uploaded files, private workspace content, and project information as confidential service material. Confidentiality does not apply to information that is public, already known without restriction, independently developed, received lawfully from another source, or required to be disclosed by law. Personal information is handled according to the <a href="./privacy.html">Privacy Policy</a>.</p>
+
+          <h2>10. Prohibited Use</h2>
+          <p>Clients may not use the service for unlawful, infringing, harmful, deceptive, abusive, security-compromising, or unauthorized purposes. Clients may not upload malware, attempt to reverse engineer or interfere with service systems, scrape protected areas, or submit material they are not authorized to use.</p>
+
+          <h2>11. Third-Party Services</h2>
+          <p>The service may rely on third-party providers for hosting, authentication, storage, payment processing, email delivery, security, support, and related operations. BA Advisory Desk is not responsible for third-party outages, actions, terms, or systems outside its reasonable control.</p>
+
+          <h2>12. Partner And White-Label Use</h2>
+          <p>If a consulting firm, agency, partner, or intermediary uses BA Advisory Desk deliverables with its own client, that party remains responsible for its client relationship, representations, final review, approvals, and downstream use of the deliverables.</p>
+
+          <h2>13. Disclaimers And Limitation Of Liability</h2>
+          <p>To the maximum extent permitted by law, services and deliverables are provided as is and as available, without warranties that they will be error-free, uninterrupted, complete for every possible use, or suitable for every jurisdiction, client environment, stakeholder expectation, or implementation path.</p>
+          <p>To the maximum extent permitted by law, BA Advisory Desk liability for any claim related to the service is limited to the amount paid by the client for the specific package, subscription month, or invoice giving rise to the claim. BA Advisory Desk is not responsible for indirect, incidental, consequential, special, punitive, lost profit, lost revenue, business interruption, loss of goodwill, data loss, implementation failure, procurement loss, or third-party claim damages.</p>
+
+          <h2>14. Indemnity</h2>
+          <p>To the extent permitted by law, the client agrees to protect BA Advisory Desk from claims, losses, liabilities, costs, and expenses arising from client-provided materials, unauthorized uploads, misuse of deliverables, breach of these terms, violation of law or third-party rights, or downstream partner/white-label representations.</p>
+
+          <h2>15. Suspension, Termination, And Changes</h2>
+          <p>Clients may stop using the service or cancel subscriptions according to available subscription controls. BA Advisory Desk may suspend or terminate access for non-payment, misuse, security risk, suspected fraud, chargebacks, material breach, legal requirements, or operational risk. Termination does not remove obligations for completed, commenced, or reserved work.</p>
+          <p>We may update these terms prospectively by posting a revised version with a new last-updated date. Continued use after an update means acceptance of the revised terms.</p>
+
+          <h2>16. Governing Terms And Contact</h2>
+          <p>If a signed proposal, invoice, order form, or written agreement conflicts with these website terms, the more specific accepted document controls for that engagement. For terms, billing, or account questions, contact <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Terms">support@baadvisorydesk.com</a>.</p>
+        </section>
+      </div>
     </main>
-    <footer>
-      <span>BA Advisory Desk</span>
-      <span><a href="./privacy.html">Privacy</a> | <a href="./refund-policy.html">Refund Policy</a></span>
+
+    <footer class="site-footer">
+      <div>
+        <strong>BA Advisory Desk</strong>
+        <p>Senior Business Analysis advisory support for teams that need clear scope, requirements, delivery documentation, and executive ready material.</p>
+      </div>
+      <div>
+        <span>Start</span>
+        <a href="./index.html#pricing">View Plans</a>
+        <a href="./index.html#samples">Sample Work</a>
+        <a href="./index.html#quote">Request Custom Scope</a>
+      </div>
+      <div>
+        <span>Client Workspace</span>
+        <a href="./index.html#login">Client Login</a>
+        <a href="./index.html#security">Security</a>
+        <a href="./index.html#about">About Us</a>
+      </div>
+      <div>
+        <span>Support</span>
+        <a href="./support.html">Support Center</a>
+        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support">Email support</a>
+        <p>Contact us for package questions, billing support, file access, or delivery coordination.</p>
+      </div>
+      <div>
+        <span>Policies</span>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./refund-policy.html">Refund Policy</a>
+      </div>
     </footer>
   </body>
 </html>

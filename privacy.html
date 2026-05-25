@@ -3,88 +3,128 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BA Advisory Desk privacy policy for client accounts, uploaded files, advisory requests, payments, and support communication." />
+    <meta name="description" content="BA Advisory Desk privacy policy for client accounts, uploaded files, advisory requests, payments, support communication, and client workspace data." />
     <meta name="robots" content="index, follow" />
-    <link rel="canonical" href="https://baadvisorydesk.com/privacy.html" />
+    <link rel="canonical" href="https://baadvisorydesk.com/privacy" />
+    <link rel="stylesheet" href="./styles.css?v=18" />
     <title>Privacy Policy | BA Advisory Desk</title>
-    <style>
-      :root { color-scheme: light; --ink:#071426; --muted:#536172; --line:#d9e4ec; --teal:#0f8178; --bg:#f6fafc; }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: Arial, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.6; }
-      header, main, footer { width: min(1040px, calc(100% - 32px)); margin: 0 auto; }
-      header { padding: 28px 0 18px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-      .brand { display: flex; gap: 12px; align-items: center; text-decoration: none; color: var(--ink); font-weight: 800; }
-      .mark { width: 40px; height: 40px; border-radius: 8px; background: #071426; color: #fff; display: grid; place-items: center; }
-      nav { display: flex; gap: 16px; flex-wrap: wrap; }
-      nav a, footer a { color: var(--teal); font-weight: 700; text-decoration: none; }
-      .panel { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: clamp(24px, 4vw, 48px); box-shadow: 0 24px 60px rgba(7,20,38,.08); }
-      h1 { font-size: clamp(32px, 5vw, 54px); line-height: 1.05; margin: 0 0 12px; }
-      h2 { margin-top: 30px; font-size: 22px; }
-      p, li { color: var(--muted); }
-      .eyebrow { color: var(--teal); text-transform: uppercase; font-weight: 800; letter-spacing: .08em; font-size: 13px; }
-      ul { padding-left: 22px; }
-      footer { padding: 26px 0 42px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-    </style>
   </head>
   <body>
-    <header>
-      <a class="brand" href="./index.html">
-        <span class="mark">BA</span>
-        <span>BA Advisory Desk</span>
+    <header class="site-header">
+      <a class="brand" href="./index.html#home" aria-label="BA Advisory Desk home">
+        <span class="brand-mark">BA</span>
+        <span>
+          <strong>BA Advisory Desk</strong>
+          <small>Business Analysis Services</small>
+        </span>
       </a>
-      <nav>
-        <a href="./index.html#pricing">Plans</a>
+      <nav aria-label="Primary navigation">
+        <a href="./index.html#home">Home</a>
+        <a href="./index.html#services">Services</a>
+        <a href="./index.html#samples">Sample Work</a>
+        <a href="./index.html#pricing">Pricing</a>
+        <a href="./index.html#faq">FAQ</a>
+        <a href="./index.html#security">Security</a>
         <a href="./index.html#login">Client Login</a>
-        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Privacy">Contact</a>
+        <a href="./support.html">Support</a>
       </nav>
+      <a class="primary small" href="./index.html#pricing">View Plans &amp; Start</a>
     </header>
-    <main>
-      <section class="panel">
-        <p class="eyebrow">Privacy Policy</p>
-        <h1>How BA Advisory Desk handles client information.</h1>
-        <p>Last updated: May 19, 2026</p>
-        <p>BA Advisory Desk provides business analysis advisory services, client workspaces, secure intake, file review, deliverable management, and support communication. This policy explains what information we collect and how we use it.</p>
 
-        <h2>Information We Collect</h2>
-        <ul>
-          <li>Account information, such as name, work email, company name, job title, country, and time zone.</li>
-          <li>Project information submitted through forms, intake requests, messages, and custom quote requests.</li>
-          <li>Uploaded files, including documents, spreadsheets, presentations, images, transcripts, notes, and related project material.</li>
-          <li>Payment and subscription records processed through Stripe. We do not store full card numbers.</li>
-          <li>Operational records, such as request status, credit usage, deliverable versions, downloads, audit logs, and support history.</li>
-        </ul>
+    <main class="static-page">
+      <div class="static-shell">
+        <section class="static-panel">
+          <p class="eyebrow">Privacy Policy</p>
+          <h1>How BA Advisory Desk handles client information.</h1>
+          <p class="static-meta">Last updated: May 25, 2026</p>
+          <p class="static-lead">This Privacy Policy explains how BA Advisory Desk handles information collected through the website, client workspace, intake forms, file uploads, payments, subscriptions, support requests, and advisory services.</p>
+          <div class="static-callout">We do not sell client files or client project information. Client material is used to operate the service, deliver advisory work, secure the workspace, support clients, and maintain necessary business records.</div>
 
-        <h2>How We Use Information</h2>
-        <ul>
-          <li>To create and manage client accounts and workspaces.</li>
-          <li>To review source material and prepare business analysis deliverables.</li>
-          <li>To process payments, subscriptions, credit top ups, invoices, and account notices.</li>
-          <li>To send account, security, payment, low credit, deliverable, and support notifications.</li>
-          <li>To protect the service, prevent unauthorized access, troubleshoot issues, and maintain audit records.</li>
-        </ul>
+          <h2>1. Information We Collect</h2>
+          <ul>
+            <li>Account and contact information, such as name, work email, company name, job title, country, time zone, and authorized workspace users.</li>
+            <li>Project and workspace information submitted through forms, intake requests, custom quote requests, messages, revision notes, and support communications.</li>
+            <li>Uploaded source materials, including documents, spreadsheets, presentations, images, transcripts, process notes, screenshots, and related project material.</li>
+            <li>Payment and subscription records processed through Stripe or another payment provider, such as transaction IDs, invoice status, plan status, and refund or dispute records. BA Advisory Desk does not store full card numbers.</li>
+            <li>Operational and technical records, such as request status, credit usage, deliverable versions, downloads, audit logs, IP address, browser/device information, timestamps, and security events.</li>
+          </ul>
 
-        <h2>Service Providers</h2>
-        <p>We use trusted service providers to operate the service, including hosting, authentication, storage, payment processing, and email delivery providers. These providers process information only as needed to support BA Advisory Desk operations.</p>
+          <h2>2. Information About Others</h2>
+          <p>Clients may submit information about employees, contractors, customers, vendors, stakeholders, or other third parties. Clients are responsible for having the right permissions or legal basis to provide that information and should avoid submitting unnecessary sensitive personal information.</p>
 
-        <h2>Client Files And Confidentiality</h2>
-        <p>Client files are used to perform the requested advisory work. We do not sell client files or client project information. Access is limited to personnel and systems needed to deliver, secure, support, and audit the service.</p>
+          <h2>3. How We Use Information</h2>
+          <ul>
+            <li>To create, authenticate, secure, and manage client accounts and workspaces.</li>
+            <li>To review source material, scope requests, manage credits, prepare deliverables, and provide advisory support.</li>
+            <li>To process payments, subscriptions, invoices, refunds, disputes, credit top ups, and account notices.</li>
+            <li>To send account, security, payment, low-credit, deliverable, support, and administrative notifications.</li>
+            <li>To troubleshoot issues, maintain audit trails, prevent misuse, enforce terms, improve service operations, and comply with legal, accounting, security, and dispute obligations.</li>
+          </ul>
 
-        <h2>Retention</h2>
-        <p>We retain account, billing, audit, request, and deliverable records as needed for service delivery, legal, accounting, dispute, and security purposes. Clients may request file deletion or account review by contacting support.</p>
+          <h2>4. Service Providers And Disclosure</h2>
+          <p>We use trusted service providers to operate the service, including hosting, authentication, private storage, payment processing, email delivery, security monitoring, analytics or operational diagnostics, customer support, and professional advisers when needed. These providers process information only as needed to support BA Advisory Desk operations, comply with law, or protect the service.</p>
+          <p>We may disclose information if required by law, to protect rights and security, to investigate misuse, to respond to payment disputes, or in connection with a business transfer such as a merger, acquisition, financing, restructuring, or sale of assets, subject to appropriate protections.</p>
 
-        <h2>Security</h2>
-        <p>We use account authentication, role based access, private storage controls, signed download links, audit logs, and payment provider controls to protect client information. No online service can guarantee absolute security, but we design the service around practical safeguards.</p>
+          <h2>5. Client Files And Confidentiality</h2>
+          <p>Client files are used to perform requested advisory work. Access is limited to personnel, systems, and providers with a business need to deliver, secure, support, audit, or maintain the service. Files may be stored, processed, transmitted, backed up, logged, or retained as needed for those purposes.</p>
 
-        <h2>Your Choices</h2>
-        <p>You may request access, correction, deletion, or export of your account information by contacting <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Privacy">support@baadvisorydesk.com</a>.</p>
+          <h2>6. Cookies, Local Storage, And Website Data</h2>
+          <p>The website and workspace may use cookies, local storage, session storage, and similar technologies for account access, security, preferences, payment/session flows, diagnostics, and service operation. Browser controls may allow you to limit some storage, but certain features may not work without it.</p>
 
-        <h2>Contact</h2>
-        <p>For privacy questions, contact <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Privacy">support@baadvisorydesk.com</a>.</p>
-      </section>
+          <h2>7. Payments</h2>
+          <p>Payments are handled by Stripe or another approved payment processor. The processor may collect card, billing, tax, anti-fraud, and transaction information under its own terms and privacy policy. BA Advisory Desk receives limited payment, subscription, invoice, refund, and dispute status information needed to operate the service.</p>
+
+          <h2>8. Retention</h2>
+          <p>We retain account, billing, audit, request, support, payment, deliverable, and security records as needed for service delivery, legal, accounting, dispute, continuity, and security purposes. Deletion requests may be limited where records are needed for legal obligations, accounting, security, backups, active disputes, fraud prevention, or legitimate business records.</p>
+
+          <h2>9. Security</h2>
+          <p>We use practical safeguards such as account authentication, role-based access, private storage controls, signed download links, audit logs, secure transport, and payment-provider controls. No online service can guarantee absolute security. Clients are responsible for using strong credentials, limiting authorized users, and avoiding unnecessary sensitive uploads.</p>
+
+          <h2>10. International Processing</h2>
+          <p>Information may be processed in countries where BA Advisory Desk, its personnel, or its service providers operate. Privacy and security protections may differ by jurisdiction. We use operational safeguards intended to protect client information in the context of a business advisory service.</p>
+
+          <h2>11. Your Choices And Rights</h2>
+          <p>You may request access, correction, deletion, or export of your account information by contacting support. Depending on your location, you may also have rights to object, restrict processing, withdraw consent where consent is used, or complain to a privacy regulator. We may need to verify your identity or account authority before completing a request.</p>
+
+          <h2>12. Children, Third-Party Links, And Updates</h2>
+          <p>The service is intended for business users and is not directed to children. We do not knowingly collect information from children. The website or workspace may link to third-party sites or services, and their privacy practices are governed by their own policies.</p>
+          <p>We may update this policy from time to time by posting a revised version with a new last-updated date.</p>
+
+          <h2>13. Contact</h2>
+          <p>For privacy questions or requests, contact <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Privacy">support@baadvisorydesk.com</a>.</p>
+        </section>
+      </div>
     </main>
-    <footer>
-      <span>BA Advisory Desk</span>
-      <span><a href="./terms.html">Terms</a> | <a href="./refund-policy.html">Refund Policy</a></span>
+
+    <footer class="site-footer">
+      <div>
+        <strong>BA Advisory Desk</strong>
+        <p>Senior Business Analysis advisory support for teams that need clear scope, requirements, delivery documentation, and executive ready material.</p>
+      </div>
+      <div>
+        <span>Start</span>
+        <a href="./index.html#pricing">View Plans</a>
+        <a href="./index.html#samples">Sample Work</a>
+        <a href="./index.html#quote">Request Custom Scope</a>
+      </div>
+      <div>
+        <span>Client Workspace</span>
+        <a href="./index.html#login">Client Login</a>
+        <a href="./index.html#security">Security</a>
+        <a href="./index.html#about">About Us</a>
+      </div>
+      <div>
+        <span>Support</span>
+        <a href="./support.html">Support Center</a>
+        <a href="mailto:support@baadvisorydesk.com?subject=BA%20Advisory%20Desk%20Support">Email support</a>
+        <p>Contact us for package questions, billing support, file access, or delivery coordination.</p>
+      </div>
+      <div>
+        <span>Policies</span>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./refund-policy.html">Refund Policy</a>
+      </div>
     </footer>
   </body>
 </html>
