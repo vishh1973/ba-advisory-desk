@@ -1,4 +1,4 @@
-const { HIDDEN_LIVE_TEST_VARIANT, PRODUCT_CATALOG } = require("./_lib/products");
+const { HIDDEN_LIVE_TEST_VARIANT, PRODUCT_CATALOG, getStripeMode } = require("./_lib/products");
 const crypto = require("crypto");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { getStripe, getPriceConfig } = require("./_lib/stripeClient");
@@ -15,6 +15,7 @@ const CREDIT_PRODUCTS = new Set(["rescue_sprint", "starter_monthly", "credit_top
 const CHECKOUT_PRODUCTS = new Set(Object.keys(PRODUCT_CATALOG));
 const OPEN_CHECKOUT_STATUSES = ["checkout_creating", "checkout_started", "checkout_created", "checkout_completed"];
 const CHECKOUT_REUSE_WINDOW_MS = 23 * 60 * 60 * 1000;
+const CHECKOUT_MINIMUM_REUSE_SECONDS = 10 * 60;
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase() || null;
@@ -194,9 +195,20 @@ async function hasRecordedCreditGrant(supabase, order, session) {
   }
 }
 
-function buildCheckoutAttemptKey({ organizationId, productType, priceId }) {
-  return ["checkout-v2", organizationId, productType, priceId].filter(Boolean).join(":");
+function buildCheckoutAttemptKey({ organizationId, productType, priceId, stripeMode = getStripeMode() }) {
+  return ["checkout-v3", stripeMode || "unknown", organizationId, productType, priceId].filter(Boolean).join(":");
 }
+
+function hasEnoughTimeToReuseCheckout(session) {
+  const expiresAt = Number(session?.expires_at || 0);
+  if (!expiresAt) return true;
+  return expiresAt - Math.floor(Date.now() / 1000) > CHECKOUT_MINIMUM_REUSE_SECONDS;
+}
+
+function isReusableOpenCheckoutSession(session) {
+  return String(session?.status || "").toLowerCase() === "open" && Boolean(session?.url) && hasEnoughTimeToReuseCheckout(session);
+}
+
 
 function isRecentOrder(order) {
   const value = order?.updated_at || order?.created_at;
@@ -389,10 +401,14 @@ async function findReusableCheckoutAttempt({ supabase, stripe, checkoutAttemptKe
     if (!order.stripe_checkout_session_id) continue;
     try {
       const session = await stripe.checkout.sessions.retrieve(order.stripe_checkout_session_id);
-      if (String(session.status || "").toLowerCase() === "open" && session.url) {
+      if (isReusableOpenCheckoutSession(session)) {
         return { order, session };
       }
       const sessionStatus = String(session.status || "").toLowerCase();
+      if (sessionStatus === "open") {
+        await markOrderStatusQuietly(supabase, order.id, "expired");
+        continue;
+      }
       if (sessionStatus === "complete") {
         await markOrderStatusQuietly(supabase, order.id, "checkout_completed");
         return { order, session, completed: true, paid: isSessionPaid(session) };
@@ -728,6 +744,8 @@ module.exports = handler;
 module.exports.__test = {
   isMissingStripeCustomerForCurrentMode,
   resolveReusableStripeCustomerId,
+  buildCheckoutAttemptKey,
+  isReusableOpenCheckoutSession,
 };
 
 async function handler(req, res) {
@@ -947,6 +965,7 @@ async function handler(req, res) {
       credits: String(priceConfig.credits),
       credit_grant_type: priceConfig.creditGrantType || (priceConfig.credits > 0 ? "purchase" : "none"),
       checkout_variant: priceConfig.checkoutVariant || "standard",
+      stripe_mode: priceConfig.stripeMode || getStripeMode(),
     };
 
     let session;

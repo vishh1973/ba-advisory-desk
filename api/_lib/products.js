@@ -51,8 +51,23 @@ const PRODUCT_CATALOG = {
   },
 };
 
+function getStripeMode() {
+  const key = String(process.env.STRIPE_SECRET_KEY || "");
+  if (/^(rk|sk)_live_/.test(key)) return "live";
+  if (/^(rk|sk)_test_/.test(key)) return "test";
+  return "unknown";
+}
+
 function isLiveStripeMode() {
-  return /^(rk|sk)_live_/.test(String(process.env.STRIPE_SECRET_KEY || ""));
+  return getStripeMode() === "live";
+}
+
+function isTestStripeMode() {
+  return getStripeMode() === "test";
+}
+
+function getMissingTestPriceMessage(productType, priceEnvNames) {
+  return `Stripe test mode requires a test price ID for ${productType}. Set ${priceEnvNames.join(" or ")} in the test/preview deployment; live price IDs are intentionally never reused with a test Stripe key.`;
 }
 
 function getProductConfig(productType, options = {}) {
@@ -71,6 +86,7 @@ function getProductConfig(productType, options = {}) {
       ...product,
       ...hiddenConfig,
       productType,
+      stripeMode: getStripeMode(),
       checkoutVariant: HIDDEN_LIVE_TEST_VARIANT,
       priceEnv: hiddenConfig.priceEnv,
       priceEnvFallbacks: [],
@@ -80,11 +96,23 @@ function getProductConfig(productType, options = {}) {
 
   const priceEnvNames = Array.isArray(product.priceEnv) ? product.priceEnv : [product.priceEnv];
   const envPriceId = priceEnvNames.map((name) => process.env[name]).find(Boolean);
-  const priceId = isLiveStripeMode() && product.livePriceId ? product.livePriceId : envPriceId || product.livePriceId;
+  let priceId = envPriceId || product.livePriceId;
+
+  if (isLiveStripeMode() && product.livePriceId) {
+    priceId = product.livePriceId;
+  }
+
+  if (isTestStripeMode()) {
+    if (!envPriceId) {
+      throw new Error(getMissingTestPriceMessage(productType, priceEnvNames));
+    }
+    priceId = envPriceId;
+  }
 
   return {
     ...product,
     productType,
+    stripeMode: getStripeMode(),
     priceEnv: priceEnvNames[0],
     priceEnvFallbacks: priceEnvNames.slice(1),
     priceId,
@@ -100,4 +128,7 @@ module.exports = {
   PRODUCT_CATALOG,
   getProductConfig,
   getProductLabel,
+  getStripeMode,
+  isLiveStripeMode,
+  isTestStripeMode,
 };

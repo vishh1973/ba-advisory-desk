@@ -1872,12 +1872,8 @@ function getUserId() {
 }
 
 async function getSessionAccessToken() {
-  if (state.session?.access_token) {
-    return state.session.access_token;
-  }
-
   if (!supabaseClient) {
-    return null;
+    return state.session?.access_token || null;
   }
 
   const { data } = await supabaseClient.auth.getSession();
