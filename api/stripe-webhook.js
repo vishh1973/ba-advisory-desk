@@ -24,7 +24,9 @@ function customerEmailFromSession(session) {
 }
 
 function isoFromUnixSeconds(value) {
-  return Number.isFinite(Number(value)) ? new Date(Number(value) * 1000).toISOString() : null;
+  if (value === null || value === undefined || value === "") return null;
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000).toISOString() : null;
 }
 
 function subscriptionIdFrom(value) {
