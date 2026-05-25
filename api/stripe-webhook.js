@@ -138,6 +138,11 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
     monthly_credit_allowance: Number(metadata.credits || getPriceConfig("starter_monthly").credits),
     current_period_start: period.start,
     current_period_end: period.end,
+    cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+    cancel_at: isoFromUnixSeconds(subscription.cancel_at),
+    canceled_at: isoFromUnixSeconds(subscription.canceled_at),
+    ended_at: isoFromUnixSeconds(subscription.ended_at),
+    cancellation_reason: subscription.cancellation_details?.reason || null,
     updated_at: new Date().toISOString(),
   };
 
@@ -147,7 +152,20 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
     .select("id,organization_id,stripe_customer_id,stripe_subscription_id,plan_name,status,monthly_credit_allowance,current_period_start,current_period_end")
     .maybeSingle();
 
-  if (error) throw error;
+  if (error && shouldIgnoreOptionalSchemaError(error)) {
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.cancel_at_period_end;
+    delete fallbackPayload.cancel_at;
+    delete fallbackPayload.canceled_at;
+    delete fallbackPayload.ended_at;
+    delete fallbackPayload.cancellation_reason;
+    const { error: fallbackError } = await supabase
+      .from("subscriptions")
+      .upsert(fallbackPayload, { onConflict: "stripe_subscription_id" });
+    if (fallbackError && !shouldIgnoreOptionalSchemaError(fallbackError)) throw fallbackError;
+  } else if (error) {
+    throw error;
+  }
 
   if (stripeCustomerId) {
     await supabase
@@ -413,6 +431,11 @@ async function handleSubscriptionDeleted(supabase, subscription) {
     status: subscription.status || "canceled",
     current_period_start: period.start,
     current_period_end: period.end,
+    cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+    cancel_at: isoFromUnixSeconds(subscription.cancel_at),
+    canceled_at: isoFromUnixSeconds(subscription.canceled_at) || new Date().toISOString(),
+    ended_at: isoFromUnixSeconds(subscription.ended_at),
+    cancellation_reason: subscription.cancellation_details?.reason || null,
     updated_at: new Date().toISOString(),
   };
 
@@ -425,23 +448,36 @@ async function handleSubscriptionDeleted(supabase, subscription) {
   if (readError && !shouldIgnoreOptionalSchemaError(readError)) throw readError;
 
   const organizationId = existingSubscription?.organization_id || subscription.metadata?.organization_id || subscription.metadata?.workspace_id || null;
-  const write = existingSubscription?.id
-    ? supabase
-        .from("subscriptions")
-        .update(update)
-        .eq("stripe_subscription_id", subscriptionId)
-    : supabase
-        .from("subscriptions")
-        .upsert({
-          ...update,
-          organization_id: organizationId,
-          stripe_customer_id: stripeCustomerIdFrom(subscription.customer),
-          stripe_subscription_id: subscriptionId,
-          plan_name: "BA Advisory Desk Monthly Support",
-          monthly_credit_allowance: getPriceConfig("starter_monthly").credits,
-        }, { onConflict: "stripe_subscription_id" });
+  async function writeSubscriptionDeletion(payload) {
+    const write = existingSubscription?.id
+      ? supabase
+          .from("subscriptions")
+          .update(payload)
+          .eq("stripe_subscription_id", subscriptionId)
+      : supabase
+          .from("subscriptions")
+          .upsert({
+            ...payload,
+            organization_id: organizationId,
+            stripe_customer_id: stripeCustomerIdFrom(subscription.customer),
+            stripe_subscription_id: subscriptionId,
+            plan_name: "BA Advisory Desk Monthly Support",
+            monthly_credit_allowance: getPriceConfig("starter_monthly").credits,
+          }, { onConflict: "stripe_subscription_id" });
+    return write;
+  }
 
-  const { error } = await write;
+  let { error } = await writeSubscriptionDeletion(update);
+
+  if (error && shouldIgnoreOptionalSchemaError(error)) {
+    const fallbackUpdate = { ...update };
+    delete fallbackUpdate.cancel_at_period_end;
+    delete fallbackUpdate.cancel_at;
+    delete fallbackUpdate.canceled_at;
+    delete fallbackUpdate.ended_at;
+    delete fallbackUpdate.cancellation_reason;
+    ({ error } = await writeSubscriptionDeletion(fallbackUpdate));
+  }
 
   if (error) throw error;
 

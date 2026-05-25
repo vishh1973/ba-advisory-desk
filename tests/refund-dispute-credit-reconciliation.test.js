@@ -308,10 +308,13 @@ function loadWebhookHandler(state, event) {
         id,
         status: "active",
         customer: "cus_top_up_001",
+        current_period_start: 1780000000,
+        current_period_end: 1782592000,
         metadata: {
           organization_id: ORGANIZATION_ID,
           product_type: "starter_monthly",
           credits: "5",
+          client_email: "client@example.com",
         },
       }),
     },
@@ -325,7 +328,9 @@ function loadWebhookHandler(state, event) {
     if (request === "./_lib/stripeClient" && path.basename(parent?.filename || "") === "stripe-webhook.js") {
       return {
         getStripe: () => fakeStripe,
-        getPriceConfig: () => ({ amountCents: FULL_AMOUNT_CENTS, credits: TOP_UP_CREDITS }),
+        getPriceConfig: (productType) => productType === "starter_monthly"
+          ? { amountCents: 250000, credits: 5 }
+          : { amountCents: FULL_AMOUNT_CENTS, credits: TOP_UP_CREDITS },
       };
     }
     return originalLoad.call(this, request, parent, isMain);
@@ -421,6 +426,49 @@ function disputeEvent({ eventId, status }) {
           amount: FULL_AMOUNT_CENTS,
           currency: "usd",
         },
+      },
+    },
+  };
+}
+
+function invoicePaidEvent({ eventId = "evt_invoice_paid_001", invoiceId = "in_renewal_001" } = {}) {
+  return {
+    id: eventId,
+    type: "invoice.paid",
+    data: {
+      object: {
+        id: invoiceId,
+        object: "invoice",
+        billing_reason: "subscription_cycle",
+        amount_paid: 250000,
+        currency: "usd",
+        customer: "cus_top_up_001",
+        customer_email: "client@example.com",
+        payment_intent: "pi_renewal_001",
+        subscription: "sub_monthly_001",
+        status_transitions: { paid_at: 1780000123 },
+        lines: { data: [{ period: { start: 1780000000, end: 1782592000 } }] },
+        metadata: { organization_id: ORGANIZATION_ID, product_type: "starter_monthly", credits: "5", client_email: "client@example.com" },
+      },
+    },
+  };
+}
+
+function subscriptionUpdatedEvent({ eventId = "evt_subscription_update_001", cancelAtPeriodEnd = true } = {}) {
+  return {
+    id: eventId,
+    type: "customer.subscription.updated",
+    data: {
+      object: {
+        id: "sub_monthly_001",
+        object: "subscription",
+        status: "active",
+        customer: "cus_top_up_001",
+        current_period_start: 1780000000,
+        current_period_end: 1782592000,
+        cancel_at_period_end: cancelAtPeriodEnd,
+        cancel_at: cancelAtPeriodEnd ? 1782592000 : null,
+        metadata: { organization_id: ORGANIZATION_ID, product_type: "starter_monthly", credits: "5", client_email: "client@example.com" },
       },
     },
   };
@@ -534,6 +582,43 @@ test("won dispute does not reverse credits", async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(reversalCredits(state), 0);
   assert.equal(state.tables.stripe_webhook_events[0].processing_status, "processed");
+});
+
+test("subscription renewal invoice marks payment order paid and grants renewal credits", async () => {
+  const state = createBaseState({
+    tables: {
+      ...createBaseState().tables,
+      payment_orders: [],
+      payment_events: [],
+      subscriptions: [],
+      notifications: [],
+    },
+  });
+
+  const response = await runWebhook(invoicePaidEvent(), state);
+
+  const order = state.tables.payment_orders.find((row) => row.stripe_invoice_id === "in_renewal_001");
+  assert.equal(response.statusCode, 200);
+  assert.equal(order.status, "paid");
+  assert.equal(order.product_type, "starter_monthly");
+  assert.equal(order.credits, 5);
+  assert.equal(state.rpcCalls.some((call) => call.name === "apply_credit_change" && call.params.p_credits === 5), true);
+  assert.equal(state.tables.payment_events.some((row) => row.stripe_invoice_id === "in_renewal_001" && row.payment_status === "paid"), true);
+});
+
+test("scheduled subscription cancellation persists state and queues client/admin notifications", async () => {
+  const state = createBaseState();
+  state.tables.subscriptions = [];
+  state.tables.notifications = [];
+
+  const response = await runWebhook(subscriptionUpdatedEvent(), state);
+
+  const subscription = state.tables.subscriptions.find((row) => row.stripe_subscription_id === "sub_monthly_001");
+  assert.equal(response.statusCode, 200);
+  assert.equal(subscription.cancel_at_period_end, true);
+  assert.ok(subscription.cancel_at);
+  assert.equal(state.tables.notifications.filter((row) => String(row.template_key || "").includes("cancellation_scheduled")).length, 2);
+  assert.equal(state.tables.audit_events.some((row) => row.event_type === "subscription_updated"), true);
 });
 
 test("duplicate Stripe event id is idempotent", async () => {

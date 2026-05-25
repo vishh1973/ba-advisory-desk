@@ -2997,7 +2997,6 @@ async function saveClientProfileToSupabase() {
   }
   const companyName = document.querySelector("#profileCompany").value.trim();
   const hadWorkspace = Boolean(state.profileOrganizationId);
-
   const { data: organizationId, error } = await supabaseClient.rpc("save_client_workspace_profile", {
     p_org_name: companyName,
     p_industry: document.querySelector("#profileIndustry").value,
@@ -6657,11 +6656,13 @@ document.addEventListener("click", async (event) => {
 
   if (target.dataset.adminAction === "select-client") {
     const selectionId = target.dataset.clientSelection || "";
+    const projectId = target.dataset.projectId || "";
     if (!selectionId) {
       showToast("Client workspace could not be selected.");
       return;
     }
     state.selectedAdminClientId = selectionId;
+    if (projectId) state.selectedAdminProjectId = projectId;
     state.adminUploadProjectId = null;
     state.adminQueueFocus = "";
     resetVisibleCounts(["adminQueue", "adminDossierRequests", "adminDossierFiles", "adminDossierDeliverables", "adminDossierMessages"]);
