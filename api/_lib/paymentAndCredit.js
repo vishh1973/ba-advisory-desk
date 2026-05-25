@@ -504,6 +504,43 @@ async function notifyPaymentConfirmed(supabase, { order, customerEmail, balanceA
   };
 }
 
+async function notifySubscriptionCancellation(supabase, { subscription, customerEmail, scheduled = false, source }) {
+  const organizationId = subscription?.organization_id || null;
+  const subscriptionId = subscription?.stripe_subscription_id || subscription?.id || "unknown";
+  const eventKey = scheduled ? "cancellation_scheduled" : "canceled";
+  const periodKey = scheduled && subscription?.current_period_end ? String(subscription.current_period_end) : "final";
+  const clientTemplate = templates.subscriptionCancellation({ subscription, scheduled });
+  const clientEmailResult = await sendAndRecordEmail(supabase, {
+    to: customerEmail,
+    organizationId,
+    relatedEntityType: "subscription",
+    relatedEntityId: subscription?.id || null,
+    dedupeKey: `subscription:${subscriptionId}:${eventKey}:${periodKey}:client:${customerEmail || "missing"}`,
+    ...clientTemplate,
+  });
+
+  let adminEmailResult = { skipped: true, reason: "No admin email configured." };
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
+  if (adminEmail) {
+    const adminTemplate = templates.adminSubscriptionCancellationAlert({ subscription, customerEmail, scheduled, source });
+    adminEmailResult = await sendAndRecordEmail(supabase, {
+      to: adminEmail,
+      organizationId,
+      relatedEntityType: "subscription",
+      relatedEntityId: subscription?.id || null,
+      dedupeKey: `subscription:${subscriptionId}:${eventKey}:${periodKey}:admin:${adminEmail}`,
+      ...adminTemplate,
+    });
+  }
+
+  return {
+    client: clientEmailResult,
+    admin: adminEmailResult,
+    skipped: Boolean(clientEmailResult?.skipped && adminEmailResult?.skipped),
+    sent: Boolean(clientEmailResult?.sent || adminEmailResult?.sent),
+  };
+}
+
 async function detectAndNotifyCreditStatus(supabase, { organizationId, balance, availableBalance, threshold, recipientEmail, relatedEntityId }) {
   if (!organizationId) return { status: "skipped" };
 
@@ -611,6 +648,7 @@ module.exports = {
   grantPurchaseCredits,
   markOrderPaid,
   notifyPaymentConfirmed,
+  notifySubscriptionCancellation,
   recordAuditEvent,
   recordPaymentHistory,
   reversePurchaseCreditsForStripeEvent,

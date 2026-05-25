@@ -3,6 +3,7 @@ const { getStripe, getPriceConfig } = require("./_lib/stripeClient");
 const {
   grantPurchaseCredits,
   notifyPaymentConfirmed,
+  notifySubscriptionCancellation,
   recordAuditEvent,
   recordPaymentHistory,
   reversePurchaseCreditsForStripeEvent,
@@ -139,9 +140,11 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  const { data: upsertedSubscription, error } = await supabase
     .from("subscriptions")
-    .upsert(payload, { onConflict: "stripe_subscription_id" });
+    .upsert(payload, { onConflict: "stripe_subscription_id" })
+    .select("id,organization_id,stripe_customer_id,stripe_subscription_id,plan_name,status,monthly_credit_allowance,current_period_start,current_period_end")
+    .maybeSingle();
 
   if (error) throw error;
 
@@ -156,7 +159,7 @@ async function upsertSubscriptionRecord(supabase, subscription, fallbackMetadata
       .then(() => null, () => null);
   }
 
-  return payload;
+  return upsertedSubscription || payload;
 }
 
 async function markOrderPaid(supabase, order, fields = {}) {
@@ -351,23 +354,38 @@ async function handleInvoicePaid(supabase, stripe, invoice, eventType) {
   const order = await createPaidOrderFromInvoice(supabase, invoice, subscription);
   if (!order) return;
   const stripeCustomerId = stripeCustomerIdFrom(subscription?.customer) || stripeCustomerIdFrom(invoice.customer);
-  await persistStripeCustomer(supabase, order, stripeCustomerId);
+  const paidAt = isoFromUnixSeconds(invoice.status_transitions?.paid_at) || new Date().toISOString();
+  await markOrderPaid(supabase, order, {
+    paidAt,
+    stripePaymentIntentId: invoice.payment_intent || order.stripe_payment_intent_id || null,
+    stripeInvoiceId: invoice.id,
+    stripeCustomerId,
+  });
+  const paidOrder = {
+    ...order,
+    status: "paid",
+    paid_at: paidAt,
+    stripe_payment_intent_id: invoice.payment_intent || order.stripe_payment_intent_id || null,
+    stripe_invoice_id: invoice.id,
+    stripe_customer_id: stripeCustomerId,
+  };
+  await persistStripeCustomer(supabase, paidOrder, stripeCustomerId);
 
-  await recordPaymentHistory(supabase, { order, invoice, eventType });
+  await recordPaymentHistory(supabase, { order: paidOrder, invoice, eventType });
 
   const creditGrant = await grantPurchaseCredits(supabase, {
-    order,
+    order: paidOrder,
     stripeSourceId: `invoice-${invoice.id}`,
     stripePaymentIntentId: invoice.payment_intent,
     stripeInvoiceId: invoice.id,
-    paidAt: isoFromUnixSeconds(invoice.status_transitions?.paid_at) || new Date().toISOString(),
+    paidAt,
     billingPeriodStart: periodFromInvoice(invoice, subscription).start,
     billingPeriodEnd: periodFromInvoice(invoice, subscription).end,
   });
 
   try {
     await notifyPaymentConfirmed(supabase, {
-      order,
+      order: paidOrder,
       customerEmail: invoice.customer_email || subscription?.metadata?.client_email || null,
       balanceAfter: creditGrant.balanceAfter,
       source: "invoice.paid",
@@ -427,6 +445,15 @@ async function handleSubscriptionDeleted(supabase, subscription) {
   if (error) throw error;
 
   if (organizationId) {
+    const subscriptionRecord = {
+      id: existingSubscription?.id || null,
+      organization_id: organizationId,
+      stripe_subscription_id: subscriptionId,
+      stripe_customer_id: stripeCustomerIdFrom(subscription.customer),
+      status: update.status,
+      current_period_start: update.current_period_start,
+      current_period_end: update.current_period_end,
+    };
     await recordAuditEvent(supabase, {
       organizationId,
       eventType: "subscription_deleted",
@@ -436,6 +463,23 @@ async function handleSubscriptionDeleted(supabase, subscription) {
         current_period_end: update.current_period_end,
       },
     });
+    try {
+      await notifySubscriptionCancellation(supabase, {
+        subscription: subscriptionRecord,
+        customerEmail: subscription.metadata?.client_email || (typeof subscription.customer === "object" ? subscription.customer?.email : null) || null,
+        scheduled: false,
+        source: "customer.subscription.deleted",
+      });
+    } catch (emailError) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        eventType: "subscription_cancellation_email_failed",
+        eventDetail: {
+          stripe_subscription_id: subscriptionId,
+          error: emailError.message || "Subscription cancellation email could not be sent.",
+        },
+      });
+    }
   }
 }
 
@@ -572,16 +616,49 @@ async function handleInvoicePaymentIssue(supabase, stripe, invoice, eventType) {
 
 async function handleSubscriptionUpdated(supabase, subscription, eventType) {
   const record = await upsertSubscriptionRecord(supabase, subscription, subscription.metadata);
+  const organizationId = record?.organization_id || subscription?.metadata?.organization_id || subscription?.metadata?.workspace_id || null;
+  const subscriptionId = subscriptionIdFrom(subscription);
+  const period = periodFromSubscription(subscription);
   await recordAuditEvent(supabase, {
-    organizationId: record?.organization_id || subscription?.metadata?.organization_id || subscription?.metadata?.workspace_id || null,
+    organizationId,
     eventType: "subscription_updated",
     eventDetail: {
-      stripe_subscription_id: subscriptionIdFrom(subscription),
+      stripe_subscription_id: subscriptionId,
       stripe_event_type: eventType,
       status: subscription.status || "unknown",
       cancel_at_period_end: Boolean(subscription.cancel_at_period_end),
+      current_period_end: period.end,
     },
   });
+
+  if (organizationId && subscription.cancel_at_period_end) {
+    try {
+      await notifySubscriptionCancellation(supabase, {
+        subscription: {
+          id: record?.id || null,
+          organization_id: organizationId,
+          stripe_subscription_id: subscriptionId,
+          stripe_customer_id: stripeCustomerIdFrom(subscription.customer),
+          status: subscription.status || "active",
+          current_period_start: period.start,
+          current_period_end: period.end,
+        },
+        customerEmail: subscription.metadata?.client_email || (typeof subscription.customer === "object" ? subscription.customer?.email : null) || null,
+        scheduled: true,
+        source: "customer.subscription.updated",
+      });
+    } catch (emailError) {
+      await recordAuditEvent(supabase, {
+        organizationId,
+        eventType: "subscription_cancellation_email_failed",
+        eventDetail: {
+          stripe_subscription_id: subscriptionId,
+          scheduled: true,
+          error: emailError.message || "Subscription cancellation email could not be sent.",
+        },
+      });
+    }
+  }
 }
 
 async function findOrderForCharge(supabase, charge) {

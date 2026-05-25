@@ -176,9 +176,80 @@ function adminPaymentNotification({ order, customerEmail, source }) {
   };
 }
 
+function formatDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+function subscriptionCancellation({ subscription, scheduled = false }) {
+  const billingUrl = `${publicBaseUrl()}/index.html#billing`;
+  const periodEnd = formatDate(subscription?.current_period_end);
+  const effectiveText = periodEnd
+    ? `Your current billing period is scheduled to end on ${periodEnd}.`
+    : "Your BA Advisory Desk Monthly Support access has been updated.";
+  const helpText = `If this cancellation was not intended, reply to this email or contact ${supportEmail()}.`;
+  const subject = scheduled
+    ? "BA Advisory Desk Monthly Support cancellation scheduled"
+    : "BA Advisory Desk Monthly Support cancellation confirmed";
+  const heading = scheduled ? "Monthly Support cancellation scheduled" : "Monthly Support cancellation confirmed";
+  const intro = scheduled
+    ? "Your BA Advisory Desk Monthly Support plan is set to cancel at the end of the current billing period."
+    : "Your BA Advisory Desk Monthly Support plan has been cancelled.";
+
+  return {
+    templateKey: scheduled ? "subscription_cancellation_scheduled" : "subscription_canceled",
+    subject,
+    body: `${intro} ${effectiveText} You can open billing for plan and credit history. ${helpText}`,
+    html: wrapEmail({
+      heading,
+      intro,
+      paragraphs: [effectiveText, "Your workspace remains available for existing files, messages, deliverables, and payment history."],
+      actionLabel: "Open billing",
+      actionUrl: billingUrl,
+      supportText: helpText,
+    }),
+  };
+}
+
+function adminSubscriptionCancellationAlert({ subscription, customerEmail, scheduled = false, source }) {
+  const adminUrl = `${publicBaseUrl()}/index.html#admin`;
+  const status = subscription?.status || (scheduled ? "cancel_at_period_end" : "canceled");
+  const periodEnd = formatDate(subscription?.current_period_end) || "not available";
+  const title = scheduled ? "subscription cancellation scheduled" : "subscription cancelled";
+
+  return {
+    templateKey: scheduled ? "admin_subscription_cancellation_scheduled" : "admin_subscription_canceled",
+    subject: `[BAAD Admin] Monthly Support ${scheduled ? "cancellation scheduled" : "cancelled"}`,
+    body: `Monthly Support ${title}. Customer email: ${customerEmail || "not provided"}. Organization ID: ${subscription?.organization_id || "not linked"}. Status: ${status}. Current period end: ${periodEnd}. Source: ${source || "stripe"}.`,
+    html: wrapEmail({
+      heading: `Monthly Support ${scheduled ? "cancellation scheduled" : "cancelled"}`,
+      intro: `A BA Advisory Desk Monthly Support ${title} event was received.`,
+      paragraphs: [
+        `Customer email: ${customerEmail || "not provided"}.`,
+        `Organization ID: ${subscription?.organization_id || "not linked"}.`,
+        `Status: ${status}.`,
+        `Current period end: ${periodEnd}.`,
+        `Source: ${source || "stripe"}.`,
+      ],
+      actionLabel: "Open admin dashboard",
+      actionUrl: adminUrl,
+      supportText: "Review the client workspace, payment history, and any follow-up actions before closing the alert.",
+    }),
+  };
+}
+
 module.exports = {
   adminPaymentNotification,
+  adminSubscriptionCancellationAlert,
   depletedCredit,
   lowCredit,
   paymentConfirmed,
+  subscriptionCancellation,
 };

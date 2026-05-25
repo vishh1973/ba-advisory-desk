@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "vercel dev",
-    "test": "node --test tests/api-guard-regression.test.js tests/refund-dispute-credit-reconciliation.test.js tests/credit-expiry-reminder.test.js tests/admin-notification-email.test.js",
+    "test": "node --test tests/api-guard-regression.test.js tests/refund-dispute-credit-reconciliation.test.js tests/credit-expiry-reminder.test.js tests/admin-notification-email.test.js tests/subscription-cancellation-notifications.test.js",
     "test:syntax": "node scripts/check-syntax.js",
     "smoke": "powershell -ExecutionPolicy Bypass -File \"../Private Build Assets/tests/smoke-tests.ps1\"",
     "qa:client": "powershell -ExecutionPolicy Bypass -File \"tests/browser-client-journey-qa.ps1\"",
