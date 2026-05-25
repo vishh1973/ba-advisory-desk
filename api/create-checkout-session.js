@@ -259,9 +259,10 @@ async function insertPaymentOrder(supabase, payload, checkoutAttemptKey) {
 }
 
 function periodFromSubscription(subscription) {
+  const firstItem = Array.isArray(subscription?.items?.data) ? subscription.items.data[0] : null;
   return {
-    start: isoFromUnixSeconds(subscription?.current_period_start),
-    end: isoFromUnixSeconds(subscription?.current_period_end),
+    start: isoFromUnixSeconds(subscription?.current_period_start ?? firstItem?.current_period_start),
+    end: isoFromUnixSeconds(subscription?.current_period_end ?? firstItem?.current_period_end),
   };
 }
 

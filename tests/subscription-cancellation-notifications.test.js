@@ -326,6 +326,36 @@ test("subscription cancellation scheduled sends client email and admin alert not
   assert.equal(state.tables.notifications.some((row) => row.template_key === "admin_subscription_cancellation_scheduled" && row.recipient_email === ADMIN_EMAIL), true);
 });
 
+test("subscription period dates fall back to Stripe subscription item periods", async () => {
+  const state = createState();
+  const event = {
+    id: "evt_sub_cancel_scheduled_item_period_001",
+    type: "customer.subscription.updated",
+    data: {
+      object: subscriptionFixture({
+        current_period_start: undefined,
+        current_period_end: undefined,
+        cancel_at_period_end: true,
+        items: {
+          data: [
+            {
+              current_period_start: 1779711574,
+              current_period_end: 1782389974,
+            },
+          ],
+        },
+      }),
+    },
+  };
+
+  const response = await runWebhook(event, state);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(state.tables.subscriptions[0].current_period_start, "2026-05-25T12:19:34.000Z");
+  assert.equal(state.tables.subscriptions[0].current_period_end, "2026-06-25T12:19:34.000Z");
+  assert.equal(state.tables.notifications.some((row) => row.dedupe_key.includes("2026-06-25T12:19:34.000Z")), true);
+});
+
 test("duplicate scheduled cancellation updates for the same period are deduped", async () => {
   const state = createState();
   const firstEvent = {
