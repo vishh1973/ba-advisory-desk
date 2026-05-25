@@ -16,10 +16,12 @@ if ($nodeCommand) {
 if (!(Test-Path $nodeExe)) {
   throw "Node.js was not found. Install Node.js LTS or run this QA script from Codex with the bundled runtime available."
 }
-$env:NODE_PATH = "$PSScriptRoot\..\node_modules;$bundledNodeRoot\node_modules\.pnpm\node_modules;$bundledNodeRoot\node_modules"
+$localNodeModules = Join-Path (Split-Path -Parent $PSScriptRoot) "node_modules"
+$env:NODE_PATH = (($localNodeModules, "$bundledNodeRoot\node_modules\.pnpm\node_modules", "$bundledNodeRoot\node_modules") -join [IO.Path]::PathSeparator)
 $env:NODE_OPTIONS = (($env:NODE_OPTIONS, "--use-system-ca") -join " ").Trim()
 
-& $nodeExe "$PSScriptRoot\stripe-checkout-credit-e2e.js"
+$scriptPath = Join-Path $PSScriptRoot "stripe-checkout-credit-e2e.js"
+& $nodeExe $scriptPath
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
