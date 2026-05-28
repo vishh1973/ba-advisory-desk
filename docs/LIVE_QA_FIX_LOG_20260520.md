@@ -1,5 +1,20 @@
 # Live QA Fix Log
 
+## Discovery Scheduling Link QA
+
+Date: 2026-05-28
+
+### Scope
+
+Added the approved 30-minute BA Advisory Desk Calendly discovery link to public custom advisory, pricing, FAQ, support, and footer paths while keeping paid package CTAs intact.
+
+### Verification Completed
+
+- Verified every Calendly link opens in a new browser tab/window with `target="_blank"` and `rel="noopener noreferrer"`.
+- Verified the previous longer discovery-call wording is removed and replaced with 30-minute discovery wording.
+- Verified the link-only integration requires no Calendly embed, third-party script, or Content-Security-Policy change.
+- Verified the BAAD calendar is visible from Vishal's personal Google Calendar through calendar sharing/subscription rather than event copying.
+
 Date: 2026-05-20
 
 ## Scope

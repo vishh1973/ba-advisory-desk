@@ -6,6 +6,7 @@ It includes:
 
 - public website
 - pricing and sample work
+- support center and custom advisory discovery scheduling link
 - client login
 - client profile
 - request intake

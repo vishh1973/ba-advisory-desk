@@ -1,6 +1,6 @@
 # BA Advisory Desk Master Client Journey QA
 
-Last updated: May 19, 2026
+Last updated: May 28, 2026
 
 ## Purpose
 
@@ -13,7 +13,7 @@ Expected path:
 1. Visitor lands on the home page.
 2. Visitor reviews services, deliverable examples, pricing, FAQ, About Us, Security, and policies.
 3. Visitor can contact support from the header, About Us, FAQ, and footer.
-4. Visitor can choose View Advisory Plans, Request Custom Scope, or Client Login.
+4. Visitor can choose View Advisory Plans, Request Custom Scope, Book a 30-minute discovery call, or Client Login.
 
 Current QA status:
 
@@ -22,17 +22,19 @@ Current QA status:
 - Passed: visible public copy does not show internal build language.
 - Passed: sample PDF links exist locally and load from the local site.
 - Passed: route changes reset page position.
+- Passed: public discovery links open the approved Calendly page in a new tab/window without requiring client login.
 
 ## Journey 2: Visitor Requests A Custom Advisory Scope
 
 Expected path:
 
 1. Visitor opens Request Custom Scope.
-2. Visitor enters company type, country, work email, budget range, and request summary.
-3. If company type is Other, visitor provides the type.
-4. API validates the same fields as the browser.
-5. Support receives an email notification.
-6. Admin queue records the custom quote request.
+2. Visitor can book a 30-minute discovery call before completing the form or continue with the written custom scope request.
+3. Visitor enters company type, country, work email, budget range, and request summary.
+4. If company type is Other, visitor provides the type.
+5. API validates the same fields as the browser.
+6. Support receives an email notification.
+7. Admin queue records the custom quote request.
 
 Current QA status:
 

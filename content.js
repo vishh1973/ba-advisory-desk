@@ -253,7 +253,7 @@ window.BAAD_CONTENT = {
           {
             question: "What types of deliverables can I request?",
             answer:
-              "Clients can request business requirements, functional requirements, non functional requirements, user stories, acceptance criteria, SOPs, process maps, UAT scenarios, business cases, executive presentations, gap analysis, decision logs, vendor readiness material, AI assessment packs, and governance frameworks. If you do not see the deliverable you need, contact support@baadvisorydesk.com. We will review the requirement and confirm the right way to scope it.",
+              "Clients can request business requirements, functional requirements, non functional requirements, user stories, acceptance criteria, SOPs, process maps, UAT scenarios, business cases, executive presentations, gap analysis, decision logs, vendor readiness material, AI assessment packs, and governance frameworks. If you do not see the deliverable you need, contact support@baadvisorydesk.com or book a 30-minute discovery call from the site. We will review the requirement and confirm the right way to scope it.",
           },
           {
             question: "Can you review documents I already have?",
@@ -320,7 +320,7 @@ window.BAAD_CONTENT = {
           {
             question: "What if my request is too large for credits?",
             answer:
-              "If a request is too broad, complex, or unclear for the credit model, contact support@baadvisorydesk.com. We will review the context and, if the work is a fit, confirm the objective, assumptions, timeline, and price before work starts.",
+              "If a request is too broad, complex, or unclear for the credit model, contact support@baadvisorydesk.com or book a 30-minute discovery call from the site. We will review the context and, if the work is a fit, confirm the objective, assumptions, timeline, and price before work starts.",
           },
         ],
       },
@@ -388,7 +388,7 @@ window.BAAD_CONTENT = {
           {
             question: "What happens after I submit a custom request?",
             answer:
-              "We review the request, identify the discovery need, and follow up with next steps. If the work is a fit, the next step is discovery, written scope, timeline, and a custom invoice. If it is not a fit, we will tell you clearly.",
+              "We review the request, identify the discovery need, and follow up with next steps. If the work is a fit, the next step is a 30-minute discovery call, written scope, timeline, and a custom invoice. If it is not a fit, we will tell you clearly.",
           },
           {
             question: "Can consulting firms use this service?",

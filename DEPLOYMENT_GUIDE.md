@@ -38,6 +38,16 @@ Use:
 
 Set `baadvisorydesk.com` as the primary domain after purchase.
 
+## External scheduling links
+
+The public discovery-call path uses Calendly as a simple outbound link:
+
+```text
+https://calendly.com/baadvisorydesk-support/30min
+```
+
+No Vercel environment variable or Content-Security-Policy change is required for link-only use. Keep every public Calendly link opening in a new browser tab/window with `target="_blank"` and `rel="noopener noreferrer"` so visitors do not lose the BA Advisory Desk site. If Calendly is embedded later, update the Vercel Content-Security-Policy for the required Calendly frame, script, style, and connection sources before deployment.
+
 ## Required Vercel environment variables
 
 Add these in Vercel Project Settings, Environment Variables:

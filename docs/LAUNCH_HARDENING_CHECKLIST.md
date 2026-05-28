@@ -1,6 +1,6 @@
 # BA Advisory Desk Launch Hardening Checklist
 
-Last updated: May 19, 2026
+Last updated: May 28, 2026
 
 ## Current Status
 
@@ -33,6 +33,9 @@ This checklist tracks what must be tightened before a confident public launch.
 - Signed file download routes verify related record ownership before creating URLs.
 - The daily low credit job expires stale credit grants before checking reminder thresholds.
 - Checkout success returns to a clear checkout complete view before moving the client into the workspace.
+- Public custom advisory paths include a 30-minute discovery scheduling link.
+- Support package/scope path includes a clear 30-minute discovery scheduling option.
+- Discovery scheduling links open in a new tab/window so the BA Advisory Desk site remains available.
 
 ## In Progress
 

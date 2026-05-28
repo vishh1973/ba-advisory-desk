@@ -1,6 +1,6 @@
 # BA Advisory Desk End To End QA Matrix
 
-Last updated: May 20, 2026
+Last updated: May 28, 2026
 
 ## Current QA Result
 
@@ -104,6 +104,7 @@ The public site, checkout confirmation, client request upload safeguards, admin 
 | Area | Status | Result |
 |---|---:|---|
 | Public pages | Pass | Main public routes and footer support email are present. |
+| Discovery scheduling CTA | Pass | Calendly discovery links are present on public custom advisory and support paths, open in a new tab/window, and point to the approved 30-minute scheduling page. |
 | AI discoverability | Pass baseline | `llms.txt`, robots, sitemap, semantic content, and structured data exist. |
 | Structured FAQ | Risk | JSON LD FAQ covers fewer items than visible FAQ. |
 | Social preview metadata | Open | `og:image` and `twitter:image` should be added. |
