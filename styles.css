@@ -770,11 +770,24 @@ h2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.hero .actions {
+  align-items: center;
+}
+
+.hero .actions .primary,
+.hero .actions .secondary {
+  align-items: center;
+  min-height: 48px;
+  min-width: 180px;
+}
+
 .hero-trust-strip {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 16px;
+  max-width: 760px;
 }
 
 .hero-trust-strip span {
@@ -786,9 +799,18 @@ h2 {
   display: inline-flex;
   font-size: 12px;
   font-weight: 700;
+  gap: 7px;
   letter-spacing: 0.01em;
   line-height: 1.25;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 8px 11px;
+}
+
+.hero-trust-strip span::before {
+  color: #15d6c2;
+  content: "✓";
+  font-weight: 900;
 }
 
 .hero-proof-grid article {
@@ -1467,6 +1489,12 @@ blockquote cite {
 .price-card button,
 .price-card .primary {
   margin-top: auto;
+}
+
+.price-card > button,
+.price-card > .primary {
+  align-items: center;
+  width: 100%;
 }
 
 .badge {

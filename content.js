@@ -3,14 +3,13 @@ window.BAAD_CONTENT = {
     eyebrow: "Requirements rescue and decision ready Business Analysis support",
     headline: "Get senior Business Analysis output without adding headcount.",
     benefit:
-      "Why add fixed BA capacity when you can access focused requirements, business case, UAT, SOP, vendor, AI readiness, and fractional BA support on demand?",
+      "Access senior BA support for requirements rescue, decision material, UAT, SOPs, vendor readiness, AI readiness, and fractional BA needs—without fixed headcount.",
     body:
       "Send the business problem, source material, and decision pressure. We structure the evidence, identify gaps and risks, and return clear deliverables your team can approve, build from, or share with clients.",
     trustSignals: [
       "Private client workspace",
       "Controlled file handling",
       "NDA review available before sensitive uploads",
-      "Confidential project material handling",
     ],
     proofPoints: [
       {
@@ -22,8 +21,8 @@ window.BAAD_CONTENT = {
         body: "Business cases, UAT packs, SOPs, vendor material, and executive summaries are shaped for next-step decisions.",
       },
       {
-        title: "Work in a controlled, confidential path.",
-        body: "Account based access, private file handling, and controlled downloads keep client material organized and protected.",
+        title: "Keep sensitive work in a controlled delivery path.",
+        body: "Private workspace access, controlled file handling, and controlled downloads keep project material contained from intake to release.",
       },
     ],
   },
