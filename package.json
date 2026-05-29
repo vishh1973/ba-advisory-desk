@@ -6,6 +6,7 @@
     "start": "vercel dev",
     "test": "node --test tests/api-guard-regression.test.js tests/refund-dispute-credit-reconciliation.test.js tests/credit-expiry-reminder.test.js tests/admin-notification-email.test.js tests/subscription-cancellation-notifications.test.js",
     "test:syntax": "node scripts/check-syntax.js",
+    "qa:return-controls": "node tests/client-return-controls-smoke.js",
     "smoke": "powershell -ExecutionPolicy Bypass -File \"../Private Build Assets/tests/smoke-tests.ps1\"",
     "qa:client": "powershell -ExecutionPolicy Bypass -File \"tests/browser-client-journey-qa.ps1\"",
     "qa:stripe:e2e": "powershell -ExecutionPolicy Bypass -File \"tests/stripe-checkout-credit-e2e.ps1\""

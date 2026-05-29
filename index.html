@@ -1230,7 +1230,10 @@
               </select>
             </label>
             <p id="profileStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Complete the required profile fields once so your workspace stays connected.</p>
-            <button type="submit">Save Client Profile</button>
+            <div class="action-row">
+              <a class="secondary" href="#dashboard">Cancel / Return To Dashboard</a>
+              <button type="submit">Save Client Profile</button>
+            </div>
           </form>
           <form id="accountSecurityForm" class="form-card">
             <p class="eyebrow">Account security</p>
@@ -1332,7 +1335,10 @@
               <textarea id="attachmentDescription" rows="3" placeholder="Briefly describe the files, their purpose, and anything we should pay attention to."></textarea>
             </label>
             <p id="requestStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Requests are checked against your profile, credit balance, and selected files before submission.</p>
-            <button id="requestSubmitButton" type="submit">Submit Request</button>
+            <div class="action-row">
+              <a class="secondary" href="#dashboard">Cancel / Return To Dashboard</a>
+              <button id="requestSubmitButton" type="submit">Submit Request</button>
+            </div>
           </form>
         </div>
       </section>
@@ -1867,7 +1873,10 @@
             </label>
             <p id="quoteStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Send the request and we will follow up with discovery next steps.</p>
             <a class="secondary full" href="https://calendly.com/baadvisorydesk-support/30min" target="_blank" rel="noopener noreferrer">Book a 30-minute discovery call</a>
-            <button type="submit">Send Custom Request</button>
+            <div class="action-row">
+              <a class="secondary" href="#dashboard">Return To Client Dashboard</a>
+              <button type="submit">Send Custom Request</button>
+            </div>
           </form>
         </div>
       </section>

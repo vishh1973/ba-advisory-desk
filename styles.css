@@ -167,6 +167,19 @@ button:hover {
   width: 100%;
 }
 
+.action-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.action-row .primary,
+.action-row .secondary,
+.action-row button {
+  width: auto;
+}
+
 .view {
   display: none;
   padding: 56px 5vw;
