@@ -293,7 +293,11 @@ async function run() {
     await page.fill("#passwordLoginEmail", email);
     await page.fill("#passwordLoginPassword", password);
     await page.click("#passwordSignInForm button[type='submit']");
-    await page.waitForFunction(() => window.location.hash.includes("dashboard") || document.querySelector("#clientName")?.textContent?.trim(), null, { timeout: 30000 });
+    await page.waitForFunction(() => {
+      const routeReady = ["#dashboard", "#admin"].includes(window.location.hash);
+      const clientReady = Boolean(document.querySelector("#clientName")?.textContent?.trim());
+      return routeReady && clientReady;
+    }, null, { timeout: 45000 });
 
     const requestQa = await runNewProjectRequestQa(page, runId);
 
