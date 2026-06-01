@@ -908,6 +908,7 @@
             <strong>Client Workspace</strong>
             <a href="#dashboard">Overview</a>
             <a href="#profile">Client Profile</a>
+            <a href="#response-engine">Response Engine</a>
             <a href="#request">Start a Request</a>
             <a href="#billing">Billing</a>
             <a href="#deliverables">Deliverables</a>
@@ -946,6 +947,12 @@
                 <strong id="clientNextStepTitle">Set up your workspace</strong>
                 <p id="clientNextStepBody">Complete your profile, then submit the first Business Analysis request with source material.</p>
                 <a id="clientNextStepCta" class="primary small" href="#profile">Continue</a>
+              </article>
+              <article class="workspace-command-card">
+                <span>Limited access</span>
+                <strong id="responseEngineDashboardTitle">Response Engine</strong>
+                <p id="responseEngineDashboardBody">Request access to automated bid, proposal, and candidate package support.</p>
+                <a id="responseEngineDashboardCta" class="secondary small" href="#response-engine">Open Response Engine</a>
               </article>
               <article class="workspace-command-card">
                 <span>Released files</span>
@@ -1343,6 +1350,100 @@
         </div>
       </section>
 
+      <section class="view" id="view-response-engine">
+        <div class="form-layout response-engine-layout">
+          <div>
+            <p class="eyebrow">Response Engine</p>
+            <h2>Automate candidate submission packages.</h2>
+            <p>Use this limited-access workspace for private AI processing, source-backed evidence mapping, automated quality checks, and dashboard delivery.</p>
+            <div class="response-engine-status-card">
+              <strong id="responseEngineAccessTitle">Checking access</strong>
+              <span id="responseEngineAccessBody">Response Engine access loads after sign in.</span>
+              <span id="responseEngineCreditSummary">0 Response Engine credits available.</span>
+            </div>
+          </div>
+          <div class="form-card" id="responseEngineAccessPanel">
+            <h3>Request access.</h3>
+            <p>Access is approved by BA Advisory Desk before a firm can submit packages.</p>
+            <label>
+              Access note
+              <textarea id="responseEngineAccessNote" rows="4" placeholder="Briefly describe your recruiting firm, expected package volume, and first use case."></textarea>
+            </label>
+            <p id="responseEngineAccessStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Request access when your profile is complete.</p>
+            <button id="responseEngineAccessButton" class="primary" type="button" data-response-engine-action="request-access">Request Access</button>
+          </div>
+          <form id="responseEngineForm" class="form-card hidden">
+            <h3>Candidate Submission Package</h3>
+            <div class="form-grid two">
+              <label>
+                Package title
+                <input id="responsePackageTitle" maxlength="160" placeholder="Example: Senior BA package for ESDC opportunity" />
+              </label>
+              <label>
+                Candidate name
+                <input id="responseCandidateName" maxlength="140" placeholder="Candidate name" />
+              </label>
+            </div>
+            <div class="form-grid two">
+              <label>
+                Target role
+                <input id="responseTargetRole" maxlength="160" placeholder="Example: Senior Business Analyst" />
+              </label>
+              <label>
+                Deadline, optional
+                <input id="responseDeadline" type="date" />
+              </label>
+            </div>
+            <label>
+              Opportunity name, optional
+              <input id="responseOpportunityName" maxlength="180" placeholder="Client, RFP, task authorization, or opportunity name" />
+            </label>
+            <fieldset class="checkbox-grid">
+              <legend>Outputs requested</legend>
+              <label><input type="checkbox" name="responseOutput" value="polished_resume" checked /> Polished candidate resume, 1 credit</label>
+              <label><input type="checkbox" name="responseOutput" value="mandatory_matrix" checked /> Mandatory criteria matrix, 1 credit</label>
+              <label><input type="checkbox" name="responseOutput" value="rated_matrix" checked /> Rated criteria scoring map, 1 credit</label>
+              <label><input type="checkbox" name="responseOutput" value="combined_grid" /> Combined response grid, 1 credit</label>
+              <label><input type="checkbox" name="responseOutput" value="gap_note" checked /> Gap and risk note, included</label>
+              <label><input type="checkbox" name="responseOutput" value="recruiter_checklist" checked /> Recruiter checklist, included</label>
+              <label><input type="checkbox" name="responseOutput" value="client_template" /> Format into uploaded client template, 1 credit</label>
+            </fieldset>
+            <fieldset class="checkbox-grid">
+              <legend>Preferred output format</legend>
+              <label><input type="checkbox" name="responseFormat" value="docx" checked /> Word document</label>
+              <label><input type="checkbox" name="responseFormat" value="xlsx" checked /> Excel workbook</label>
+              <label><input type="checkbox" name="responseFormat" value="pdf" /> PDF copy</label>
+              <label><input type="checkbox" name="responseFormat" value="uploaded_template" /> Use uploaded template where possible</label>
+            </fieldset>
+            <label>
+              Notes for the automation engine
+              <textarea id="responseAutomationNotes" rows="4" maxlength="2000" placeholder="Add any instructions, project emphasis, template rules, or known gaps. Do not include passwords or secrets."></textarea>
+            </label>
+            <label>
+              Upload source files
+              <input id="responseFileUpload" type="file" multiple accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg" />
+              <small>Allowed: PDF, Word, Excel, PowerPoint, PNG, JPG. Maximum: 10 files and 50 MB per file.</small>
+            </label>
+            <div class="file-list response-file-list" id="responseFileContextList">No files selected yet.</div>
+            <p id="responseCreditEstimate" class="scope-note">Selected package estimate: 3 Response Engine credits.</p>
+            <p id="responseEngineSubmitStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Complete the package details, choose outputs, and upload source files.</p>
+            <div class="action-row">
+              <a class="secondary" href="#dashboard">Cancel / Return To Dashboard</a>
+              <button id="responseEngineSubmitButton" type="submit">Submit Package</button>
+            </div>
+          </form>
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <h3>Response Engine packages</h3>
+                <p>Package history, processing status, and released deliverables stay in this workspace.</p>
+              </div>
+            </div>
+            <div id="responseEnginePackageList" class="deliverable-list"></div>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-billing">
         <div class="section-heading">
           <p class="eyebrow">Billing</p>
@@ -1509,6 +1610,51 @@
           <strong>Credit account status</strong>
           <span id="adminCreditAlertText">Credit balance is healthy.</span>
         </div>
+        <section class="panel" id="adminResponseEnginePanel">
+          <div class="panel-heading">
+            <div>
+              <h3>Response Engine access</h3>
+              <p>Approve firm access, grant Response Engine credits, and monitor automated package jobs.</p>
+            </div>
+            <button class="secondary small" type="button" data-response-engine-admin-action="refresh">Refresh</button>
+          </div>
+          <div class="response-engine-admin-grid">
+            <div>
+              <h4>Access requests</h4>
+              <div id="adminResponseEngineEntitlements" class="communication-log"></div>
+            </div>
+            <form id="adminResponseEngineApprovalForm" class="client-action-card">
+              <h4>Approve or update access</h4>
+              <label>
+                Client organization
+                <select id="adminResponseEngineOrg"></select>
+              </label>
+              <label>
+                Approved Response Engine credit limit
+                <input id="adminResponseEngineCredits" type="number" min="0" max="500" value="10" />
+              </label>
+              <label>
+                Status
+                <select id="adminResponseEngineStatusSelect">
+                  <option value="approved">Approved</option>
+                  <option value="pending">Pending</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </label>
+              <label>
+                Admin note
+                <textarea id="adminResponseEngineNotes" rows="3" placeholder="Internal access note."></textarea>
+              </label>
+              <p id="adminResponseEngineStatus" class="admin-inline-status" role="status" aria-live="polite" aria-atomic="true">Select a firm before updating access.</p>
+              <button type="submit" class="primary">Save Response Engine Access</button>
+            </form>
+          </div>
+          <details class="client-detail-section">
+            <summary>Recent Response Engine jobs</summary>
+            <div id="adminResponseEngineJobs" class="communication-log"></div>
+          </details>
+        </section>
         <div class="admin-command-layout">
           <article class="panel admin-portfolio-panel">
             <div class="admin-panel-head">

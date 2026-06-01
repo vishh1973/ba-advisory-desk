@@ -44,6 +44,29 @@ const remotePageSizes = {
   clientUploads: 250,
 };
 
+const RESPONSE_ENGINE_SERVICE_KEY = "procurement_response_engine";
+const RESPONSE_ENGINE_OUTPUTS = {
+  polished_resume: { label: "Polished candidate resume", credits: 1, includedInFullPackage: true },
+  mandatory_matrix: { label: "Mandatory criteria matrix", credits: 1, includedInFullPackage: true },
+  rated_matrix: { label: "Rated criteria scoring map", credits: 1, includedInFullPackage: true },
+  combined_grid: { label: "Combined response grid", credits: 1, includedInFullPackage: false },
+  gap_note: { label: "Gap and risk note", credits: 0, includedInFullPackage: true },
+  recruiter_checklist: { label: "Recruiter checklist", credits: 0, includedInFullPackage: true },
+  client_template: { label: "Format into uploaded client template", credits: 1, includedInFullPackage: false },
+};
+const RESPONSE_ENGINE_FORMATS = new Set(["docx", "xlsx", "pdf", "uploaded_template"]);
+const RESPONSE_ENGINE_FILE_ROLES = [
+  ["rfp_sow", "RFP, SOW, or opportunity document"],
+  ["mandatory_grid", "Mandatory criteria grid"],
+  ["rated_grid", "Rated criteria grid"],
+  ["candidate_resume", "Candidate resume"],
+  ["past_profile", "Past candidate profile"],
+  ["recruiter_instructions", "Recruiter email or instructions"],
+  ["client_template", "Client template"],
+  ["reference_material", "Reference material"],
+  ["other", "Other"],
+];
+
 function createRemotePaginationState() {
   return {
     adminQueue: { offset: 0, hasMore: false, loading: false, sources: {} },
@@ -83,6 +106,7 @@ const privateWorkspaceStorageKeys = [
   "baad-selected-project-id",
   "baad-admin-client-id",
   "baad-admin-project-id",
+  "baad-response-engine",
 ];
 
 function clearPrivateWorkspaceStorage() {
@@ -140,6 +164,15 @@ const state = {
   profileOrganizationId: "",
   workspaceLoadIssue: "",
   reservedCredits: 0,
+  responseEngine: {
+    entitlement: { status: "not_loaded", service_key: RESPONSE_ENGINE_SERVICE_KEY },
+    credits: { balance: 0, reservedBalance: 0, availableBalance: 0 },
+    packages: [],
+    adminEntitlements: [],
+    adminCredits: [],
+    adminJobs: [],
+    loadIssue: "",
+  },
   checkoutOpening: false,
   visibleCounts: { ...visibleCountDefaults },
   remotePagination: createRemotePaginationState(),
@@ -156,6 +189,7 @@ const views = {
   login: document.querySelector("#view-login"),
   dashboard: document.querySelector("#view-dashboard"),
   profile: document.querySelector("#view-profile"),
+  "response-engine": document.querySelector("#view-response-engine"),
   request: document.querySelector("#view-request"),
   billing: document.querySelector("#view-billing"),
   "checkout-success": document.querySelector("#view-checkout-success"),
@@ -1360,7 +1394,7 @@ function clearPublicAuthFields() {
 }
 
 function clearClientForms() {
-  ["#profileForm", "#requestForm", "#clientMessageForm", "#clientUploadForm", "#quoteForm"].forEach((formSelector) => {
+  ["#profileForm", "#requestForm", "#responseEngineForm", "#clientMessageForm", "#clientUploadForm", "#quoteForm"].forEach((formSelector) => {
     const form = document.querySelector(formSelector);
     if (!form) return;
     form.querySelectorAll("input, textarea, select").forEach((field) => {
@@ -1376,6 +1410,7 @@ function clearClientForms() {
 
   [
     ["#fileList", "No files selected yet."],
+    ["#responseFileContextList", "No files selected yet."],
     ["#clientUploadFileList", "No files selected yet."],
     ["#adminDeliverableFileList", "No deliverable files selected yet."],
   ].forEach(([selector, text]) => {
@@ -1517,7 +1552,7 @@ function clearSupabaseAuthStorage() {
 }
 
 function isProtectedRoute(route) {
-  return new Set(["dashboard", "profile", "request", "billing", "checkout-success", "admin", "messages", "files", "deliverables"]).has(route);
+  return new Set(["dashboard", "profile", "response-engine", "request", "billing", "checkout-success", "admin", "messages", "files", "deliverables"]).has(route);
 }
 
 function closeNavigationMenus() {
@@ -1945,6 +1980,320 @@ async function fetchClientApi(path, options = {}) {
     return response.ok ? { ok: true, status: response.status, data } : { ok: false, status: response.status, error: getFriendlyWorkspaceError(data.error, "The secure workspace request could not be completed.") };
   } catch (error) {
     return { ok: false, status: 0, error: getFriendlyWorkspaceError(error, "The secure workspace request could not be completed.") };
+  }
+}
+
+function getSelectedResponseOutputs() {
+  return Array.from(document.querySelectorAll("input[name='responseOutput']:checked"))
+    .map((field) => field.value)
+    .filter((value) => RESPONSE_ENGINE_OUTPUTS[value]);
+}
+
+function getSelectedResponseFormats() {
+  return Array.from(document.querySelectorAll("input[name='responseFormat']:checked"))
+    .map((field) => field.value)
+    .filter((value) => RESPONSE_ENGINE_FORMATS.has(value));
+}
+
+function calculateResponseEngineCredits(outputs = getSelectedResponseOutputs()) {
+  const keys = Array.from(new Set(outputs.filter((key) => RESPONSE_ENGINE_OUTPUTS[key])));
+  const fullPackageKeys = ["polished_resume", "mandatory_matrix", "rated_matrix"];
+  const fullPackageSelected = fullPackageKeys.every((key) => keys.includes(key));
+  if (fullPackageSelected) {
+    return keys.reduce((total, key) => total + (RESPONSE_ENGINE_OUTPUTS[key].includedInFullPackage ? 0 : RESPONSE_ENGINE_OUTPUTS[key].credits), 3);
+  }
+  return keys.reduce((total, key) => total + RESPONSE_ENGINE_OUTPUTS[key].credits, 0);
+}
+
+function getResponseEngineFileContexts() {
+  return Array.from(document.querySelectorAll("[data-response-file-context]")).map((row) => ({
+    fileName: row.dataset.fileName || "",
+    role: row.querySelector("[data-response-file-role]")?.value || "other",
+    description: (row.querySelector("[data-response-file-description]")?.value || "").trim().slice(0, 1000),
+  }));
+}
+
+function updateResponseCreditEstimate() {
+  const credits = calculateResponseEngineCredits();
+  const estimate = document.querySelector("#responseCreditEstimate");
+  if (estimate) {
+    estimate.textContent = `Selected package estimate: ${credits} Response Engine credit${credits === 1 ? "" : "s"}.`;
+  }
+}
+
+function renderResponseFileContextRows(files) {
+  const list = document.querySelector("#responseFileContextList");
+  if (!list) return;
+  const selected = Array.from(files || document.querySelector("#responseFileUpload")?.files || []);
+  if (!selected.length) {
+    list.textContent = "No files selected yet.";
+    return;
+  }
+  list.innerHTML = selected.map((file, index) => {
+    const roleOptions = RESPONSE_ENGINE_FILE_ROLES
+      .map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
+      .join("");
+    return `
+      <div class="response-file-context" data-response-file-context data-file-name="${escapeHtml(file.name)}">
+        <div>
+          <strong>${escapeHtml(file.name)}</strong>
+          <span>${formatFileSize(file.size)}</span>
+        </div>
+        <label>
+          File role
+          <select data-response-file-role>${roleOptions}</select>
+        </label>
+        <label>
+          File context
+          <textarea data-response-file-description rows="2" maxlength="1000" placeholder="Describe this file in 500 characters where possible. This context helps the automation engine understand the source."></textarea>
+        </label>
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadResponseEngineStatus() {
+  if (!state.session?.user || !isEmailVerified()) return;
+  const result = await fetchClientApi("/api/response-engine-access", { timeoutMs: 20000 });
+  if (!result.ok) {
+    state.responseEngine.loadIssue = result.error || "Response Engine status could not be loaded.";
+    return;
+  }
+  state.responseEngine.entitlement = result.data.entitlement || { status: "not_requested", service_key: RESPONSE_ENGINE_SERVICE_KEY };
+  state.responseEngine.credits = result.data.credits || { balance: 0, reservedBalance: 0, availableBalance: 0 };
+  state.responseEngine.packages = result.data.packages || [];
+  state.responseEngine.loadIssue = "";
+}
+
+async function loadAdminResponseEngineStatus() {
+  if (!state.adminAccess) return;
+  const result = await fetchAdminApi("/api/response-engine-access", { timeoutMs: 20000 });
+  if (!result.ok) {
+    state.responseEngine.loadIssue = result.error || "Response Engine admin status could not be loaded.";
+    return;
+  }
+  state.responseEngine.adminEntitlements = result.data.entitlements || [];
+  state.responseEngine.adminCredits = result.data.credits || [];
+  state.responseEngine.adminJobs = result.data.jobs || [];
+  state.responseEngine.loadIssue = "";
+}
+
+function getResponseEngineAccessCopy() {
+  const entitlement = state.responseEngine.entitlement || {};
+  const status = String(entitlement.status || "not_requested").toLowerCase();
+  const available = Number(state.responseEngine.credits?.availableBalance || 0);
+  if (status === "approved") {
+    return {
+      title: "Access approved",
+      body: "Submit candidate packages for automated resume polish, criteria mapping, and output preparation.",
+      level: "success",
+      showForm: true,
+      showAccessPanel: false,
+      cta: "Submit Package",
+      dashboardBody: `${available} Response Engine credit${available === 1 ? "" : "s"} available.`,
+    };
+  }
+  if (status === "pending") {
+    return {
+      title: "Access pending",
+      body: "Your request is waiting for administrator approval. You will receive access once your account is approved.",
+      level: "warning",
+      showForm: false,
+      showAccessPanel: false,
+      cta: "Access Pending",
+      dashboardBody: "Your Response Engine request is pending approval.",
+    };
+  }
+  if (status === "suspended") {
+    return {
+      title: "Access paused",
+      body: `Response Engine access is paused for this workspace. Contact ${config.supportEmail} if this looks incorrect.`,
+      level: "warning",
+      showForm: false,
+      showAccessPanel: false,
+      cta: "Access Paused",
+      dashboardBody: "Response Engine access is paused.",
+    };
+  }
+  if (status === "rejected") {
+    return {
+      title: "Access unavailable",
+      body: `Response Engine access is not available for this workspace. Contact ${config.supportEmail} if you need a review.`,
+      level: "warning",
+      showForm: false,
+      showAccessPanel: false,
+      cta: "Request Review",
+      dashboardBody: "Response Engine access is not available yet.",
+    };
+  }
+  return {
+    title: "Request access",
+    body: "Response Engine is limited to approved client firms during the initial rollout.",
+    level: "",
+    showForm: false,
+    showAccessPanel: true,
+    cta: "Request Access",
+    dashboardBody: "Request access to automated bid, proposal, and candidate package support.",
+  };
+}
+
+function getResponsePackageStatusLevel(status) {
+  const normalized = normalizeStatusValue(status);
+  if (["ready", "delivered"].includes(normalized)) return "ready";
+  if (["processing", "queued", "automated_revision", "files_pending"].includes(normalized)) return "review";
+  if (["needs_more_information", "paused_capacity", "failed"].includes(normalized)) return "blocked";
+  return "new";
+}
+
+function getResponsePackageStatusLabel(status) {
+  const normalized = normalizeStatusValue(status);
+  const labels = {
+    files_pending: "Waiting for source files",
+    queued: "Queued for automation",
+    processing: "Automation running",
+    automated_revision: "Automated quality revision",
+    needs_more_information: "Needs more information",
+    ready: "Ready",
+    delivered: "Delivered",
+    paused_capacity: "Processing paused",
+    failed: "Needs review",
+  };
+  return labels[normalized] || normalizeVerificationStatus(status || "Queued");
+}
+
+function renderResponseEnginePackages() {
+  const list = document.querySelector("#responseEnginePackageList");
+  if (!list) return;
+  const packages = state.responseEngine.packages || [];
+  if (!packages.length) {
+    list.innerHTML = `
+      <article class="deliverable-item">
+        <h4>No Response Engine packages yet</h4>
+        <p>Approved firms can submit a candidate package after access is granted.</p>
+      </article>
+    `;
+    return;
+  }
+
+  list.innerHTML = packages.map((item) => {
+    const requestCode = item.requests?.request_code || getShortEntityId("RSP", item.request_id || "");
+    const statusLabel = getResponsePackageStatusLabel(item.status);
+    const level = getResponsePackageStatusLevel(item.status);
+    const outputs = Array.isArray(item.output_options)
+      ? item.output_options.map((key) => RESPONSE_ENGINE_OUTPUTS[key]?.label || key).join(", ")
+      : "Outputs selected";
+    const formats = Array.isArray(item.output_formats)
+      ? item.output_formats.map((key) => RESPONSE_ENGINE_FORMATS.has(key) ? key.toUpperCase().replace("UPLOADED_TEMPLATE", "Template") : key).join(", ")
+      : "Formats selected";
+    const qaScore = item.qa_score ? `QA ${Number(item.qa_score).toFixed(1)}/10` : "QA score pending";
+    return `
+      <article class="deliverable-item response-package-card">
+        <header>
+          <div>
+            <h4>${escapeHtml(item.package_title || "Candidate submission package")}</h4>
+            <p>${escapeHtml(item.candidate_name || "Candidate")} | ${escapeHtml(item.target_role || "Target role")}</p>
+          </div>
+          <div class="deliverable-badges">
+            <span class="status-pill ${escapeHtml(level)}">${escapeHtml(statusLabel)}</span>
+            <strong>${escapeHtml(requestCode)}</strong>
+          </div>
+        </header>
+        <div class="deliverable-meta">
+          <span>${escapeHtml(item.credit_cost || 0)} credit${Number(item.credit_cost || 0) === 1 ? "" : "s"}</span>
+          <span>${escapeHtml(outputs)}</span>
+          <span>${escapeHtml(formats)}</span>
+          <span>${escapeHtml(qaScore)}</span>
+        </div>
+        ${item.opportunity_name ? `<p>${escapeHtml(item.opportunity_name)}</p>` : ""}
+        ${item.qa_summary ? `<p>${escapeHtml(item.qa_summary)}</p>` : ""}
+      </article>
+    `;
+  }).join("");
+}
+
+function renderResponseEngine() {
+  const copy = getResponseEngineAccessCopy();
+  const accessCard = document.querySelector(".response-engine-status-card");
+  const accessTitle = document.querySelector("#responseEngineAccessTitle");
+  const accessBody = document.querySelector("#responseEngineAccessBody");
+  const creditSummary = document.querySelector("#responseEngineCreditSummary");
+  const accessPanel = document.querySelector("#responseEngineAccessPanel");
+  const form = document.querySelector("#responseEngineForm");
+  const dashboardTitle = document.querySelector("#responseEngineDashboardTitle");
+  const dashboardBody = document.querySelector("#responseEngineDashboardBody");
+  const dashboardCta = document.querySelector("#responseEngineDashboardCta");
+  const credits = state.responseEngine.credits || {};
+  const available = Number(credits.availableBalance || 0);
+  const reserved = Number(credits.reservedBalance || 0);
+  const total = Number(credits.balance || 0);
+
+  if (accessTitle) accessTitle.textContent = copy.title;
+  if (accessBody) accessBody.textContent = state.responseEngine.loadIssue || copy.body;
+  if (creditSummary) {
+    creditSummary.textContent = `${available} available | ${reserved} reserved | ${total} total Response Engine credit${total === 1 ? "" : "s"}.`;
+  }
+  if (accessCard) {
+    accessCard.classList.toggle("success", copy.level === "success");
+    accessCard.classList.toggle("warning", copy.level === "warning" || Boolean(state.responseEngine.loadIssue));
+  }
+  if (accessPanel) accessPanel.classList.toggle("hidden", !copy.showAccessPanel);
+  if (form) form.classList.toggle("hidden", !copy.showForm);
+  if (dashboardTitle) dashboardTitle.textContent = "Response Engine";
+  if (dashboardBody) dashboardBody.textContent = copy.dashboardBody;
+  if (dashboardCta) dashboardCta.textContent = copy.cta;
+
+  updateResponseCreditEstimate();
+  renderResponseEnginePackages();
+}
+
+function renderAdminResponseEngine() {
+  const entitlementList = document.querySelector("#adminResponseEngineEntitlements");
+  const jobList = document.querySelector("#adminResponseEngineJobs");
+  const orgSelect = document.querySelector("#adminResponseEngineOrg");
+  const entitlements = state.responseEngine.adminEntitlements || [];
+  const creditsByOrg = new Map((state.responseEngine.adminCredits || []).map((item) => [item.organization_id, item]));
+
+  if (orgSelect) {
+    const options = entitlements.map((item) => {
+      const org = item.client_organizations || {};
+      const label = `${org.name || "Client organization"} | ${item.status || "pending"}`;
+      return `<option value="${escapeHtml(item.organization_id)}">${escapeHtml(label)}</option>`;
+    }).join("");
+    orgSelect.innerHTML = options || `<option value="">No Response Engine firms yet</option>`;
+  }
+
+  if (entitlementList) {
+    entitlementList.innerHTML = entitlements.length
+      ? entitlements.map((item) => {
+        const org = item.client_organizations || {};
+        const credit = creditsByOrg.get(item.organization_id) || {};
+        const available = Number(credit.balance || 0) - Number(credit.reserved_balance || 0);
+        return `
+          <article>
+            <strong>${escapeHtml(org.name || "Client organization")}</strong>
+            <span>${escapeHtml(org.billing_email || "No billing email")} | ${escapeHtml(item.status || "pending")}</span>
+            <small>${escapeHtml(available)} available | ${escapeHtml(credit.reserved_balance || 0)} reserved | limit ${escapeHtml(item.pilot_credit_limit || 0)}</small>
+          </article>
+        `;
+      }).join("")
+      : `<article><strong>No Response Engine access requests yet</strong><span>Approved firms will appear here.</span></article>`;
+  }
+
+  if (jobList) {
+    const jobs = state.responseEngine.adminJobs || [];
+    jobList.innerHTML = jobs.length
+      ? jobs.map((job) => {
+        const org = job.client_organizations || {};
+        const request = job.response_engine_requests || {};
+        return `
+          <article>
+            <strong>${escapeHtml(request.package_title || getShortEntityId("JOB", job.id))}</strong>
+            <span>${escapeHtml(org.name || "Client organization")} | ${escapeHtml(request.candidate_name || "Candidate")} | ${escapeHtml(getResponsePackageStatusLabel(job.status))}</span>
+            <small>${escapeHtml(job.provider || "codex_cli")} | attempts ${escapeHtml(job.attempts || 0)} | QA ${escapeHtml(job.qa_score || "pending")}</small>
+          </article>
+        `;
+      }).join("")
+      : `<article><strong>No automated jobs yet</strong><span>Queued Response Engine packages will appear here.</span></article>`;
   }
 }
 
@@ -2753,6 +3102,7 @@ async function loadClientWorkspaceData() {
       state.clientUploads = uploadResult.data.map(normalizeClientUpload);
     }
 
+    await loadResponseEngineStatus();
     saveState();
   } catch (error) {
     state.workspaceLoadIssue = error.message || "Workspace information could not be loaded.";
@@ -3098,6 +3448,115 @@ async function uploadRequestFiles(requestId, organizationId, projectId = "") {
       uploaded: 0,
     };
   }
+}
+
+async function uploadResponseEngineFiles(requestId, organizationId, projectId, files, fileContexts) {
+  const userId = getUserId();
+  const storagePaths = [];
+  const records = [];
+
+  if (!files.length || !supabaseClient || !userId) {
+    return { ok: false, reason: "Choose at least one source file before submitting the package.", uploaded: 0 };
+  }
+
+  const validationError = validateWorkspaceFiles(files);
+  if (validationError) {
+    return { ok: false, reason: validationError, uploaded: 0 };
+  }
+
+  try {
+    for (const [index, file] of files.entries()) {
+      const context = fileContexts[index] || {};
+      const storagePath = createClientStoragePath(userId, `response-engine/${requestId}`, file.name, index);
+      const uploadResponse = await uploadFileToStorageBucket("client-files", storagePath, file, getSingleFileUploadTimeoutMs());
+      if (uploadResponse?.error) {
+        await abortSourceFileBatch(storagePaths);
+        return { ok: false, reason: getAtomicUploadError(file.name, files.length, uploadResponse.error.message), uploaded: 0 };
+      }
+
+      storagePaths.push(storagePath);
+      records.push({
+        ...buildUploadedSourceFile(file, storagePath),
+        fileRole: context.role || "other",
+        fileDescription: context.description || "",
+      });
+    }
+
+    const finalizeTimeoutMs = getUploadOperationTimeoutMs(files, 30000, 180000);
+    const finalizeResult = await withClientTimeout(
+      fetchClientApi("/api/source-file-finalize", {
+        method: "POST",
+        timeoutMs: finalizeTimeoutMs,
+        body: {
+          action: "finalize",
+          fileKind: "request_file",
+          organizationId,
+          projectId,
+          requestId,
+          files: records,
+        },
+      }),
+      finalizeTimeoutMs,
+      "Files uploaded, but workspace validation took too long. Please refresh the workspace before retrying."
+    );
+
+    if (!finalizeResult.ok) {
+      await abortSourceFileBatch(storagePaths);
+      return {
+        ok: false,
+        reason: getAtomicUploadError("workspace validation", files.length, finalizeResult.error || "Files could not be attached to the package."),
+        uploaded: 0,
+      };
+    }
+
+    return {
+      ok: true,
+      uploaded: Number(finalizeResult.data?.uploaded ?? files.length),
+      fileContexts: records.map((record) => ({
+        storagePath: record.storagePath,
+        fileName: record.fileName,
+        role: record.fileRole,
+        description: record.fileDescription,
+      })),
+    };
+  } catch (error) {
+    await abortSourceFileBatch(storagePaths);
+    return {
+      ok: false,
+      reason: getAtomicUploadError("the current file", files.length, error?.message || "The secure upload could not be completed."),
+      uploaded: 0,
+    };
+  }
+}
+
+function resetResponseEngineForm() {
+  const form = document.querySelector("#responseEngineForm");
+  if (!form) return;
+  form.reset();
+  const defaultOutputs = new Set(["polished_resume", "mandatory_matrix", "rated_matrix", "gap_note", "recruiter_checklist"]);
+  document.querySelectorAll("input[name='responseOutput']").forEach((field) => {
+    field.checked = defaultOutputs.has(field.value);
+  });
+  const defaultFormats = new Set(["docx", "xlsx"]);
+  document.querySelectorAll("input[name='responseFormat']").forEach((field) => {
+    field.checked = defaultFormats.has(field.value);
+  });
+  renderResponseFileContextRows([]);
+  updateResponseCreditEstimate();
+  setInlineStatus("#responseEngineSubmitStatus", "Complete the package details, choose outputs, and upload source files.");
+}
+
+async function cancelResponseEnginePackage(requestId, reason) {
+  if (!requestId) return;
+  await fetchClientApi("/api/response-engine-package", {
+    method: "POST",
+    timeoutMs: 20000,
+    body: {
+      action: "cancel",
+      requestId,
+      reason: reason || "Package setup did not complete.",
+    },
+  }).then(() => null, () => null);
 }
 
 function getAdminUploadFiles() {
@@ -3708,7 +4167,7 @@ async function uploadAdminDeliverable() {
 
 function setView() {
   const rawKey = window.location.hash.replace("#", "") || "home";
-  const protectedViews = ["dashboard", "profile", "request", "billing"];
+  const protectedViews = ["dashboard", "profile", "response-engine", "request", "billing"];
   const canonicalKey = routeAliases[rawKey] || rawKey;
   if (state.passwordRecovery && canonicalKey !== "login" && !isPasswordRecoveryUrl()) {
     state.passwordRecovery = false;
@@ -3766,6 +4225,9 @@ function setView() {
   openClientWorkspaceSection(rawKey);
   if (key === "admin") {
     loadAdminQueue();
+  }
+  if (key === "response-engine" && state.session?.user && isEmailVerified()) {
+    loadResponseEngineStatus().then(render, () => null);
   }
   if (key === "checkout-success") {
     handleCheckoutSuccessView();
@@ -4551,9 +5013,11 @@ function render() {
   renderClientCommunicationLog();
   renderCreditHistory();
   renderCreditControls();
+  renderResponseEngine();
   renderAdminSnapshot();
   renderAdminClientPortfolio();
   renderAdminClientDossier();
+  renderAdminResponseEngine();
 }
 
 function setAdminStatus(message) {
@@ -5910,6 +6374,7 @@ async function loadAdminQueue() {
   state.remotePagination.adminQueue.offset = Number(result.data?.pagination?.nextOffset ?? remotePageSizes.adminQueue);
   state.remotePagination.adminQueue.hasMore = Boolean(result.data?.pagination?.hasMore);
   state.remotePagination.adminQueue.sources = result.data?.pagination?.sources || {};
+  await loadAdminResponseEngineStatus();
   const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
   setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
   render();
@@ -6531,6 +6996,21 @@ document.addEventListener("input", (event) => {
 
 document.addEventListener("change", (event) => {
   clearFieldErrorForInput(event.target);
+  if (event.target?.name === "responseOutput" || event.target?.name === "responseFormat") {
+    updateResponseCreditEstimate();
+  }
+  if (event.target?.id === "responseFileUpload") {
+    const files = Array.from(event.target.files || []);
+    renderResponseFileContextRows(files);
+    const validationError = validateWorkspaceFiles(files);
+    if (validationError) {
+      setInlineStatus("#responseEngineSubmitStatus", validationError, "warning");
+    } else if (files.length) {
+      setInlineStatus("#responseEngineSubmitStatus", `${files.length} file${files.length === 1 ? "" : "s"} selected. Add file context, then submit when ready.`, "success");
+    } else {
+      setInlineStatus("#responseEngineSubmitStatus", "Complete the package details, choose outputs, and upload source files.");
+    }
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -7014,6 +7494,252 @@ document.querySelector("#resendVerificationEmail")?.addEventListener("click", as
     setAuthStatus(result.ok ? result.message : result.error);
   } finally {
     button.disabled = false;
+  }
+});
+
+document.addEventListener("click", async (event) => {
+  const target = event.target.closest("[data-response-engine-action]");
+  if (!target) return;
+  event.preventDefault();
+
+  if (target.dataset.responseEngineAction !== "request-access" || target.dataset.busy === "true") return;
+  setButtonBusy(target, true, "Requesting Access");
+  setInlineStatus("#responseEngineAccessStatus", "Sending your Response Engine access request.");
+  try {
+    if (!state.session?.user) {
+      window.location.hash = "login";
+      setInlineStatus("#responseEngineAccessStatus", "Please sign in before requesting access.", "warning");
+      return;
+    }
+    if (!state.profileOrganizationId) {
+      window.location.hash = "profile";
+      setInlineStatus("#responseEngineAccessStatus", "Please complete your client profile before requesting access.", "warning");
+      return;
+    }
+    const result = await fetchClientApi("/api/response-engine-access", {
+      method: "POST",
+      timeoutMs: 20000,
+      body: {
+        note: document.querySelector("#responseEngineAccessNote")?.value || "",
+      },
+    });
+    if (!result.ok) {
+      setInlineStatus("#responseEngineAccessStatus", result.error || "Access request could not be sent.", "warning");
+      return;
+    }
+    await loadResponseEngineStatus();
+    render();
+    setInlineStatus("#responseEngineAccessStatus", "Access request received. Your account is pending approval.", "success");
+    showToast("Response Engine access request received.");
+  } finally {
+    setButtonBusy(target, false);
+  }
+});
+
+document.addEventListener("click", async (event) => {
+  const target = event.target.closest("[data-response-engine-admin-action]");
+  if (!target) return;
+  event.preventDefault();
+  if (target.dataset.responseEngineAdminAction !== "refresh") return;
+  if (!(await ensureAdminAccess())) {
+    showToast("Please sign in with the administrator email before refreshing.");
+    return;
+  }
+  setButtonBusy(target, true, "Refreshing");
+  try {
+    await loadAdminResponseEngineStatus();
+    renderAdminResponseEngine();
+    showToast("Response Engine admin view refreshed.");
+  } finally {
+    setButtonBusy(target, false);
+  }
+});
+
+document.querySelector("#responseEngineForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submitButton = document.querySelector("#responseEngineSubmitButton") || event.submitter;
+  if (submitButton?.dataset.busy === "true") return;
+
+  const warn = (message) => {
+    setInlineStatus("#responseEngineSubmitStatus", message, "warning");
+    showPersistentNotice(message);
+  };
+
+  const files = Array.from(document.querySelector("#responseFileUpload")?.files || []);
+  const outputs = getSelectedResponseOutputs();
+  const formats = getSelectedResponseFormats();
+  const credits = calculateResponseEngineCredits(outputs);
+  const availableCredits = Number(state.responseEngine.credits?.availableBalance || 0);
+  const packageTitle = document.querySelector("#responsePackageTitle")?.value.trim() || "";
+  const candidateName = document.querySelector("#responseCandidateName")?.value.trim() || "";
+  const targetRole = document.querySelector("#responseTargetRole")?.value.trim() || "";
+  const deadline = document.querySelector("#responseDeadline")?.value || "";
+  const opportunityName = document.querySelector("#responseOpportunityName")?.value.trim() || "";
+  const notes = document.querySelector("#responseAutomationNotes")?.value.trim() || "";
+  const fileContexts = getResponseEngineFileContexts();
+
+  const fieldsValid = validateFieldSet({
+    containerSelector: "#responseEngineForm",
+    statusSelector: "#responseEngineSubmitStatus",
+    message: "Complete the highlighted Response Engine fields before submitting.",
+    fields: [
+      { selector: "#responsePackageTitle", isValid: () => Boolean(packageTitle), message: "Add a package title." },
+      { selector: "#responseCandidateName", isValid: () => Boolean(candidateName), message: "Add the candidate name." },
+      { selector: "#responseTargetRole", isValid: () => Boolean(targetRole), message: "Add the target role." },
+      { selector: "#responseFileUpload", isValid: () => Boolean(files.length), message: "Upload at least one source file." },
+    ],
+  });
+  if (!fieldsValid) return;
+
+  if (!outputs.length) {
+    warn("Choose at least one output.");
+    return;
+  }
+  if (!formats.length) {
+    warn("Choose at least one output format.");
+    return;
+  }
+  if (credits <= 0) {
+    warn("Choose at least one paid output so the package can be tracked against Response Engine credits.");
+    return;
+  }
+  if (credits > availableCredits) {
+    warn(`This package needs ${credits} Response Engine credit${credits === 1 ? "" : "s"}. Your available balance is ${availableCredits}.`);
+    return;
+  }
+  if (deadline) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const chosen = new Date(`${deadline}T00:00:00`);
+    if (Number.isNaN(chosen.getTime()) || chosen < today) {
+      warn("Please choose today or a future date for the optional deadline.");
+      return;
+    }
+  }
+  const validationError = validateWorkspaceFiles(files);
+  if (validationError) {
+    warn(validationError);
+    return;
+  }
+
+  setButtonBusy(submitButton, true, "Submitting Package");
+  setInlineStatus("#responseEngineSubmitStatus", "Creating the secure package and reserving Response Engine credits.");
+
+  let createdRequestId = "";
+  try {
+    const createResult = await fetchClientApi("/api/response-engine-package", {
+      method: "POST",
+      timeoutMs: 30000,
+      body: {
+        action: "create",
+        packageTitle,
+        candidateName,
+        targetRole,
+        opportunityName,
+        deadline,
+        notes,
+        outputOptions: outputs,
+        outputFormats: formats,
+      },
+    });
+    if (!createResult.ok) {
+      warn(createResult.error || "Response Engine package could not be created.");
+      return;
+    }
+
+    createdRequestId = createResult.data.requestId;
+    setInlineStatus("#responseEngineSubmitStatus", `Package created. Uploading ${files.length} source file${files.length === 1 ? "" : "s"}. Please keep this page open.`);
+    const uploadResult = await uploadResponseEngineFiles(
+      createdRequestId,
+      createResult.data.organizationId,
+      createResult.data.projectId,
+      files,
+      fileContexts
+    );
+
+    if (!uploadResult.ok) {
+      await cancelResponseEnginePackage(createdRequestId, uploadResult.reason);
+      warn(uploadResult.reason || "Source files could not be uploaded. No package was queued.");
+      await loadResponseEngineStatus();
+      render();
+      return;
+    }
+
+    setInlineStatus("#responseEngineSubmitStatus", "Files attached. Queueing the automation engine.");
+    const queueResult = await fetchClientApi("/api/response-engine-package", {
+      method: "POST",
+      timeoutMs: 30000,
+      body: {
+        action: "queue",
+        requestId: createdRequestId,
+        fileContexts: uploadResult.fileContexts,
+      },
+    });
+    if (!queueResult.ok) {
+      await cancelResponseEnginePackage(createdRequestId, queueResult.error);
+      warn(queueResult.error || "The package could not be queued. Please try again.");
+      await loadResponseEngineStatus();
+      render();
+      return;
+    }
+
+    await loadClientWorkspaceData();
+    await loadResponseEngineStatus();
+    render();
+    resetResponseEngineForm();
+    setInlineStatus("#responseEngineSubmitStatus", "Package submitted. The automation engine will process it in the background.", "success");
+    showPersistentNotice("Response Engine package submitted. Deliverables will appear in your dashboard when ready.");
+  } catch (error) {
+    if (createdRequestId) {
+      await cancelResponseEnginePackage(createdRequestId, error.message);
+      await loadResponseEngineStatus();
+      render();
+    }
+    warn(error.message || "Response Engine package could not be submitted.");
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
+});
+
+document.querySelector("#adminResponseEngineApprovalForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submitButton = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+  if (submitButton?.dataset.busy === "true") return;
+  const organizationId = document.querySelector("#adminResponseEngineOrg")?.value || "";
+  const credits = Math.max(0, Number(document.querySelector("#adminResponseEngineCredits")?.value || 0));
+  const status = document.querySelector("#adminResponseEngineStatusSelect")?.value || "approved";
+  const notes = document.querySelector("#adminResponseEngineNotes")?.value || "";
+
+  if (!organizationId) {
+    setInlineStatus("#adminResponseEngineStatus", "Select a firm before updating access.", "warning");
+    return;
+  }
+
+  setButtonBusy(submitButton, true, "Saving Access");
+  setInlineStatus("#adminResponseEngineStatus", "Saving Response Engine access.");
+  try {
+    const result = await fetchAdminApi("/api/response-engine-access", {
+      method: "POST",
+      timeoutMs: 30000,
+      body: {
+        adminAction: true,
+        action: status === "approved" ? "approve" : status,
+        organizationId,
+        credits,
+        status,
+        notes,
+      },
+    });
+    if (!result.ok) {
+      setInlineStatus("#adminResponseEngineStatus", result.error || "Response Engine access could not be updated.", "warning");
+      return;
+    }
+    await loadAdminResponseEngineStatus();
+    renderAdminResponseEngine();
+    setInlineStatus("#adminResponseEngineStatus", "Response Engine access saved.", "success");
+    showToast("Response Engine access updated.");
+  } finally {
+    setButtonBusy(submitButton, false);
   }
 });
 

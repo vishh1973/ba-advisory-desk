@@ -45,6 +45,8 @@ function normalizeFileRecords(files) {
         fileName: String(file.fileName || file.file_name || "").trim(),
         fileSizeBytes: Number(file.fileSizeBytes || file.file_size_bytes || 0),
         contentType: String(file.contentType || file.content_type || "").trim(),
+        fileRole: String(file.fileRole || file.file_role || "other").trim().slice(0, 80),
+        fileDescription: String(file.fileDescription || file.file_description || "").trim().slice(0, 1000),
       }))
     : [];
 }
@@ -142,7 +144,7 @@ async function abortUploadedFiles(supabase, userId, filesOrPaths) {
 }
 
 async function finalizeRequestFiles({ supabase, body, files, userId }) {
-  const rows = files.map((file) => ({
+  const buildRows = (includeResponseFields) => files.map((file) => ({
     request_id: body.requestId,
     organization_id: body.organizationId,
     project_id: body.projectId || null,
@@ -151,11 +153,21 @@ async function finalizeRequestFiles({ supabase, body, files, userId }) {
     file_size_bytes: file.fileSizeBytes,
     mime_type: file.contentType,
     uploaded_by: userId,
+    ...(includeResponseFields ? {
+      file_role: file.fileRole || null,
+      file_description: file.fileDescription || null,
+    } : {}),
   }));
-  const { data, error } = await supabase
+
+  const insertRows = (includeResponseFields) => supabase
     .from("request_files")
-    .insert(rows)
+    .insert(buildRows(includeResponseFields))
     .select("id,file_name,file_size_bytes,storage_path,project_id,created_at");
+
+  let { data, error } = await insertRows(true);
+  if (isMissingColumnError(error, "file_role") || isMissingColumnError(error, "file_description")) {
+    ({ data, error } = await insertRows(false));
+  }
   if (error) throw error;
   return data || [];
 }

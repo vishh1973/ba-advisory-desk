@@ -1,0 +1,23 @@
+[Unit]
+Description=BA Advisory Desk Response Engine worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=codexbot
+WorkingDirectory=/home/codexbot/OneDrive/VA Projects/BA Advisory Desk/MVP Launch/App
+EnvironmentFile=/home/codexbot/.codex/project-env/ba-advisory-desk.env
+Environment=HOME=/home/codexbot
+Environment=CODEX_HOME=/home/codexbot/.codex
+Environment=PATH=/home/codexbot/.local/node-v22.22.3/bin:/home/codexbot/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=CODEX_BIN=/home/codexbot/.local/bin/codex
+Environment=RESPONSE_ENGINE_CODEX_ENABLED=true
+Environment=RESPONSE_ENGINE_OPENAI_API_ENABLED=false
+Environment=OPENAI_API_FALLBACK_ENABLED=false
+Environment=RESPONSE_ENGINE_JOB_ROOT=/var/lib/codex-telegram-agent/automations/baad-response-engine/jobs
+ExecStart=/home/codexbot/.local/node-v22.22.3/bin/node scripts/response-engine-worker.js --limit=1
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/codex-telegram-agent/automations/baad-response-engine

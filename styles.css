@@ -2442,6 +2442,120 @@ input[type="file"]::file-selector-button:hover {
   grid-template-columns: 0.8fr 1.2fr;
 }
 
+.response-engine-layout {
+  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.response-engine-status-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--teal);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 16px;
+}
+
+.response-engine-status-card strong {
+  color: var(--navy);
+  font-size: 18px;
+}
+
+.response-engine-status-card span {
+  color: var(--slate);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.response-engine-status-card.success {
+  border-left-color: var(--teal-dark);
+}
+
+.response-engine-status-card.warning {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  border-left-color: #f59e0b;
+}
+
+.checkbox-grid {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 16px;
+}
+
+.checkbox-grid legend {
+  color: var(--navy);
+  font-weight: 900;
+  padding: 0 8px;
+}
+
+.checkbox-grid label {
+  align-items: start;
+  background: #f8fbfd;
+  border: 1px solid #e2eaf2;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px 1fr;
+  line-height: 1.35;
+  padding: 10px;
+}
+
+.checkbox-grid input {
+  margin-top: 2px;
+  width: auto;
+}
+
+.response-file-list {
+  display: grid;
+  gap: 12px;
+}
+
+.response-file-context {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(170px, 0.55fr) minmax(220px, 1fr);
+  padding: 12px;
+}
+
+.response-file-context > div {
+  display: grid;
+  gap: 5px;
+}
+
+.response-file-context strong {
+  color: var(--navy);
+  font-size: 14px;
+}
+
+.response-file-context span {
+  color: var(--slate);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.response-package-card {
+  border-left: 4px solid var(--teal);
+}
+
+.response-engine-admin-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.65fr);
+}
+
 .form-card {
   display: grid;
   gap: 16px;
@@ -3635,6 +3749,7 @@ tr.attention-row {
 
   .auth-card,
   .form-layout,
+  .response-engine-layout,
   .dashboard-shell,
   .about-hero,
   .faq-hero,
@@ -3724,6 +3839,12 @@ tr.attention-row {
 
   .metric-grid,
   .tile-row {
+    grid-template-columns: 1fr;
+  }
+
+  .checkbox-grid,
+  .response-file-context,
+  .response-engine-admin-grid {
     grid-template-columns: 1fr;
   }
 }
