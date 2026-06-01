@@ -1351,6 +1351,30 @@ h2 {
   max-width: 760px;
 }
 
+.response-public-metrics {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.response-public-metrics span {
+  background: #f6faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--slate);
+  display: grid;
+  font-size: 13px;
+  gap: 2px;
+  line-height: 1.35;
+  padding: 12px;
+}
+
+.response-public-metrics strong {
+  color: var(--navy);
+  font-size: 24px;
+  line-height: 1;
+}
+
 .response-public-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1414,6 +1438,108 @@ h2 {
   color: var(--slate);
   line-height: 1.5;
   margin: 0;
+}
+
+.response-quality-band,
+.response-security-band {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  margin: 24px auto 0;
+  max-width: 1180px;
+  padding: 32px;
+}
+
+.response-quality-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 22px;
+}
+
+.response-quality-grid article {
+  background: #f7fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.response-quality-grid span {
+  align-items: center;
+  background: var(--navy);
+  border-radius: 999px;
+  color: var(--white);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.response-quality-grid strong {
+  color: var(--navy);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.response-quality-grid p {
+  color: var(--slate);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.response-security-band {
+  align-items: start;
+  background: linear-gradient(145deg, #ffffff, #eef8f6);
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1.1fr);
+}
+
+.response-security-band > div {
+  display: grid;
+  gap: 10px;
+}
+
+.response-security-band h2 {
+  margin: 0;
+}
+
+.response-security-band p {
+  color: var(--slate);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.response-security-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.response-security-list li {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.response-security-list strong {
+  color: var(--navy);
+}
+
+.response-security-list span {
+  color: var(--slate);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .response-journey {
@@ -2454,6 +2580,63 @@ input[type="file"]::file-selector-button:hover {
   color: var(--muted);
 }
 
+.team-access-panel {
+  align-items: start;
+}
+
+.member-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.member-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 7px 10px;
+}
+
+.member-chip.approved {
+  border-color: rgba(45, 133, 93, 0.28);
+  color: #1f7a54;
+  background: #eef9f3;
+}
+
+.member-chip.review,
+.member-chip.pending {
+  border-color: rgba(176, 120, 38, 0.28);
+  color: #9a651e;
+  background: #fff7e8;
+}
+
+.member-chip.blocked {
+  border-color: rgba(183, 67, 67, 0.28);
+  color: #9d2f2f;
+  background: #fff0f0;
+}
+
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.inline-actions select,
+.table-actions select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  min-height: 36px;
+}
+
 .admin-project-filter {
   min-width: min(280px, 100%);
   text-transform: none;
@@ -3442,7 +3625,10 @@ tr.attention-row {
   .admin-start-steps,
   .proof-grid.premium,
   .response-public-hero,
+  .response-public-metrics,
   .response-public-grid,
+  .response-quality-grid,
+  .response-security-band,
   .response-steps,
   .delivery-summary-grid,
   .client-action-grid,
@@ -3459,6 +3645,10 @@ tr.attention-row {
   .right-rail {
     grid-column: auto;
     grid-template-columns: 1fr;
+  }
+
+  .member-chip-list {
+    justify-content: flex-start;
   }
 
   .offer-flow {

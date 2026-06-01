@@ -1,29 +1,15 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { requireAdmin } = require("./_lib/adminAuth");
 const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
+const { getAuthenticatedUser, userCanAccessOrganization } = require("./_lib/organizationAccess");
 
 const DEFAULT_EXPIRY_SECONDS = 60 * 30;
 const MAX_EXPIRY_SECONDS = 60 * 60 * 4;
-
-function readHeader(req, name) {
-  const headers = req.headers || {};
-  return headers[name] || headers[name.toLowerCase()];
-}
-
-function readBearerToken(req) {
-  const header = readHeader(req, "authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : "";
-}
 
 function readExpirySeconds(value) {
   const seconds = Number(value || DEFAULT_EXPIRY_SECONDS);
   if (!Number.isFinite(seconds) || seconds < 60) return DEFAULT_EXPIRY_SECONDS;
   return Math.min(Math.floor(seconds), MAX_EXPIRY_SECONDS);
-}
-
-function hasVerifiedEmail(user) {
-  return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
 }
 
 module.exports = async function handler(req, res) {
@@ -33,22 +19,12 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const token = readBearerToken(req);
-    if (!token) {
-      res.status(401).json({ error: "Please sign in before downloading this file." });
-      return;
-    }
-
     const supabase = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !userData?.user) {
-      res.status(401).json({ error: "Please sign in again before downloading this file." });
-      return;
-    }
-    if (!hasVerifiedEmail(userData.user)) {
-      res.status(403).json({ error: "Please verify your email before opening deliverable files." });
-      return;
-    }
+    const user = await getAuthenticatedUser(supabase, req, {
+      missingTokenMessage: "Please sign in before downloading this file.",
+      invalidTokenMessage: "Please sign in again before downloading this file.",
+      unverifiedMessage: "Please verify your email before opening deliverable files.",
+    });
 
     const body = parseJsonBody(req);
     const fileId = body.fileId || body.file_id;
@@ -135,15 +111,7 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!admin) {
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("id", userData.user.id);
-
-      if (profileError) throw profileError;
-
-      const organizationIds = new Set((profiles || []).map((profile) => profile.organization_id).filter(Boolean));
-      if (!organizationIds.has(file.organization_id) || version.status !== "released") {
+      if (!(await userCanAccessOrganization(supabase, user.id, file.organization_id)) || version.status !== "released") {
         res.status(403).json({ error: "This file is not available for your workspace." });
         return;
       }
@@ -174,7 +142,7 @@ module.exports = async function handler(req, res) {
         deliverable_id: file.deliverable_id,
         organization_id: file.organization_id,
         project_id: effectiveProjectId,
-        user_id: userData.user.id,
+        user_id: user.id,
         event_type: "download_link_created",
       })
       .then(() => null, () => null);
@@ -193,6 +161,6 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ error: error.message });
       return;
     }
-    res.status(500).json({ error: error.message || "Download link could not be created." });
+    res.status(error.status || 500).json({ error: error.message || "Download link could not be created." });
   }
 };

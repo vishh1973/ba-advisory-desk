@@ -49,12 +49,15 @@ const RESPONSE_ENGINE_PUBLIC_LABEL = "Bid & Proposal Response Automation";
 const RESPONSE_ENGINE_DASHBOARD_LABEL = "Response Engine";
 const SERVICE_INTEREST_RESPONSE_ENGINE = "response_engine";
 const SERVICE_INTEREST_STORAGE_KEY = "baad-service-interest";
+const WORKSPACE_MODE_STORAGE_KEY = "baad-workspace-mode";
+const WORKSPACE_MODE_CREATE = "create";
+const WORKSPACE_MODE_JOIN = "join";
 const RESPONSE_ENGINE_OUTPUTS = {
   polished_resume: { label: "Polished candidate resume", credits: 1, includedInFullPackage: true },
   mandatory_matrix: { label: "Mandatory criteria matrix", credits: 1, includedInFullPackage: true },
   rated_matrix: { label: "Rated criteria scoring map", credits: 1, includedInFullPackage: true },
   combined_grid: { label: "Combined response grid", credits: 1, includedInFullPackage: false },
-  gap_note: { label: "Gap and risk note", credits: 0, includedInFullPackage: true },
+  gap_note: { label: "Fit-gap assessment and recruiter risk note", credits: 0, includedInFullPackage: true },
   recruiter_checklist: { label: "Recruiter checklist", credits: 0, includedInFullPackage: true },
   client_template: { label: "Format into uploaded client template", credits: 1, includedInFullPackage: false },
 };
@@ -145,6 +148,9 @@ const state = {
   adminCreditLedger: [],
   adminPaymentHistory: [],
   adminAuditEvents: [],
+  organizationMembership: null,
+  organizationMembers: [],
+  adminOrganizationMembers: [],
   session: null,
   adminAccess: false,
   adminStatusChecked: false,
@@ -1472,6 +1478,20 @@ function clearPendingServiceInterest() {
   localStorage.removeItem(SERVICE_INTEREST_STORAGE_KEY);
 }
 
+function getPendingWorkspaceMode() {
+  const value = localStorage.getItem(WORKSPACE_MODE_STORAGE_KEY) || "";
+  return value === WORKSPACE_MODE_JOIN ? WORKSPACE_MODE_JOIN : WORKSPACE_MODE_CREATE;
+}
+
+function setPendingWorkspaceMode(mode) {
+  const value = mode === WORKSPACE_MODE_JOIN ? WORKSPACE_MODE_JOIN : WORKSPACE_MODE_CREATE;
+  localStorage.setItem(WORKSPACE_MODE_STORAGE_KEY, value);
+  const signupSelect = document.querySelector("#passwordSignupWorkspaceMode");
+  const profileSelect = document.querySelector("#profileWorkspaceMode");
+  if (signupSelect) signupSelect.value = value;
+  if (profileSelect) profileSelect.value = value;
+}
+
 function hasPendingResponseEngineInterest() {
   return getPendingServiceInterest() === SERVICE_INTEREST_RESPONSE_ENGINE;
 }
@@ -1483,16 +1503,24 @@ function getSignupServiceInterest() {
 
 function updateServiceInterestUi() {
   const selected = getPendingServiceInterest();
+  const workspaceMode = getPendingWorkspaceMode();
   const signupSelect = document.querySelector("#passwordSignupServiceInterest");
+  const signupWorkspaceMode = document.querySelector("#passwordSignupWorkspaceMode");
+  const profileWorkspaceMode = document.querySelector("#profileWorkspaceMode");
   const authNotice = document.querySelector("#authServiceInterest");
   const profileNotice = document.querySelector("#profileServiceInterest");
   if (signupSelect && selected && signupSelect.value !== selected) signupSelect.value = selected;
+  if (signupWorkspaceMode) signupWorkspaceMode.value = workspaceMode;
+  if (profileWorkspaceMode) profileWorkspaceMode.value = workspaceMode;
   const showResponseNotice = selected === SERVICE_INTEREST_RESPONSE_ENGINE;
-  const noticeText = `${RESPONSE_ENGINE_PUBLIC_LABEL} selected. Complete your account and profile, then an access request will be sent for administrator approval.`;
+  const actionText = workspaceMode === WORKSPACE_MODE_JOIN
+    ? "Your access to the existing organization workspace will wait for administrator approval."
+    : "Your organization workspace will be created or updated after profile save.";
+  const noticeText = `${RESPONSE_ENGINE_PUBLIC_LABEL} selected. ${actionText}`;
   if (authNotice) {
     authNotice.textContent = showResponseNotice
       ? noticeText
-      : "Choose a service interest when creating an account so the workspace starts in the right path.";
+      : "Choose a service interest and organization setup path when creating an account.";
     authNotice.classList.toggle("success", showResponseNotice);
   }
   if (profileNotice) {
@@ -2297,6 +2325,7 @@ function renderResponseEnginePackages() {
       ? item.output_formats.map((key) => RESPONSE_ENGINE_FORMATS.has(key) ? key.toUpperCase().replace("UPLOADED_TEMPLATE", "Template") : key).join(", ")
       : "Formats selected";
     const qaScore = item.qa_score ? `QA ${Number(item.qa_score).toFixed(1)}/10` : "QA score pending";
+    const submitter = item.profiles ? [item.profiles.first_name, item.profiles.last_name].filter(Boolean).join(" ") || item.profiles.work_email : "";
     return `
       <article class="deliverable-item response-package-card">
         <header>
@@ -2314,6 +2343,7 @@ function renderResponseEnginePackages() {
           <span>${escapeHtml(outputs)}</span>
           <span>${escapeHtml(formats)}</span>
           <span>${escapeHtml(qaScore)}</span>
+          ${submitter ? `<span>Submitted by ${escapeHtml(submitter)}</span>` : ""}
         </div>
         ${item.opportunity_name ? `<p>${escapeHtml(item.opportunity_name)}</p>` : ""}
         ${item.qa_summary ? `<p>${escapeHtml(item.qa_summary)}</p>` : ""}
@@ -2361,8 +2391,10 @@ function renderAdminResponseEngine() {
   const entitlementList = document.querySelector("#adminResponseEngineEntitlements");
   const jobList = document.querySelector("#adminResponseEngineJobs");
   const orgSelect = document.querySelector("#adminResponseEngineOrg");
+  const memberList = document.querySelector("#adminOrganizationMembers");
   const entitlements = state.responseEngine.adminEntitlements || [];
   const creditsByOrg = new Map((state.responseEngine.adminCredits || []).map((item) => [item.organization_id, item]));
+  const pendingMembers = (state.adminOrganizationMembers || []).filter((member) => member.status === "pending");
 
   if (orgSelect) {
     const options = entitlements.map((item) => {
@@ -2388,6 +2420,27 @@ function renderAdminResponseEngine() {
         `;
       }).join("")
       : `<article><strong>No Response Engine access requests yet</strong><span>Approved firms will appear here.</span></article>`;
+  }
+
+  if (memberList) {
+    const visibleMembers = pendingMembers.length ? pendingMembers : (state.adminOrganizationMembers || []).slice(0, 8);
+    memberList.innerHTML = visibleMembers.length
+      ? visibleMembers.map((member) => `
+          <article>
+            <strong>${escapeHtml(member.displayName || member.email || "Workspace user")}</strong>
+            <span>${escapeHtml(member.organizationName || "Client organization")} | ${escapeHtml(member.email || "No email")} | ${escapeHtml(getMemberStatusLabel(member.status))}</span>
+            <small>${escapeHtml(getMemberRoleLabel(member.role))}${member.serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE ? ` | ${escapeHtml(RESPONSE_ENGINE_PUBLIC_LABEL)}` : ""}</small>
+            <div class="inline-actions">
+              <select data-member-role="${escapeHtml(member.id)}">
+                ${["owner", "manager", "recruiter", "billing", "viewer"].map((role) => `<option value="${role}" ${role === member.role ? "selected" : ""}>${escapeHtml(getMemberRoleLabel(role))}</option>`).join("")}
+              </select>
+              <button class="secondary small" type="button" data-member-action="active" data-member-id="${escapeHtml(member.id)}">Approve</button>
+              <button class="secondary small" type="button" data-member-action="suspended" data-member-id="${escapeHtml(member.id)}">Suspend</button>
+              <button class="secondary small danger-button" type="button" data-member-action="rejected" data-member-id="${escapeHtml(member.id)}">Reject</button>
+            </div>
+          </article>
+        `).join("")
+      : `<article><strong>No organization account requests</strong><span>Pending recruiter accounts will appear here.</span></article>`;
   }
 
   if (jobList) {
@@ -2742,6 +2795,61 @@ function triggerSecureDownload(signedUrl, fileName = "workspace-file") {
   showToast("Download started.");
 }
 
+function triggerBlobDownload(blob, fileName = "workspace-files.zip") {
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName || "workspace-files.zip";
+    link.rel = "noopener";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    window.setTimeout(() => link.remove(), 1000);
+    showToast("Download started.");
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
+function readDownloadFileName(response, fallback = "workspace-files.zip") {
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/i);
+  return match ? match[1] : fallback;
+}
+
+async function fetchClientBlob(path, options = {}) {
+  const token = await getSessionAccessToken();
+  if (!token) {
+    return { ok: false, error: "Please sign in before downloading this package." };
+  }
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...(options.headers || {}),
+  };
+  try {
+    const response = await fetchWithTimeout(path, {
+      ...options,
+      headers,
+      body: options.body && typeof options.body !== "string" ? JSON.stringify(options.body) : options.body,
+    }, options.timeoutMs || 60000, "The deliverable package took too long to prepare. Download files individually or try again.");
+    if (!response.ok) {
+      const text = await response.text();
+      let error = "The deliverable package could not be downloaded.";
+      try {
+        error = JSON.parse(text)?.error || error;
+      } catch (_error) {
+        if (text) error = text.slice(0, 200);
+      }
+      return { ok: false, status: response.status, error: getFriendlyWorkspaceError(error, "The deliverable package could not be downloaded.") };
+    }
+    return { ok: true, blob: await response.blob(), fileName: readDownloadFileName(response) };
+  } catch (error) {
+    return { ok: false, status: 0, error: getFriendlyWorkspaceError(error, "The deliverable package could not be downloaded.") };
+  }
+}
+
 function setFieldValue(selector, value) {
   const field = document.querySelector(selector);
   if (field && value !== undefined && value !== null) {
@@ -2760,7 +2868,9 @@ function applyProfileToState(profile) {
 
   state.client.email = profile.work_email || getUserEmail() || state.client.email;
   state.client.company = organization.name || state.client.company || "Your organization";
-  state.profileOrganizationId = profile.organization_id || state.profileOrganizationId || "";
+  if (!state.organizationMembership || state.organizationMembership.status === "active") {
+    state.profileOrganizationId = profile.organization_id || state.profileOrganizationId || "";
+  }
 
   setFieldValue("#profileFirstName", profile.first_name || firstName);
   setFieldValue("#profileLastName", profile.last_name || lastName);
@@ -2776,6 +2886,54 @@ function applyProfileToState(profile) {
   setFieldValue("#profileNeed", profile.primary_business_need);
   setFieldValue("#profileWorkingStyle", profile.preferred_working_style);
   saveState();
+}
+
+function normalizeOrganizationMember(row = {}) {
+  return {
+    id: row.id || "",
+    organizationId: row.organizationId || row.organization_id || "",
+    organizationName: row.organizationName || row.organization_name || row.client_organizations?.name || "",
+    organizationEmail: row.organizationEmail || row.organization_email || row.client_organizations?.billing_email || "",
+    profileId: row.profileId || row.profile_id || "",
+    email: row.email || row.work_email || row.profiles?.work_email || "",
+    displayName: row.displayName || row.display_name || [row.profiles?.first_name, row.profiles?.last_name].filter(Boolean).join(" ") || row.email || "Workspace user",
+    role: row.role || "recruiter",
+    status: row.status || "pending",
+    isPrimary: Boolean(row.isPrimary ?? row.is_primary),
+    serviceInterest: row.serviceInterest || row.service_interest || "",
+    jobTitle: row.jobTitle || row.job_title || row.profiles?.job_title || "",
+    department: row.department || row.profiles?.department || "",
+    approvedAt: row.approvedAt || row.approved_at || "",
+    joinedAt: row.joinedAt || row.joined_at || "",
+    createdAt: row.createdAt || row.created_at || "",
+    updatedAt: row.updatedAt || row.updated_at || "",
+  };
+}
+
+async function loadClientMembershipFromSupabase() {
+  if (!supabaseClient || !getUserId()) return null;
+  const { data, error } = await supabaseClient
+    .from("client_organization_members")
+    .select("id,organization_id,profile_id,email,display_name,role,status,is_primary,service_interest,approved_at,joined_at,created_at,updated_at,client_organizations(name,billing_email,industry,country,timezone,status)")
+    .eq("profile_id", getUserId())
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    return { error };
+  }
+
+  const memberships = (data || []).map(normalizeOrganizationMember);
+  const active = memberships.find((member) => member.status === "active") || null;
+  const pending = memberships.find((member) => member.status === "pending") || null;
+  state.organizationMembership = active || pending || null;
+  if (active?.organizationId) {
+    state.profileOrganizationId = active.organizationId;
+    state.client.company = active.organizationName || state.client.company;
+  } else {
+    state.profileOrganizationId = "";
+  }
+  return state.organizationMembership;
 }
 
 async function loadSignedInProfile() {
@@ -2854,6 +3012,10 @@ function groupDeliverableVersions(rows) {
 async function getProfileOrganizationId() {
   if (state.profileOrganizationId) return state.profileOrganizationId;
   if (!supabaseClient || !getUserId()) return null;
+
+  const membership = await loadClientMembershipFromSupabase();
+  if (membership?.organizationId && membership.status === "active") return membership.organizationId;
+  if (membership && !membership.error) return null;
 
   const { data, error } = await supabaseClient
     .from("profiles")
@@ -3213,11 +3375,36 @@ async function loadClientWorkspaceData() {
       state.clientUploads = uploadResult.data.map(normalizeClientUpload);
     }
 
+    await loadOrganizationMembers();
     await loadResponseEngineStatus();
     saveState();
   } catch (error) {
     state.workspaceLoadIssue = error.message || "Workspace information could not be loaded.";
   }
+}
+
+async function loadOrganizationMembers() {
+  if (!state.session?.user || !isEmailVerified()) return;
+  const result = await fetchClientApi("/api/organization-members", { timeoutMs: 20000 });
+  if (!result.ok) {
+    state.organizationMembers = [];
+    return;
+  }
+  state.organizationMembership = result.data.membership ? normalizeOrganizationMember(result.data.membership) : state.organizationMembership;
+  state.organizationMembers = (result.data.members || []).map(normalizeOrganizationMember);
+  if (result.data.organizationId) {
+    state.profileOrganizationId = result.data.organizationId;
+  }
+}
+
+async function loadAdminOrganizationMembers() {
+  if (!state.adminAccess) return;
+  const result = await fetchAdminApi("/api/organization-members", { timeoutMs: 20000 });
+  if (!result.ok) {
+    state.adminOrganizationMembers = [];
+    return;
+  }
+  state.adminOrganizationMembers = (result.data.members || []).map(normalizeOrganizationMember);
 }
 
 function mergeById(existing, additions, idSelector = (item) => item.id) {
@@ -3454,7 +3641,11 @@ async function saveClientProfileToSupabase() {
   }
   const companyName = document.querySelector("#profileCompany").value.trim();
   const hadWorkspace = Boolean(state.profileOrganizationId);
-  const { data: organizationId, error } = await supabaseClient.rpc("save_client_workspace_profile", {
+  const workspaceMode = document.querySelector("#profileWorkspaceMode")?.value === WORKSPACE_MODE_JOIN ? WORKSPACE_MODE_JOIN : getPendingWorkspaceMode();
+  setPendingWorkspaceMode(workspaceMode);
+  const serviceInterest = hasPendingResponseEngineInterest() ? SERVICE_INTEREST_RESPONSE_ENGINE : getPendingServiceInterest();
+  const { data: profileResultRows, error } = await supabaseClient
+    .rpc("save_client_workspace_profile_v2", {
     p_org_name: companyName,
     p_industry: document.querySelector("#profileIndustry").value,
     p_country: document.querySelector("#profileCountry").value,
@@ -3469,13 +3660,42 @@ async function saveClientProfileToSupabase() {
     p_department: document.querySelector("#profileFunction").value,
     p_preferred_working_style: document.querySelector("#profileWorkingStyle").value,
     p_primary_business_need: document.querySelector("#profileNeed").value,
-  });
+    p_join_existing: workspaceMode === WORKSPACE_MODE_JOIN,
+    p_service_interest: serviceInterest || null,
+  })
+    .maybeSingle();
 
   if (error) {
     return { ok: false, reason: error.message };
   }
 
+  const profileResult = profileResultRows || {};
+  const organizationId = profileResult.organization_id || "";
+  const membershipStatus = profileResult.membership_status || (organizationId ? "active" : "pending");
+  state.profileOrganizationId = membershipStatus === "active" ? organizationId : "";
+  state.organizationMembership = {
+    organizationId: organizationId || profileResult.pending_organization_id || "",
+    organizationName: companyName,
+    email: profileEmail || getUserEmail(),
+    displayName: `${document.querySelector("#profileFirstName")?.value || ""} ${document.querySelector("#profileLastName")?.value || ""}`.trim(),
+    role: profileResult.membership_role || "recruiter",
+    status: membershipStatus,
+    serviceInterest,
+  };
   await loadSignedInProfile();
+  await loadClientMembershipFromSupabase();
+  if (membershipStatus === "pending") {
+    notifyAdvisorEventInBackground({
+      eventType: "organization_join_requested",
+      title: "Organization account approval requested",
+      summary: `${document.querySelector("#profileFirstName")?.value || "Client"} ${document.querySelector("#profileLastName")?.value || ""}`.trim() + ` requested access to ${companyName}. Service interest: ${serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE ? RESPONSE_ENGINE_PUBLIC_LABEL : "General BA Advisory Desk services"}.`,
+      relatedEntityType: "client_organization_member",
+      relatedEntityId: null,
+      relatedLabel: companyName,
+      projectId: null,
+    });
+    return { ok: true, organizationId: "", pending: true, message: profileResult.message || "Your organization access request is pending administrator approval." };
+  }
   if (!hadWorkspace && organizationId) {
     notifyAdvisorEventInBackground({
       eventType: "client_signup_completed",
@@ -3487,7 +3707,7 @@ async function saveClientProfileToSupabase() {
       projectId: null,
     });
   }
-  return { ok: true, organizationId };
+  return { ok: true, organizationId, message: profileResult.message || "Client profile saved. Your workspace is ready." };
 }
 
 async function uploadRequestFiles(requestId, organizationId, projectId = "") {
@@ -4531,6 +4751,7 @@ function renderClientDeliverables() {
     .map((deliverable) => {
       const currentFiles = deliverable.versions.filter((version) => Number(version.versionNumber) === Number(deliverable.currentVersion));
       const previousFiles = deliverable.versions.filter((version) => Number(version.versionNumber) !== Number(deliverable.currentVersion));
+      const currentVersionId = currentFiles.find((version) => version.id)?.id || "";
       const verificationStatus = normalizeVerificationStatus(deliverable.verificationStatus);
       const verificationLevel = getVerificationLevel(verificationStatus);
       const newBadge = isNewDeliverable(deliverable) ? `<span class="status-pill new">New</span>` : "";
@@ -4579,6 +4800,11 @@ function renderClientDeliverables() {
             </div>
           </div>
           ${deliverable.summary ? `<p>${escapeHtml(deliverable.summary)}</p>` : ""}
+          ${
+            currentVersionId
+              ? `<div class="deliverable-actions compact-actions"><button class="secondary small" type="button" data-download-deliverable-zip="${escapeHtml(currentVersionId)}" data-deliverable-id="${escapeHtml(deliverable.id)}" data-organization-id="${escapeHtml(state.profileOrganizationId || "")}" data-project-id="${escapeHtml(deliverable.projectId || "")}">Download all as ZIP</button></div>`
+              : ""
+          }
           <div class="deliverable-files">${currentFileHtml}</div>
           <div class="deliverable-actions">
             <button class="small" type="button" data-client-action="approve-deliverable" data-deliverable-id="${escapeHtml(deliverable.id)}">Mark Reviewed And Accepted</button>
@@ -5120,6 +5346,7 @@ function render() {
   document.querySelector("#activeCount").textContent = getVisibleRequests().filter((request) => !isShippedStatus(request.status)).length;
   renderClientProjectControls();
   renderClientWorkspaceSummary();
+  renderClientOrganizationMembers();
   renderRequests();
   renderDeliverableStatus();
   renderClientFileRoom();
@@ -5325,6 +5552,64 @@ function renderClientWorkspaceSummary() {
       cta.textContent = "Refresh Workspace";
     }
   }
+}
+
+function getMemberStatusLevel(status) {
+  const normalized = normalizeStatusValue(status);
+  if (normalized === "active") return "approved";
+  if (normalized === "pending") return "review";
+  if (["suspended", "removed", "rejected"].includes(normalized)) return "blocked";
+  return "new";
+}
+
+function getMemberRoleLabel(role) {
+  return {
+    owner: "Owner",
+    manager: "Manager",
+    recruiter: "Recruiter",
+    billing: "Billing",
+    viewer: "Viewer",
+  }[normalizeStatusValue(role)] || "Recruiter";
+}
+
+function getMemberStatusLabel(status) {
+  return {
+    active: "Active",
+    pending: "Pending approval",
+    suspended: "Suspended",
+    removed: "Removed",
+    rejected: "Rejected",
+  }[normalizeStatusValue(status)] || "Pending approval";
+}
+
+function renderClientOrganizationMembers() {
+  const title = document.querySelector("#clientOrganizationAccessTitle");
+  const body = document.querySelector("#clientOrganizationAccessBody");
+  const list = document.querySelector("#clientOrganizationMembers");
+  if (!title && !body && !list) return;
+
+  const activeMembers = (state.organizationMembers || []).filter((member) => member.status === "active");
+  const pendingMembers = (state.organizationMembers || []).filter((member) => member.status === "pending");
+  const membership = state.organizationMembership || {};
+  if (title) {
+    title.textContent = membership.status === "pending"
+      ? "Access pending"
+      : `${activeMembers.length || 1} active account${(activeMembers.length || 1) === 1 ? "" : "s"}`;
+  }
+  if (body) {
+    body.textContent = membership.status === "pending"
+      ? "Your request to join this organization workspace is waiting for administrator approval."
+      : "Approved team members share the organization workspace, credits, files, requests, and released deliverables.";
+  }
+  if (!list) return;
+  const members = (state.organizationMembers || []).slice(0, 8);
+  if (!members.length && membership.status === "pending") {
+    list.innerHTML = `<span class="member-chip pending">${escapeHtml(membership.displayName || membership.email || "Your account")} | pending</span>`;
+    return;
+  }
+  list.innerHTML = members.length
+    ? members.map((member) => `<span class="member-chip ${escapeHtml(getMemberStatusLevel(member.status))}">${escapeHtml(member.displayName || member.email)} | ${escapeHtml(getMemberRoleLabel(member.role))} | ${escapeHtml(getMemberStatusLabel(member.status))}</span>`).join("")
+    : `<span class="member-chip">No team accounts loaded yet.</span>`;
 }
 
 function renderClientFileRoom() {
@@ -5561,6 +5846,8 @@ function renderAdminClientPortfolio() {
       const openItems = getAdminOpenItemsForClient(client).length;
       const newRequests = getAdminNewRequestCountForClient(client);
       const activeProjects = (client.projects || []).filter((project) => !["archived", "closed"].includes(normalizeStatusValue(project.status))).length;
+      const accountCount = (state.adminOrganizationMembers || []).filter((member) => member.organizationId === client.id && member.status === "active").length;
+      const pendingAccountCount = (state.adminOrganizationMembers || []).filter((member) => member.organizationId === client.id && member.status === "pending").length;
       const selected = state.selectedAdminClientId && (state.selectedAdminClientId === client.selectionId || state.selectedAdminClientId === client.id);
       const health = getAdminClientHealth(client);
       return `
@@ -5568,7 +5855,7 @@ function renderAdminClientPortfolio() {
           <td>
             <strong>${escapeHtml(client.name || "Client workspace")}</strong>
             <span>${escapeHtml(getClientEmail(client) || "No email recorded")}</span>
-            <small>${escapeHtml(activeProjects ? `${activeProjects} active project${activeProjects === 1 ? "" : "s"}` : "No active project yet")}${newRequests ? ` | ${escapeHtml(newRequests)} new request${newRequests === 1 ? "" : "s"}` : ""}</small>
+            <small>${escapeHtml(activeProjects ? `${activeProjects} active project${activeProjects === 1 ? "" : "s"}` : "No active project yet")}${accountCount ? ` | ${escapeHtml(accountCount)} active account${accountCount === 1 ? "" : "s"}` : ""}${pendingAccountCount ? ` | ${escapeHtml(pendingAccountCount)} pending account${pendingAccountCount === 1 ? "" : "s"}` : ""}${newRequests ? ` | ${escapeHtml(newRequests)} new request${newRequests === 1 ? "" : "s"}` : ""}</small>
             <button class="small secondary" type="button" data-admin-action="select-client" data-client-selection="${escapeHtml(client.selectionId || client.id)}">${selected ? "Viewing dossier" : "View dossier"}</button>
           </td>
           <td><span class="status-pill ${escapeHtml(getAdminStatusLevel(health))}">${escapeHtml(health)}</span></td>
@@ -5592,9 +5879,11 @@ function renderAdminClientDossier() {
   const files = document.querySelector("#adminDossierFiles");
   const deliverables = document.querySelector("#adminDossierDeliverables");
   const messages = document.querySelector("#adminDossierMessages");
+  const members = document.querySelector("#adminDossierMembers");
   if (!state.selectedAdminClientId) {
     const empty = `<p class="muted">Select a client to open their complete file.</p>`;
     if (profile) profile.innerHTML = empty;
+    if (members) members.innerHTML = empty;
     if (requests) requests.innerHTML = empty;
     if (files) files.innerHTML = empty;
     if (deliverables) deliverables.innerHTML = empty;
@@ -5647,6 +5936,28 @@ function renderAdminClientDossier() {
         <summary>More client context</summary>
         ${contextRows.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("")}
       </details>`;
+  }
+
+  if (members) {
+    const memberRows = client.id ? (state.adminOrganizationMembers || []).filter((member) => member.organizationId === client.id) : [];
+    members.innerHTML = memberRows.length
+      ? memberRows.map((member) => `
+          <article class="admin-dossier-row compact">
+            <div>
+              <strong>${escapeHtml(member.displayName || member.email || "Workspace user")}</strong>
+              <span>${escapeHtml(member.email || "No email")} | ${escapeHtml(getMemberRoleLabel(member.role))} | ${escapeHtml(getMemberStatusLabel(member.status))}</span>
+              <small>${escapeHtml(member.jobTitle || member.department || "No role details recorded")}</small>
+            </div>
+            <div class="table-actions">
+              <select data-member-role="${escapeHtml(member.id)}">
+                ${["owner", "manager", "recruiter", "billing", "viewer"].map((role) => `<option value="${role}" ${role === member.role ? "selected" : ""}>${escapeHtml(getMemberRoleLabel(role))}</option>`).join("")}
+              </select>
+              <button class="secondary small" type="button" data-member-action="active" data-member-id="${escapeHtml(member.id)}">Approve</button>
+              <button class="secondary small" type="button" data-member-action="suspended" data-member-id="${escapeHtml(member.id)}">Suspend</button>
+            </div>
+          </article>
+        `).join("")
+      : `<p class="muted">No organization accounts are attached to this client yet.</p>`;
   }
 
   if (requests) {
@@ -5721,15 +6032,18 @@ function renderAdminClientDossier() {
               if (deliverable.projectId && file.projectId && file.projectId !== deliverable.projectId) return false;
               return !activeProject || !file.projectId || file.projectId === activeProject.id;
             });
+            const versionId = files.find((file) => file.versionId)?.versionId || deliverable.latestVersionId || "";
             const fileHtml = files.length
               ? files
-                  .slice(0, 5)
                   .map(
                     (file) => `<br /><button class="secondary small" type="button" data-download-file="${escapeHtml(file.fileId)}" data-organization-id="${escapeHtml(file.organizationId || deliverable.organizationId || "")}" data-project-id="${escapeHtml(file.projectId || deliverable.projectId || "")}">${escapeHtml(file.fileName)} | Version ${escapeHtml(file.versionNumber || deliverable.currentVersion || 1)}</button>`
                   )
                   .join("")
               : `<br /><span class="muted">No file rows found for this deliverable.</span>`;
-            return `<p><strong>${escapeHtml(deliverable.title)}</strong><br /><span>${escapeHtml(getClientProjectLabel(deliverable))} | ${escapeHtml(deliverable.type)} | Version ${escapeHtml(deliverable.currentVersion || 1)} | ${escapeHtml(deliverable.status)}</span>${fileHtml}</p>`;
+            const zipHtml = versionId
+              ? `<br /><button class="secondary small" type="button" data-download-deliverable-zip="${escapeHtml(versionId)}" data-deliverable-id="${escapeHtml(deliverable.id)}" data-organization-id="${escapeHtml(deliverable.organizationId || client.id || "")}" data-project-id="${escapeHtml(deliverable.projectId || "")}">Download all as ZIP</button>`
+              : "";
+            return `<p><strong>${escapeHtml(deliverable.title)}</strong><br /><span>${escapeHtml(getClientProjectLabel(deliverable))} | ${escapeHtml(deliverable.type)} | Version ${escapeHtml(deliverable.currentVersion || 1)} | ${escapeHtml(deliverable.status)}</span>${zipHtml}${fileHtml}</p>`;
           })
           .join("") +
           loadMoreControlHtml({
@@ -6446,6 +6760,7 @@ function applyAdminQueueData(data, options = {}) {
     type: deliverable.deliverable_type || "Business Analysis deliverable",
     status: deliverable.status || "Ready",
     currentVersion: deliverable.current_version_number || deliverable.version_number || 1,
+    latestVersionId: deliverable.latest_version_id || "",
     createdAt: deliverable.created_at || null,
     updatedAt: deliverable.updated_at || null,
   }));
@@ -6491,6 +6806,7 @@ async function loadAdminQueue() {
   state.remotePagination.adminQueue.hasMore = Boolean(result.data?.pagination?.hasMore);
   state.remotePagination.adminQueue.sources = result.data?.pagination?.sources || {};
   await loadAdminResponseEngineStatus();
+  await loadAdminOrganizationMembers();
   const openItems = state.adminQueue.filter(isAdminQueueOpenItem).length;
   setAdminStatus(openItems ? `${openItems} open action${openItems === 1 ? "" : "s"} need review.` : "No admin items need review.");
   render();
@@ -6623,6 +6939,7 @@ async function createPasswordAccount() {
   const email = getNormalizedEmail(document.querySelector("#passwordSignupEmail")?.value);
   const company = document.querySelector("#passwordSignupCompany")?.value.trim();
   const serviceInterest = getSignupServiceInterest();
+  const workspaceMode = document.querySelector("#passwordSignupWorkspaceMode")?.value === WORKSPACE_MODE_JOIN ? WORKSPACE_MODE_JOIN : WORKSPACE_MODE_CREATE;
   const password = document.querySelector("#passwordSignupPassword")?.value || "";
   const confirm = document.querySelector("#passwordSignupConfirm")?.value || "";
   const validationError = validatePasswordPair(password, confirm);
@@ -6639,6 +6956,7 @@ async function createPasswordAccount() {
 
   state.client.email = email;
   state.client.company = company;
+  setPendingWorkspaceMode(workspaceMode);
   if (serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE) {
     setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
     setPendingPostAuthRoute("response-engine");
@@ -7561,6 +7879,16 @@ document.querySelector("#passwordSignupServiceInterest")?.addEventListener("chan
   updateServiceInterestUi();
 });
 
+document.querySelector("#passwordSignupWorkspaceMode")?.addEventListener("change", (event) => {
+  setPendingWorkspaceMode(event.target.value);
+  updateServiceInterestUi();
+});
+
+document.querySelector("#profileWorkspaceMode")?.addEventListener("change", (event) => {
+  setPendingWorkspaceMode(event.target.value);
+  updateServiceInterestUi();
+});
+
 document.querySelector("#passwordSignInForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button[type="submit"]');
@@ -7740,6 +8068,7 @@ document.addEventListener("click", async (event) => {
   setButtonBusy(target, true, "Refreshing");
   try {
     await loadAdminResponseEngineStatus();
+    await loadAdminOrganizationMembers();
     renderAdminResponseEngine();
     showToast("Response Engine admin view refreshed.");
   } finally {
@@ -7932,6 +8261,77 @@ document.querySelector("#adminResponseEngineApprovalForm")?.addEventListener("su
     showToast("Response Engine access updated.");
   } finally {
     setButtonBusy(submitButton, false);
+  }
+});
+
+async function updateOrganizationMemberStatus(memberId, status, triggerButton = null) {
+  if (!memberId || !status) return;
+  const safeMemberId = window.CSS?.escape ? CSS.escape(memberId) : memberId.replace(/"/g, '\\"');
+  const role = triggerButton?.closest("article")?.querySelector(`[data-member-role="${safeMemberId}"]`)?.value ||
+    document.querySelector(`[data-member-role="${safeMemberId}"]`)?.value ||
+    "recruiter";
+  if (triggerButton?.dataset.busy === "true") return;
+  setButtonBusy(triggerButton, true, "Saving");
+  try {
+    const result = await fetchAdminApi("/api/organization-members", {
+      method: "POST",
+      timeoutMs: 30000,
+      body: {
+        memberId,
+        status,
+        role,
+      },
+    });
+    if (!result.ok) {
+      showPersistentNotice(result.error || "Organization account could not be updated.");
+      return;
+    }
+    await loadAdminOrganizationMembers();
+    await loadAdminQueue();
+    render();
+    showToast("Organization account updated.");
+  } finally {
+    setButtonBusy(triggerButton, false);
+  }
+}
+
+document.addEventListener("click", async (event) => {
+  const target = event.target.closest("[data-member-action]");
+  if (!target) return;
+  event.preventDefault();
+  await updateOrganizationMemberStatus(target.dataset.memberId, target.dataset.memberAction, target);
+});
+
+document.addEventListener("click", async (event) => {
+  const target = event.target.closest("[data-download-deliverable-zip]");
+  if (!target) return;
+  event.preventDefault();
+
+  const versionId = target.dataset.downloadDeliverableZip;
+  if (!versionId) {
+    showToast("This deliverable package is not ready for ZIP download yet.");
+    return;
+  }
+
+  setButtonBusy(target, true, "Preparing ZIP");
+  try {
+    const result = await fetchClientBlob("/api/deliverable-download-bundle", {
+      method: "POST",
+      timeoutMs: 90000,
+      body: {
+        versionId,
+        deliverableId: target.dataset.deliverableId || undefined,
+        organizationId: target.dataset.organizationId || (isAdminUser() ? state.selectedAdminClientId : state.profileOrganizationId || undefined),
+        projectId: target.dataset.projectId || (isAdminUser() ? getAdminProjectIdForApi() : state.selectedProjectId || undefined),
+      },
+    });
+    if (!result.ok || !result.blob) {
+      showToast(result.error || "ZIP download could not be created.");
+      return;
+    }
+    triggerBlobDownload(result.blob, result.fileName || "deliverable-package.zip");
+  } finally {
+    setButtonBusy(target, false);
   }
 });
 
@@ -8646,6 +9046,13 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
     const orgResult = await saveClientProfileToSupabase();
     render();
     if (orgResult.ok) {
+      if (orgResult.pending) {
+        const message = orgResult.message || "Your organization access request is pending administrator approval.";
+        await loadSignedInProfile();
+        setInlineStatus("#profileStatus", message, "success");
+        showPersistentNotice(message);
+        return;
+      }
       const checkoutResumed = await resumePendingCheckout();
       if (!checkoutResumed) {
         if (hasPendingResponseEngineInterest()) {

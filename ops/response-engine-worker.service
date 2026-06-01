@@ -12,6 +12,7 @@ Environment=HOME=/home/codexbot
 Environment=CODEX_HOME=/home/codexbot/.codex
 Environment=PATH=/home/codexbot/.local/node-v22.22.3/bin:/home/codexbot/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=CODEX_BIN=/home/codexbot/.local/bin/codex
+Environment=PYTHON_BIN=/opt/codex-telegram-agent/venv/bin/python
 Environment=RESPONSE_ENGINE_CODEX_ENABLED=true
 Environment=RESPONSE_ENGINE_OPENAI_API_ENABLED=false
 Environment=OPENAI_API_FALLBACK_ENABLED=false

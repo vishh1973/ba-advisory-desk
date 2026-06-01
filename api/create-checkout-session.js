@@ -10,6 +10,7 @@ const {
   recordPaymentHistory,
   recordAuditEvent,
 } = require("./_lib/paymentAndCredit");
+const { getUserOrganizationAccess } = require("./_lib/organizationAccess");
 
 const CREDIT_PRODUCTS = new Set(["rescue_sprint", "starter_monthly", "credit_top_up"]);
 const CHECKOUT_PRODUCTS = new Set(Object.keys(PRODUCT_CATALOG));
@@ -71,10 +72,22 @@ async function getAuthenticatedWorkspace({ supabase, bearerToken, organizationId
     .maybeSingle();
 
   if (profileError || !profile || profile.organization_id !== organizationId) {
-    return { status: 403, error: "Please complete your client workspace profile before checkout." };
+    const access = await getUserOrganizationAccess(supabase, userId);
+    if (!access.organizationIds.has(organizationId)) {
+      return { status: 403, error: "Please complete your client workspace profile or wait for administrator approval before checkout." };
+    }
+    const membership = access.memberships.find((item) => item.organization_id === organizationId) || null;
+    return { user: authResult.user, userId, clientEmail, profile: access.profile || profile, membership };
   }
 
-  return { user: authResult.user, userId, clientEmail, profile };
+  const access = await getUserOrganizationAccess(supabase, userId);
+  const membership = access.memberships.find((item) => item.organization_id === organizationId) || null;
+  return { user: authResult.user, userId, clientEmail, profile, membership };
+}
+
+function canManageBilling(workspace) {
+  const role = String(workspace?.membership?.role || "owner").toLowerCase();
+  return ["owner", "manager", "billing"].includes(role);
 }
 
 async function findStripeCustomerId(supabase, organizationId) {
@@ -832,6 +845,10 @@ async function handler(req, res) {
         res.status(workspace.status).json({ error: workspace.error });
         return;
       }
+      if (!canManageBilling(workspace)) {
+        res.status(403).json({ error: "Your organization role can view the workspace but cannot manage billing." });
+        return;
+      }
 
       const storedCustomerId = await findStripeCustomerId(supabase, organizationId);
       const customerId = await resolveReusableStripeCustomerId(stripe, storedCustomerId);
@@ -879,6 +896,10 @@ async function handler(req, res) {
     const workspace = await getAuthenticatedWorkspace({ supabase, bearerToken, organizationId });
     if (workspace.error) {
       res.status(workspace.status).json({ error: workspace.error });
+      return;
+    }
+    if (!canManageBilling(workspace)) {
+      res.status(403).json({ error: "Your organization role can view the workspace but cannot start checkout." });
       return;
     }
     const { userId, clientEmail } = workspace;

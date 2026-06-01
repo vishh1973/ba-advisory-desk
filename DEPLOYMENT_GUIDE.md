@@ -90,11 +90,14 @@ supabase/20260520_admin_deliverable_release_repair.sql
 supabase/20260520_security_qa_hardening.sql
 supabase/20260522_refund_dispute_review_pagination.sql
 supabase/20260601_response_engine_pilot.sql
+supabase/20260601_client_organization_members.sql
 ```
 
 This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, low-credit reminders, and final profile or workspace access hardening.
 
 The Response Engine migration adds controlled service entitlements, Response Engine credit grants, package requests, source file context, worker jobs, output manifests, and admin approval support for the Bid & Proposal Response Automation service line.
+
+The organization member migration adds explicit multi-account support for client firms. Existing profiles are backfilled as active members. New recruiters can request access to an existing organization workspace, but the shared workspace remains unavailable until the administrator approves the member account. Service access, credits, requests, files, and deliverables remain attached to the organization.
 
 ## Supabase sign in setup
 
@@ -169,7 +172,27 @@ The service key is:
 procurement_response_engine
 ```
 
-Access is controlled through the client account workflow. A pilot firm can create an account, select Bid & Proposal Response Automation during signup, verify its email, and complete the client profile. The app then records a pending Response Engine access request and emails the administrator. The workspace opens only after the administrator approves the entitlement and assigns Response Engine credits.
+Access is controlled through the client account workflow. A pilot firm can create an account, select Bid & Proposal Response Automation during signup, verify its email, and complete the client profile. The first approved firm user becomes the organization owner. Later recruiters can request access to the same organization workspace, but they remain pending until the administrator approves the individual account. The app records a pending Response Engine access request and emails the administrator. The workspace opens only after the administrator approves the entitlement and assigns Response Engine credits.
+
+## Organization accounts and downloads
+
+Client organization accounts are managed through `client_organization_members`.
+
+- One active organization is allowed per client login during the pilot.
+- Roles are `owner`, `manager`, `recruiter`, `billing`, and `viewer`.
+- Status values are `pending`, `active`, `suspended`, `removed`, and `rejected`.
+- Admin approval changes a pending member to active and links the profile to the organization.
+- Suspension, removal, or rejection clears the profile link for that organization.
+- Billing checkout and the customer portal are restricted to `owner`, `manager`, and `billing`.
+- Bid & Proposal Response Automation requests are organization-level. A `viewer` cannot request new service-line access.
+
+Deliverable downloads support both individual files and a server-side ZIP package.
+
+- Individual files continue to use `/api/deliverable-download-url`.
+- ZIP packages use `/api/deliverable-download-bundle`.
+- ZIP generation queries authorized deliverable files server-side by version or deliverable id.
+- ZIP files are limited to 10 files and 100 MB total.
+- The ZIP endpoint writes an audit event before returning the package.
 
 ## Response Engine worker
 
@@ -201,6 +224,30 @@ RESPONSE_ENGINE_MAX_SUBAGENTS=6
 ```
 
 The Codex bot should use fewer subagents for simple packages and more for complex packages. If subagent tools are unavailable, it must run the same specialist workstreams sequentially and record that fallback in the internal QA report only.
+
+Ops note for Response Engine quality gates:
+
+- Keep every output in a human editorial resume tone. It should read like a consultant refined the material, not like generic generated copy.
+- Reject em dash and en dash characters in visible deliverables. Rewrite the sentence with commas, periods, or parentheses instead.
+- Scan for generic AI phrases before final packaging. Remove vague, overused wording and replace it with specific evidence from the client inputs.
+- Include a mandatory fit gap assessment that shows where the response is strong, where it is weak, and what should be improved before submission.
+- Use consulting grade grids for criteria, compliance, evidence, scoring, risks, and recommended fixes.
+- Apply `BA Advisory Desk` document metadata before release. Author, creator, company, manager, last modified by, and producer fields must not expose a person, tool, model, or internal system name.
+- Block release if client deliverables or document metadata contain restricted internal, model, or AI wording.
+- Keep the maximum orchestration limit at six subagents. Use fewer when the package is simple.
+
+PDF outputs require a Python PDF metadata library on the worker host:
+
+```text
+python3 -m pip install --user pypdf
+```
+
+Run the focused worker QA after changes:
+
+```text
+node --check scripts/response-engine-worker.js
+node --test tests/response-engine-core.test.js
+```
 
 The timer should be enabled and active:
 

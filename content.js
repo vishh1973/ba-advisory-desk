@@ -118,7 +118,7 @@ window.BAAD_CONTENT = {
       {
         label: "Limited access automation",
         title: "Bid & Proposal Response Automation",
-        body: "Automated candidate resume polishing, mandatory and rated criteria mapping, response grids, and recruiter submission support for approved firms.",
+        body: "Secure candidate resume polishing, mandatory and rated criteria mapping, fit-gap assessment, and professional response grids for approved recruiting firms.",
         href: "#bid-proposal-response-automation",
         cta: "View service",
       },

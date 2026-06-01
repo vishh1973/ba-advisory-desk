@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "vercel dev",
-    "test": "node --test tests/api-guard-regression.test.js tests/refund-dispute-credit-reconciliation.test.js tests/credit-expiry-reminder.test.js tests/admin-notification-email.test.js tests/subscription-cancellation-notifications.test.js tests/response-engine-core.test.js",
+    "test": "node --test tests/api-guard-regression.test.js tests/refund-dispute-credit-reconciliation.test.js tests/credit-expiry-reminder.test.js tests/admin-notification-email.test.js tests/subscription-cancellation-notifications.test.js tests/response-engine-core.test.js tests/deliverable-download-bundle.test.js",
     "test:syntax": "node scripts/check-syntax.js",
     "qa:return-controls": "node tests/client-return-controls-smoke.js",
     "smoke": "powershell -ExecutionPolicy Bypass -File \"../Private Build Assets/tests/smoke-tests.ps1\"",

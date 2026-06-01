@@ -107,7 +107,7 @@ async function readClientPayload(supabase, req) {
     readResponseCreditBalance(supabase, workspace.organizationId),
     supabase
       .from("response_engine_requests")
-      .select("request_id,package_title,candidate_name,target_role,opportunity_name,output_options,output_formats,credit_cost,status,qa_score,qa_summary,created_at,updated_at,requests(request_code,due_at)")
+      .select("request_id,submitted_by,package_title,candidate_name,target_role,opportunity_name,output_options,output_formats,credit_cost,status,qa_score,qa_summary,created_at,updated_at,requests(request_code,due_at),profiles(first_name,last_name,work_email)")
       .eq("organization_id", workspace.organizationId)
       .order("created_at", { ascending: false })
       .limit(25),
@@ -130,6 +130,11 @@ async function readClientPayload(supabase, req) {
 async function requestAccess(supabase, req) {
   const body = parseJsonBody(req);
   const workspace = await getAuthenticatedWorkspace(supabase, req);
+  if (workspace.membership?.role === "viewer") {
+    const error = new Error("Your organization role can view the workspace but cannot request new service-line access.");
+    error.status = 403;
+    throw error;
+  }
   const existing = await readResponseEntitlement(supabase, workspace.organizationId);
   if (existing?.status === "approved") {
     return { alreadyApproved: true, entitlement: existing };

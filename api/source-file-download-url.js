@@ -1,20 +1,10 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { requireAdmin } = require("./_lib/adminAuth");
 const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
+const { getAuthenticatedUser, getUserOrganizationAccess } = require("./_lib/organizationAccess");
 
 const DEFAULT_EXPIRY_SECONDS = 60 * 30;
 const MAX_EXPIRY_SECONDS = 60 * 30;
-
-function readHeader(req, name) {
-  const headers = req.headers || {};
-  return headers[name] || headers[name.toLowerCase()];
-}
-
-function readBearerToken(req) {
-  const header = readHeader(req, "authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : "";
-}
 
 function readExpirySeconds(value) {
   const seconds = Number(value || DEFAULT_EXPIRY_SECONDS);
@@ -22,18 +12,9 @@ function readExpirySeconds(value) {
   return Math.min(Math.floor(seconds), MAX_EXPIRY_SECONDS);
 }
 
-function hasVerifiedEmail(user) {
-  return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
-}
-
 async function getUserOrganizationIds(supabase, userId) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("organization_id")
-    .eq("id", userId);
-
-  if (error) throw error;
-  return new Set((data || []).map((profile) => profile.organization_id).filter(Boolean));
+  const access = await getUserOrganizationAccess(supabase, userId);
+  return access.organizationIds;
 }
 
 function isOptionalSoftDeleteSchemaError(error) {
@@ -217,22 +198,12 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const token = readBearerToken(req);
-    if (!token) {
-      res.status(401).json({ error: "Please sign in before downloading this file." });
-      return;
-    }
-
     const supabase = getSupabaseAdmin();
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !userData?.user) {
-      res.status(401).json({ error: "Please sign in again before downloading this file." });
-      return;
-    }
-    if (!hasVerifiedEmail(userData.user)) {
-      res.status(403).json({ error: "Please verify your email before opening workspace files." });
-      return;
-    }
+    const user = await getAuthenticatedUser(supabase, req, {
+      missingTokenMessage: "Please sign in before downloading this file.",
+      invalidTokenMessage: "Please sign in again before downloading this file.",
+      unverifiedMessage: "Please verify your email before opening workspace files.",
+    });
 
     const body = parseJsonBody(req);
     const fileId = body.fileId || body.file_id;
@@ -268,7 +239,7 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!admin) {
-      const organizationIds = await getUserOrganizationIds(supabase, userData.user.id);
+      const organizationIds = await getUserOrganizationIds(supabase, user.id);
       if (!organizationIds.has(file.organizationId)) {
         res.status(403).json({ error: "This file is not available for your workspace." });
         return;
@@ -284,7 +255,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (action === "delete") {
-      if (!admin && file.uploadedBy !== userData.user.id) {
+      if (!admin && file.uploadedBy !== user.id) {
         res.status(403).json({ error: "You can delete only files uploaded from your own workspace account." });
         return;
       }
@@ -302,7 +273,7 @@ module.exports = async function handler(req, res) {
 
       const deleted = await softDeleteSourceFile(supabase, {
         file,
-        actorId: userData.user.id,
+        actorId: user.id,
         admin,
       });
 
@@ -346,6 +317,10 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     if (error instanceof InvalidJsonBodyError) {
       res.status(400).json({ error: error.message });
+      return;
+    }
+    if (error.status) {
+      res.status(error.status).json({ error: error.message });
       return;
     }
     const message = error.message || "Download link could not be created.";

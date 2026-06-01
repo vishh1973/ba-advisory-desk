@@ -6,6 +6,7 @@ const RESPONSE_ENGINE_PROJECT_NAME = "Response Engine";
 const RESPONSE_ENGINE_PROJECT_CODE = "RSP";
 const RESPONSE_ENGINE_MAX_FILE_DESCRIPTION = 1000;
 const RESPONSE_ENGINE_RECOMMENDED_FILE_DESCRIPTION = 500;
+const { getAuthenticatedWorkspace: getAuthenticatedOrganizationWorkspace } = require("./organizationAccess");
 
 const OUTPUT_CATALOG = {
   polished_resume: {
@@ -29,7 +30,7 @@ const OUTPUT_CATALOG = {
     includedInFullPackage: false,
   },
   gap_note: {
-    label: "Gap and risk note",
+    label: "Fit-gap assessment and recruiter risk note",
     credits: 0,
     includedInFullPackage: true,
   },
@@ -127,54 +128,13 @@ function normalizeFileContexts(value) {
   });
 }
 
-function readHeader(req, name) {
-  const headers = req.headers || {};
-  return headers[name] || headers[name.toLowerCase()];
-}
-
-function readBearerToken(req) {
-  const header = readHeader(req, "authorization") || "";
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  return match ? match[1].trim() : "";
-}
-
-function hasVerifiedEmail(user) {
-  return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
-}
-
 async function getAuthenticatedWorkspace(supabase, req) {
-  const token = readBearerToken(req);
-  if (!token) {
-    const error = new Error("Please sign in before using the Response Engine.");
-    error.status = 401;
-    throw error;
-  }
-
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData?.user?.id) {
-    const error = new Error("Please sign in again before using the Response Engine.");
-    error.status = 401;
-    throw error;
-  }
-  if (!hasVerifiedEmail(userData.user)) {
-    const error = new Error("Please verify your email before using the Response Engine.");
-    error.status = 403;
-    throw error;
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id,organization_id,work_email,first_name,last_name,job_title")
-    .eq("id", userData.user.id)
-    .maybeSingle();
-  if (profileError) throw profileError;
-  if (!profile?.organization_id) {
-    const error = new Error("Please complete your client profile before using the Response Engine.");
-    error.status = 403;
-    throw error;
-  }
-
-  return { user: userData.user, profile, organizationId: profile.organization_id };
+  return getAuthenticatedOrganizationWorkspace(supabase, req, {
+    missingTokenMessage: "Please sign in before using the Response Engine.",
+    invalidTokenMessage: "Please sign in again before using the Response Engine.",
+    unverifiedMessage: "Please verify your email before using the Response Engine.",
+    missingWorkspaceMessage: "Please complete your client profile or wait for administrator approval before using the Response Engine.",
+  });
 }
 
 async function readResponseEntitlement(supabase, organizationId) {
