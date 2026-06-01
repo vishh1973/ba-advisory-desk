@@ -239,6 +239,10 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!admin) {
+      if (requestedOrganizationId && requestedOrganizationId !== file.organizationId) {
+        res.status(403).json({ error: "This file does not belong to the selected client workspace." });
+        return;
+      }
       const organizationIds = await getUserOrganizationIds(supabase, user.id);
       if (!organizationIds.has(file.organizationId)) {
         res.status(403).json({ error: "This file is not available for your workspace." });

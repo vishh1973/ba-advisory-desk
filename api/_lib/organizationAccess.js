@@ -65,7 +65,7 @@ async function readActiveMemberships(supabase, userId) {
   return data || [];
 }
 
-async function getUserOrganizationAccess(supabase, userId) {
+async function getUserOrganizationAccess(supabase, userId, options = {}) {
   const [profile, memberships] = await Promise.all([
     readProfile(supabase, userId),
     readActiveMemberships(supabase, userId),
@@ -76,7 +76,7 @@ async function getUserOrganizationAccess(supabase, userId) {
     if (membership.organization_id) byOrganization.set(membership.organization_id, membership);
   });
 
-  if (!byOrganization.size && profile?.organization_id) {
+  if (options.allowLegacyFallback && !byOrganization.size && profile?.organization_id) {
     byOrganization.set(profile.organization_id, {
       id: "",
       organization_id: profile.organization_id,
@@ -97,9 +97,9 @@ async function getUserOrganizationAccess(supabase, userId) {
   };
 }
 
-async function userCanAccessOrganization(supabase, userId, organizationId) {
+async function userCanAccessOrganization(supabase, userId, organizationId, options = {}) {
   if (!organizationId) return false;
-  const access = await getUserOrganizationAccess(supabase, userId);
+  const access = await getUserOrganizationAccess(supabase, userId, options);
   return access.organizationIds.has(organizationId);
 }
 

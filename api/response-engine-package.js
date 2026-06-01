@@ -18,6 +18,16 @@ const {
 } = require("./_lib/responseEngine");
 
 const RESPONSE_CREDIT_LABEL = "Bid/Proposal Automation credit";
+const PACKAGE_SUBMIT_ROLES = new Set(["owner", "manager", "recruiter"]);
+
+function requirePackageSubmitRole(workspace) {
+  const role = String(workspace?.membership?.role || "").toLowerCase();
+  if (!PACKAGE_SUBMIT_ROLES.has(role)) {
+    const error = new Error("Your organization role can view this workspace but cannot submit or manage Bid/Proposal Automation packages.");
+    error.status = 403;
+    throw error;
+  }
+}
 
 function requireText(value, label, maxLength) {
   const text = String(value || "").trim();
@@ -58,6 +68,7 @@ function buildRequestDescription({ outputKeys, formatKeys, opportunityName, note
 async function createPackage(supabase, req) {
   const body = parseJsonBody(req);
   const workspace = await getAuthenticatedWorkspace(supabase, req);
+  requirePackageSubmitRole(workspace);
   await requireApprovedResponseEngine(supabase, workspace.organizationId);
 
   const packageTitle = requireText(body.packageTitle || body.package_title, "Package title", 160);
@@ -131,7 +142,12 @@ async function createPackage(supabase, req) {
         p_expires_at: null,
       })
       .maybeSingle();
-    if (reserveError) throw reserveError;
+    if (reserveError) {
+      const reserveMessage = reserveError.message || "Bid/Proposal Automation credits could not be reserved.";
+      const error = new Error(reserveMessage);
+      error.status = /insufficient|available balance|reserved/i.test(reserveMessage) ? 402 : 500;
+      throw error;
+    }
     reservedCredits = true;
 
     const { error: responseError } = await supabase
@@ -208,6 +224,7 @@ async function createPackage(supabase, req) {
 async function queuePackage(supabase, req) {
   const body = parseJsonBody(req);
   const workspace = await getAuthenticatedWorkspace(supabase, req);
+  requirePackageSubmitRole(workspace);
   await requireApprovedResponseEngine(supabase, workspace.organizationId);
   const requestId = String(body.requestId || body.request_id || "").trim();
   if (!requestId) {
@@ -226,6 +243,29 @@ async function queuePackage(supabase, req) {
   if (!responseRequest?.request_id) {
     const error = new Error(`${RESPONSE_ENGINE_LABEL} request was not found in this workspace.`);
     error.status = 404;
+    throw error;
+  }
+  if (responseRequest.status === "queued") {
+    const { data: existingJob, error: existingJobError } = await supabase
+      .from("response_engine_jobs")
+      .select("id,status")
+      .eq("request_id", requestId)
+      .eq("organization_id", workspace.organizationId)
+      .order("queued_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingJobError) throw existingJobError;
+    return {
+      queued: true,
+      alreadyQueued: true,
+      jobId: existingJob?.id || null,
+      jobStatus: existingJob?.status || "queued",
+      fileCount: null,
+    };
+  }
+  if (responseRequest.status !== "files_pending") {
+    const error = new Error("This package is already in progress or has already been completed. It cannot be queued again.");
+    error.status = 409;
     throw error;
   }
 
@@ -247,6 +287,13 @@ async function queuePackage(supabase, req) {
     error.status = 400;
     throw error;
   }
+  const needsTemplateFile = (responseRequest.output_options || []).includes("client_template") ||
+    (responseRequest.output_formats || []).includes("uploaded_template");
+  if (needsTemplateFile && !files.some((file) => file.file_role === "client_template")) {
+    const error = new Error("Upload a client template file before requesting template-based formatting.");
+    error.status = 400;
+    throw error;
+  }
 
   const providedContext = normalizeFileContexts(body.fileContexts || body.file_context);
   const contextByPath = new Map(providedContext.map((item) => [item.storagePath, item]));
@@ -263,7 +310,7 @@ async function queuePackage(supabase, req) {
     };
   });
 
-  const { data: job, error: jobError } = await supabase
+  let { data: job, error: jobError } = await supabase
     .from("response_engine_jobs")
     .insert({
       request_id: requestId,
@@ -276,7 +323,20 @@ async function queuePackage(supabase, req) {
     .select("id,status")
     .maybeSingle();
 
-  if (jobError?.code !== "23505" && jobError) throw jobError;
+  if (jobError?.code === "23505") {
+    const { data: existingJob, error: existingJobError } = await supabase
+      .from("response_engine_jobs")
+      .select("id,status")
+      .eq("request_id", requestId)
+      .eq("organization_id", workspace.organizationId)
+      .order("queued_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingJobError) throw existingJobError;
+    job = existingJob || null;
+  } else if (jobError) {
+    throw jobError;
+  }
 
   await Promise.all([
     supabase
@@ -309,6 +369,7 @@ async function queuePackage(supabase, req) {
 async function cancelPackage(supabase, req) {
   const body = parseJsonBody(req);
   const workspace = await getAuthenticatedWorkspace(supabase, req);
+  requirePackageSubmitRole(workspace);
   const requestId = String(body.requestId || body.request_id || "").trim();
   const reason = optionalText(body.reason || body.cancelReason || body.cancel_reason, 1000) || "Package setup did not complete.";
   if (!requestId) {

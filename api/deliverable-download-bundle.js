@@ -140,13 +140,14 @@ function assertFileRelationship(file, version, deliverable) {
   const projectValues = [file.project_id, version.project_id, deliverable.project_id].filter(Boolean);
   const effectiveProjectId = projectValues[0] || null;
   const validProjectRelationship = projectValues.every((projectId) => projectId === effectiveProjectId);
+  const expectedPathPrefix = `clients/${version.organization_id}/deliverables/${version.deliverable_id}/v${version.version_number}/`;
   const valid =
     file.deliverable_id === version.deliverable_id &&
     file.organization_id === version.organization_id &&
     deliverable.organization_id === version.organization_id &&
     validProjectRelationship &&
     (file.storage_bucket || EXPECTED_BUCKET) === EXPECTED_BUCKET &&
-    String(file.storage_path || "").startsWith(`clients/${file.organization_id}/deliverables/${file.deliverable_id}/`) &&
+    String(file.storage_path || "").startsWith(expectedPathPrefix) &&
     !deliverable.archived_at;
   if (!valid) {
     const error = new Error("One or more deliverable files are not available for this workspace.");
@@ -271,6 +272,10 @@ module.exports = async function handler(req, res) {
         return;
       }
     } else {
+      if (requestedOrganizationId && requestedOrganizationId !== deliverable.organization_id) {
+        res.status(403).json({ error: "This deliverable does not belong to the selected client workspace." });
+        return;
+      }
       if (!(await userCanAccessOrganization(supabase, user.id, deliverable.organization_id)) || version.status !== "released") {
         res.status(403).json({ error: "This deliverable is not available for your workspace." });
         return;

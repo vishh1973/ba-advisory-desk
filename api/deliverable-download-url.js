@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
       .select("id,deliverable_version_id,deliverable_id,organization_id,project_id,storage_bucket,storage_path,file_name,file_size_bytes")
       .limit(1);
 
-    query = fileId ? query.eq("id", fileId) : query.eq("deliverable_version_id", versionId);
+    query = fileId ? query.eq("id", fileId) : query.eq("deliverable_version_id", versionId).order("created_at", { ascending: true });
     const { data: fileRows, error: fileError } = await query;
     const file = fileRows?.[0];
 
@@ -78,13 +78,14 @@ module.exports = async function handler(req, res) {
     const projectValues = [file.project_id, version.project_id, deliverable.project_id].filter(Boolean);
     const effectiveProjectId = projectValues[0] || null;
     const validProjectRelationship = projectValues.every((projectId) => projectId === effectiveProjectId);
+    const expectedPathPrefix = `clients/${version.organization_id}/deliverables/${version.deliverable_id}/v${version.version_number}/`;
     const validFileRelationship =
       file.deliverable_id === version.deliverable_id &&
       file.organization_id === version.organization_id &&
       deliverable.organization_id === version.organization_id &&
       validProjectRelationship &&
       (file.storage_bucket || expectedBucket) === expectedBucket &&
-      String(file.storage_path || "").startsWith(`clients/${file.organization_id}/deliverables/${file.deliverable_id}/`);
+      String(file.storage_path || "").startsWith(expectedPathPrefix);
 
     if (!validFileRelationship || deliverable.archived_at) {
       res.status(403).json({ error: "This file is not available for your workspace." });
@@ -111,6 +112,10 @@ module.exports = async function handler(req, res) {
       }
     }
     if (!admin) {
+      if (requestedOrganizationId && requestedOrganizationId !== file.organization_id) {
+        res.status(403).json({ error: "This file does not belong to the selected client workspace." });
+        return;
+      }
       if (!(await userCanAccessOrganization(supabase, user.id, file.organization_id)) || version.status !== "released") {
         res.status(403).json({ error: "This file is not available for your workspace." });
         return;

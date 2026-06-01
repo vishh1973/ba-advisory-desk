@@ -1,6 +1,7 @@
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { recordAuditEvent } = require("./_lib/paymentAndCredit");
 const { MAX_UPLOAD_FILES, removeStorageObjectsQuietly, validateStoredFile } = require("./_lib/fileValidation");
+const { FILE_ROLE_CATALOG } = require("./_lib/responseEngine");
 
 const BUCKET = "client-files";
 
@@ -38,6 +39,15 @@ function hasVerifiedEmail(user) {
   return Boolean(user?.email_confirmed_at || user?.confirmed_at || user?.user_metadata?.email_verified);
 }
 
+function normalizeFileRole(value) {
+  const role = String(value || "other")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return FILE_ROLE_CATALOG[role] ? role : "other";
+}
+
 function normalizeFileRecords(files) {
   return Array.isArray(files)
     ? files.map((file) => ({
@@ -45,23 +55,32 @@ function normalizeFileRecords(files) {
         fileName: String(file.fileName || file.file_name || "").trim(),
         fileSizeBytes: Number(file.fileSizeBytes || file.file_size_bytes || 0),
         contentType: String(file.contentType || file.content_type || "").trim(),
-        fileRole: String(file.fileRole || file.file_role || "other").trim().slice(0, 80),
+        fileRole: normalizeFileRole(file.fileRole || file.file_role || "other"),
         fileDescription: String(file.fileDescription || file.file_description || "").trim().slice(0, 1000),
       }))
     : [];
 }
 
 async function readWorkspaceProfile(supabase, userId, organizationId) {
-  const { data: profile, error } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id,organization_id,work_email")
     .eq("id", userId)
     .maybeSingle();
-  if (error) throw error;
-  if (!profile?.organization_id || profile.organization_id !== organizationId) {
+  if (profileError) throw profileError;
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("client_organization_members")
+    .select("id,organization_id,profile_id,role,status")
+    .eq("profile_id", userId)
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (membershipError) throw membershipError;
+  if (!profile?.id || !membership?.id) {
     return null;
   }
-  return profile;
+  return { ...profile, organization_id: organizationId, membership_role: membership.role };
 }
 
 async function validateProject(supabase, organizationId, projectId) {

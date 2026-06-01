@@ -273,9 +273,9 @@ async function updateByTarget(supabase, target) {
   return { ok: false, status: 400, error: "This queue item type cannot be updated yet." };
 }
 
-async function handleQueueAction(req, res) {
+async function handleQueueAction(req, res, body) {
   const supabase = getSupabaseAdmin();
-  const target = queueTarget(parseBody(req));
+  const target = queueTarget(body);
   const result = await updateByTarget(supabase, target);
   if (!result.ok) {
     res.status(result.status || 400).json({ error: result.error || "Queue item could not be updated." });
@@ -291,8 +291,7 @@ async function handleQueueAction(req, res) {
   res.status(200).json({ ok: true, status: result.status });
 }
 
-async function handleLedgerAction(req, res) {
-  const body = parseBody(req);
+async function handleLedgerAction(req, res, body) {
   const organizationId = body.organizationId;
   const type = body.type;
   const credits = Number(body.credits || 0);
@@ -464,10 +463,10 @@ module.exports = async function handler(req, res) {
     if (req.method === "POST") {
       const body = parseJsonBody(req);
       if (body.organizationId && body.type && ["grant", "reserve", "consume", "release", "adjust"].includes(body.type)) {
-        await handleLedgerAction(req, res);
+        await handleLedgerAction(req, res, body);
         return;
       }
-      await handleQueueAction(req, res);
+      await handleQueueAction(req, res, body);
       return;
     }
 

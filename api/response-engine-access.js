@@ -2,6 +2,7 @@ const { requireAdmin } = require("./_lib/adminAuth");
 const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 const { sendAndRecordEmail } = require("./_lib/paymentAndCredit");
+const { getAuthenticatedUser } = require("./_lib/organizationAccess");
 const {
   RESPONSE_ENGINE_LABEL,
   RESPONSE_ENGINE_SERVICE_KEY,
@@ -223,6 +224,11 @@ async function readAdminPayload(supabase) {
 
 async function handleAdminAction(supabase, req) {
   const body = parseJsonBody(req);
+  const adminUser = await getAuthenticatedUser(supabase, req, {
+    missingTokenMessage: "Please sign in as administrator before managing service-line access.",
+    invalidTokenMessage: "Please sign in again before managing service-line access.",
+    unverifiedMessage: "Please verify the administrator email before managing service-line access.",
+  });
   const action = String(body.action || "").trim().toLowerCase();
   const organizationId = String(body.organizationId || body.organization_id || "").trim();
   const credits = Math.max(0, Number(body.credits || body.pilotCredits || 0));
@@ -289,7 +295,7 @@ async function handleAdminAction(supabase, req) {
         p_related_request_id: null,
         p_source: "admin",
         p_idempotency_key: idempotencyKey,
-        p_actor_id: null,
+        p_actor_id: adminUser.id,
         p_expires_at: body.expiresAt || body.expires_at || null,
       })
       .maybeSingle();
@@ -301,6 +307,7 @@ async function handleAdminAction(supabase, req) {
     .from("audit_events")
     .insert({
       organization_id: organizationId,
+      actor_id: adminUser.id,
       event_type: "response_engine_access_updated",
       related_entity_type: "service_entitlement",
       related_entity_id: entitlement.id,

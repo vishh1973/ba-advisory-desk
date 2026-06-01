@@ -71,22 +71,20 @@ async function getAuthenticatedWorkspace({ supabase, bearerToken, organizationId
     .eq("id", userId)
     .maybeSingle();
 
-  if (profileError || !profile || profile.organization_id !== organizationId) {
-    const access = await getUserOrganizationAccess(supabase, userId);
-    if (!access.organizationIds.has(organizationId)) {
-      return { status: 403, error: "Please complete your client workspace profile or wait for administrator approval before checkout." };
-    }
-    const membership = access.memberships.find((item) => item.organization_id === organizationId) || null;
-    return { user: authResult.user, userId, clientEmail, profile: access.profile || profile, membership };
+  if (profileError) {
+    return { status: 403, error: "Please complete your client workspace profile or wait for administrator approval before checkout." };
   }
 
   const access = await getUserOrganizationAccess(supabase, userId);
   const membership = access.memberships.find((item) => item.organization_id === organizationId) || null;
-  return { user: authResult.user, userId, clientEmail, profile, membership };
+  if (!membership) {
+    return { status: 403, error: "Please complete your client workspace profile or wait for administrator approval before checkout." };
+  }
+  return { user: authResult.user, userId, clientEmail, profile: access.profile || profile, membership };
 }
 
 function canManageBilling(workspace) {
-  const role = String(workspace?.membership?.role || "owner").toLowerCase();
+  const role = String(workspace?.membership?.role || "").toLowerCase();
   return ["owner", "manager", "billing"].includes(role);
 }
 

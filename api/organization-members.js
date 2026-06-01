@@ -112,6 +112,18 @@ async function sendMemberApprovalEmail(supabase, member, organization) {
   });
 }
 
+async function countOtherActiveOwners(supabase, organizationId, memberId) {
+  const { count, error } = await supabase
+    .from("client_organization_members")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .eq("role", "owner")
+    .neq("id", memberId);
+  if (error) throw error;
+  return Number(count || 0);
+}
+
 async function updateMember(supabase, req) {
   const body = parseJsonBody(req);
   const memberId = String(body.memberId || body.member_id || "").trim();
@@ -158,6 +170,15 @@ async function updateMember(supabase, req) {
     if (activeMembershipError) throw activeMembershipError;
     if (activeMembership?.id) {
       const error = new Error("This user already has an active organization workspace. Remove or suspend the other membership before approving a new one.");
+      error.status = 409;
+      throw error;
+    }
+  }
+  const removesActiveOwner = existing.status === "active" && existing.role === "owner" && (status !== "active" || role !== "owner");
+  if (removesActiveOwner) {
+    const otherOwnerCount = await countOtherActiveOwners(supabase, existing.organization_id, existing.id);
+    if (otherOwnerCount < 1) {
+      const error = new Error("Each organization must keep at least one active owner before this member can be demoted, suspended, removed, or rejected.");
       error.status = 409;
       throw error;
     }
