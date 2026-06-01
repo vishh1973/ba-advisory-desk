@@ -10,6 +10,13 @@ const {
   normalizeFileContexts,
   normalizeSelectedKeys,
 } = require("../api/_lib/responseEngine");
+const {
+  REQUIRED_QA_CHECKS,
+  buildJobManifest,
+  buildPrompt,
+  maxResponseEngineSubagents,
+  qaReleaseGateFailures,
+} = require("../scripts/response-engine-worker");
 
 test("Response Engine constants use the production service key", () => {
   assert.equal(RESPONSE_ENGINE_SERVICE_KEY, "procurement_response_engine");
@@ -71,4 +78,95 @@ test("Response Engine file context is normalized and capped", () => {
   assert.equal(contexts[0].role, "candidate_resume");
   assert.equal(contexts[0].description.length, 1000);
   assert.equal(contexts[1].role, "other");
+});
+
+test("Response Engine worker caps dynamic subagents at six", () => {
+  const originalMax = process.env.RESPONSE_ENGINE_MAX_SUBAGENTS;
+  process.env.RESPONSE_ENGINE_MAX_SUBAGENTS = "12";
+  try {
+    assert.equal(maxResponseEngineSubagents(), 6);
+    const manifest = buildJobManifest(
+      {
+        id: "job-1",
+        request_id: "request-1",
+        organization_id: "org-1",
+        project_id: "project-1",
+        response_engine_requests: {
+          package_title: "Candidate package",
+          output_options: ["polished_resume"],
+          output_formats: ["docx"],
+          credit_cost: 1,
+          requests: { request_code: "REQ-1" },
+        },
+        client_organizations: { name: "Pilot Firm" },
+      },
+      []
+    );
+    assert.equal(manifest.orchestrationPolicy.maxSubagents, 6);
+    assert.equal(manifest.orchestrationPolicy.dynamicSubagentsRequired, true);
+    assert.equal(manifest.qualityControls.releaseThreshold, 8.5);
+  } finally {
+    if (originalMax === undefined) delete process.env.RESPONSE_ENGINE_MAX_SUBAGENTS;
+    else process.env.RESPONSE_ENGINE_MAX_SUBAGENTS = originalMax;
+  }
+});
+
+test("Response Engine worker prompt requires subagent orchestration and factual QA", async () => {
+  const manifest = buildJobManifest(
+    {
+      id: "job-2",
+      request_id: "request-2",
+      organization_id: "org-2",
+      project_id: "project-2",
+      response_engine_requests: {
+        package_title: "Candidate package",
+        output_options: ["polished_resume", "mandatory_matrix"],
+        output_formats: ["docx", "xlsx"],
+        credit_cost: 3,
+        requests: { request_code: "REQ-2" },
+      },
+      client_organizations: { name: "Pilot Firm" },
+    },
+    []
+  );
+  const prompt = await buildPrompt("/tmp/response-engine-job", manifest);
+  assert.match(prompt, /Use up to 6 specialist subagents/);
+  assert.match(prompt, /criteria, SOW, and skills matrix keywords/i);
+  assert.match(prompt, /factual grounding, keyword coverage, natural language/i);
+});
+
+test("Response Engine release gate requires factual grounding and keyword QA", () => {
+  const passingQualityChecks = Object.fromEntries(REQUIRED_QA_CHECKS.map((check) => [check, true]));
+  const passingQa = {
+    score: 9.1,
+    hardGateFailures: [],
+    qualityChecks: passingQualityChecks,
+    subagentUsage: {
+      mode: "multi_agent",
+      maxAllowed: 6,
+      subagentsUsed: 4,
+      roles: ["source-evidence", "criteria-mapping", "resume-drafting", "release-qa"],
+    },
+    factualGrounding: {
+      allClientClaimsSupported: true,
+      noUnsupportedClaims: true,
+    },
+    keywordCoverage: {
+      mandatoryAndRatedKeywordsCovered: true,
+      criteriaKeywordsUsedNaturally: true,
+    },
+    industryTerminology: {
+      terminologySubstantiated: true,
+    },
+  };
+  assert.deepEqual(qaReleaseGateFailures(passingQa), []);
+
+  const failingQa = {
+    ...passingQa,
+    keywordCoverage: {
+      mandatoryAndRatedKeywordsCovered: false,
+      criteriaKeywordsUsedNaturally: false,
+    },
+  };
+  assert.ok(qaReleaseGateFailures(failingQa).some((failure) => failure.includes("keyword")));
 });

@@ -194,6 +194,14 @@ The default job root is:
 /var/lib/codex-telegram-agent/automations/baad-response-engine/jobs
 ```
 
+The worker adds an internal orchestration policy to each job. The default maximum is six specialist subagents:
+
+```text
+RESPONSE_ENGINE_MAX_SUBAGENTS=6
+```
+
+The Codex bot should use fewer subagents for simple packages and more for complex packages. If subagent tools are unavailable, it must run the same specialist workstreams sequentially and record that fallback in the internal QA report only.
+
 The timer should be enabled and active:
 
 ```text

@@ -15,6 +15,7 @@ Environment=CODEX_BIN=/home/codexbot/.local/bin/codex
 Environment=RESPONSE_ENGINE_CODEX_ENABLED=true
 Environment=RESPONSE_ENGINE_OPENAI_API_ENABLED=false
 Environment=OPENAI_API_FALLBACK_ENABLED=false
+Environment=RESPONSE_ENGINE_MAX_SUBAGENTS=6
 Environment=RESPONSE_ENGINE_JOB_ROOT=/var/lib/codex-telegram-agent/automations/baad-response-engine/jobs
 ExecStart=/home/codexbot/.local/node-v22.22.3/bin/node scripts/response-engine-worker.js --limit=1
 NoNewPrivileges=true

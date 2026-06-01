@@ -14,6 +14,44 @@ const SKILL_PATH = path.join(APP_ROOT, "automations", "response-engine", "SKILL.
 const DEFAULT_ENV_FILE = "/home/codexbot/.codex/project-env/ba-advisory-desk.env";
 const DEFAULT_JOB_ROOT = "/var/lib/codex-telegram-agent/automations/baad-response-engine/jobs";
 const QA_RELEASE_THRESHOLD = 8.5;
+const DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS = 6;
+const REQUIRED_QA_CHECKS = Object.freeze([
+  "sourceReviewComplete",
+  "evidenceTraceability",
+  "mandatoryCriteriaIntegrity",
+  "ratedCriteriaCoverage",
+  "keywordCoverage",
+  "industryTerminology",
+  "naturalLanguageQuality",
+  "formatAndTraceCleanup",
+  "independentFinalQA",
+]);
+const ORCHESTRATION_ROLES = Object.freeze([
+  {
+    role: "intake-and-source-evidence",
+    purpose: "Inventory uploaded files, extract authoritative facts, and identify source priority.",
+  },
+  {
+    role: "mandatory-criteria-mapping",
+    purpose: "Map every mandatory requirement to exact evidence and mark unsupported gaps.",
+  },
+  {
+    role: "rated-criteria-scoring",
+    purpose: "Map scored criteria, point logic, examples, and scoring language to candidate evidence.",
+  },
+  {
+    role: "resume-and-profile-drafting",
+    purpose: "Draft natural candidate resume content using supported evidence and required keywords.",
+  },
+  {
+    role: "keyword-and-terminology",
+    purpose: "Check criteria keywords, SOW wording, skills matrix terms, and substantiated industry terminology.",
+  },
+  {
+    role: "independent-release-qa",
+    purpose: "Run final factual, formatting, trace cleanup, and release gate checks.",
+  },
+]);
 const ALLOWED_OUTPUT_EXTENSIONS = new Set(["docx", "xlsx", "pdf", "pptx"]);
 const OUTPUT_CONTENT_TYPES = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -95,6 +133,12 @@ function splitArgs(value) {
   if (!text) return [];
   const matches = text.match(/"[^"]*"|'[^']*'|\S+/g) || [];
   return matches.map((item) => item.replace(/^["']|["']$/g, ""));
+}
+
+function maxResponseEngineSubagents() {
+  const configured = Number(process.env.RESPONSE_ENGINE_MAX_SUBAGENTS || DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS);
+  if (!Number.isFinite(configured)) return DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS;
+  return Math.min(DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS, Math.max(0, Math.floor(configured)));
 }
 
 async function writeJson(filePath, value) {
@@ -228,6 +272,21 @@ function buildJobManifest(job, files) {
     provider: "codex_cli",
     providerMode: "pilot_subscription",
     openAiApiFallbackEnabled: process.env.RESPONSE_ENGINE_OPENAI_API_ENABLED === "true" && process.env.OPENAI_API_FALLBACK_ENABLED === "true",
+    orchestrationPolicy: {
+      maxSubagents: maxResponseEngineSubagents(),
+      dynamicSubagentsRequired: true,
+      useFewerSubagentsWhenSimple: true,
+      fallbackIfSubagentsUnavailable: "Run the same specialist workstreams sequentially and record the fallback only in qa-report.json.",
+      roles: ORCHESTRATION_ROLES,
+    },
+    qualityControls: {
+      releaseThreshold: QA_RELEASE_THRESHOLD,
+      requiredQaChecks: REQUIRED_QA_CHECKS,
+      factualGroundingRequired: true,
+      naturalKeywordUsageRequired: true,
+      substantiatedIndustryTerminologyRequired: true,
+      unsupportedClaimsAllowed: false,
+    },
     files: files.map((file) => ({
       fileId: file.id,
       fileName: file.file_name,
@@ -262,6 +321,23 @@ async function buildPrompt(jobDir, manifest) {
     "- If a claim is unsupported, mark it as a gap instead of inventing evidence.",
     "- If a mandatory criterion is not supported, do not mark it as met.",
     "- Create Word, Excel, PowerPoint, or PDF files only. Do not create ZIP files.",
+    "",
+    "Agent orchestration rules:",
+    `- Use up to ${manifest.orchestrationPolicy?.maxSubagents ?? DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS} specialist subagents when the Codex environment makes subagents available.`,
+    "- Dynamically choose the number of subagents based on file count, criteria complexity, requested outputs, and turnaround needs.",
+    "- Use fewer subagents for simple packages, but use separate specialist workstreams for complex packages.",
+    "- Suggested workstreams are source evidence, mandatory mapping, rated scoring, resume drafting, keyword and terminology review, and independent release QA.",
+    "- If subagent tools are unavailable, run the same specialist workstreams sequentially before release.",
+    "- Record the orchestration mode, subagent count, role coverage, and any fallback reason only in manifest/qa-report.json.",
+    "- Do not mention subagents, tools, prompts, or internal QA in client deliverables.",
+    "",
+    "Quality rules:",
+    "- Every client-facing claim must trace back to the uploaded files or intake metadata.",
+    "- Every mandatory and rated criterion must be mapped to source evidence or marked as a gap.",
+    "- Criteria, SOW, and skills matrix keywords must be used in natural English only where evidence supports them.",
+    "- Industry terminology may be added only when it is substantiated by the role, project, documents, or requirement wording.",
+    "- Run an independent final QA pass against factual grounding, keyword coverage, natural language, file formatting, and trace cleanup.",
+    "- The qa-report.json must include qualityChecks, subagentUsage, factualGrounding, keywordCoverage, and industryTerminology sections.",
     "",
   ].join("\n");
 }
@@ -361,10 +437,72 @@ function validateManifestFiles(jobDir, manifest) {
   });
 }
 
-function qaCleared(qa) {
+function qaCheckPassed(value) {
+  if (value === true) return true;
+  if (typeof value === "string") {
+    return ["pass", "passed", "clear", "cleared", "complete", "completed", "yes"].includes(value.trim().toLowerCase());
+  }
+  if (value && typeof value === "object") {
+    if (value.passed === true || value.complete === true || value.cleared === true) return true;
+    if (typeof value.status === "string") return qaCheckPassed(value.status);
+  }
+  return false;
+}
+
+function qaReleaseGateFailures(qa) {
+  const failures = [];
   const score = Number(qa?.score || 0);
   const hardGateFailures = Array.isArray(qa?.hardGateFailures) ? qa.hardGateFailures.filter(Boolean) : [];
-  return score >= QA_RELEASE_THRESHOLD && hardGateFailures.length === 0;
+  if (score < QA_RELEASE_THRESHOLD) failures.push(`QA score ${score || 0} is below the ${QA_RELEASE_THRESHOLD} release threshold.`);
+  failures.push(...hardGateFailures.map((failure) => String(failure).slice(0, 300)));
+
+  const qualityChecks = qa?.qualityChecks || qa?.requiredGateResults || {};
+  for (const check of REQUIRED_QA_CHECKS) {
+    if (!qaCheckPassed(qualityChecks[check])) {
+      failures.push(`Required QA check is missing or not passed: ${check}.`);
+    }
+  }
+
+  const subagentUsage = qa?.subagentUsage || {};
+  const subagentsUsed = Number(subagentUsage.subagentsUsed ?? subagentUsage.count ?? 0);
+  const mode = String(subagentUsage.mode || "").trim();
+  if (!mode) failures.push("Subagent orchestration record is missing.");
+  if (!Number.isFinite(subagentsUsed) || subagentsUsed < 0 || subagentsUsed > maxResponseEngineSubagents()) {
+    failures.push("Subagent count is missing or exceeds the allowed maximum.");
+  }
+  if (subagentsUsed === 0 && !String(subagentUsage.fallbackReason || "").trim()) {
+    failures.push("Single-agent fallback reason is missing.");
+  }
+  if (subagentsUsed > 0 && (!Array.isArray(subagentUsage.roles) || subagentUsage.roles.length === 0)) {
+    failures.push("Subagent role coverage is missing.");
+  }
+
+  const factualGrounding = qa?.factualGrounding || {};
+  if (!qaCheckPassed(factualGrounding.allClientClaimsSupported)) {
+    failures.push("Factual grounding check did not confirm all client-facing claims are supported.");
+  }
+  if (!qaCheckPassed(factualGrounding.noUnsupportedClaims)) {
+    failures.push("Unsupported-claim check did not pass.");
+  }
+
+  const keywordCoverage = qa?.keywordCoverage || {};
+  if (!qaCheckPassed(keywordCoverage.mandatoryAndRatedKeywordsCovered)) {
+    failures.push("Mandatory and rated criteria keyword coverage is missing or incomplete.");
+  }
+  if (!qaCheckPassed(keywordCoverage.criteriaKeywordsUsedNaturally)) {
+    failures.push("Natural keyword usage check did not pass.");
+  }
+
+  const industryTerminology = qa?.industryTerminology || {};
+  if (!qaCheckPassed(industryTerminology.terminologySubstantiated)) {
+    failures.push("Industry terminology check did not confirm terminology is substantiated by the source package.");
+  }
+
+  return [...new Set(failures.filter(Boolean))];
+}
+
+function qaCleared(qa) {
+  return qaReleaseGateFailures(qa).length === 0;
 }
 
 async function releaseReservedCredits(supabase, job, reason) {
@@ -652,6 +790,11 @@ async function processJob(supabase, job) {
   await runCodex(jobDir, prompt);
   const { manifest, qa } = await collectOutputManifest(jobDir);
   const status = normalizeStatusValue(manifest.status || "ready");
+  const gateFailures = qaReleaseGateFailures(qa);
+  if (gateFailures.length) {
+    qa.hardGateFailures = [...new Set([...(Array.isArray(qa.hardGateFailures) ? qa.hardGateFailures : []), ...gateFailures])];
+    qa.summary = qa.summary || "The package did not clear the automated release quality gate.";
+  }
   if (status === "needs_more_information" || !qaCleared(qa)) {
     await markNeedsMoreInformation(supabase, job, manifest, qa);
     return { status: "needs_more_information" };
@@ -694,7 +837,21 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`[response-engine-worker] fatal ${error.message}\n`);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    process.stderr.write(`[response-engine-worker] fatal ${error.message}\n`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS,
+  ORCHESTRATION_ROLES,
+  REQUIRED_QA_CHECKS,
+  buildJobManifest,
+  buildPrompt,
+  maxResponseEngineSubagents,
+  qaCheckPassed,
+  qaCleared,
+  qaReleaseGateFailures,
+};

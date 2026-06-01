@@ -60,6 +60,58 @@ Create the requested outputs where selected:
 
 Preferred file formats are selected by the client. Create Word for narrative outputs and Excel for grids unless the uploaded template clearly requires another format. Create PDF copies only when requested and tooling supports it.
 
+## Agent Orchestration
+
+Use a multi-agent work model for every package when the Codex environment supports it.
+
+Maximum subagents: 6.
+
+Use subagents dynamically. Do not launch all six by default if the package is simple. Use more subagents when the package has several source files, multiple criteria grids, complex rated scoring, or several requested outputs.
+
+Suggested specialist roles:
+
+1. Intake and source evidence analyst.
+2. Mandatory criteria mapper.
+3. Rated criteria scoring mapper.
+4. Resume and profile drafting specialist.
+5. Keyword and industry terminology reviewer.
+6. Independent release QA reviewer.
+
+If subagent tools are not available, run the same six workstreams sequentially yourself. This is an internal fallback only. Do not mention it in client deliverables.
+
+Create or update `manifest/agent-plan.json` with:
+
+- orchestration mode used.
+- subagents used.
+- roles assigned.
+- source files reviewed by each role.
+- key risks or conflicts found.
+- final reconciliation decision.
+
+## Evidence, Keywords, And Terminology
+
+Every output must be rooted in the uploaded documents and intake metadata.
+
+For each requested package:
+
+1. Extract authoritative facts from each uploaded source file.
+2. Separate hard evidence from client descriptions and assumptions.
+3. Build a private evidence map before drafting.
+4. Extract mandatory criteria, rated criteria, SOW wording, skills matrix terms, and evaluation keywords.
+5. Use required keywords in natural English where the candidate evidence supports them.
+6. Add industry terminology only when it is substantiated by the source documents, the role, the project context, or the criteria.
+7. Keep weak or unsupported claims in the gap note, not in the resume or response grid.
+
+Keyword use must be natural. Do not stuff repeated terms into bullets. The final language should read like a polished professional submission, not a checklist pasted into prose.
+
+When drafting resume bullets:
+
+- Start from the candidate evidence.
+- Add criteria language where it fits the evidence.
+- Use the original mandatory, rated, SOW, and skills matrix wording when it improves alignment.
+- Keep every project statement defensible.
+- Prefer concrete deliverables, methods, systems, stakeholders, and outcomes found in the uploaded files.
+
 ## Quality Gate
 
 Score the final package out of 10 before release.
@@ -85,8 +137,21 @@ Hard fail if any item is true:
 - Invented date, credential, client, contract, clearance, employer, or project.
 - Internal prompt, model, tool, automation trace, or QA note appears in a client file.
 - Required output file cannot open or is missing.
+- Criteria, SOW, or skills matrix keywords were ignored when they were required and supported by evidence.
+- Industry terminology was used without source support or clear fit to the role and project evidence.
 
 If score is below 8.5, revise up to two times. If it still cannot clear the gate, create a gap-focused package and set status to needs more information.
+
+The final QA pass must confirm:
+
+- All uploaded source files were reviewed.
+- Every client-facing claim is supported.
+- Every mandatory criterion is mapped or listed as a gap.
+- Rated criteria and scoring language are reflected where supported.
+- Required keywords are covered in natural language.
+- Industry terminology is substantiated.
+- Final files open and match requested formats.
+- No internal prompt, tool, model, subagent, or QA wording appears in client deliverables.
 
 ## Required Output Manifest
 
@@ -115,6 +180,38 @@ Create `manifest/qa-report.json`:
   "score": 8.7,
   "hardGateFailures": [],
   "summary": "Client-safe QA summary.",
+  "qualityChecks": {
+    "sourceReviewComplete": true,
+    "evidenceTraceability": true,
+    "mandatoryCriteriaIntegrity": true,
+    "ratedCriteriaCoverage": true,
+    "keywordCoverage": true,
+    "industryTerminology": true,
+    "naturalLanguageQuality": true,
+    "formatAndTraceCleanup": true,
+    "independentFinalQA": true
+  },
+  "subagentUsage": {
+    "mode": "multi_agent",
+    "maxAllowed": 6,
+    "subagentsUsed": 4,
+    "roles": ["intake-and-source-evidence", "mandatory-criteria-mapping", "rated-criteria-scoring", "independent-release-qa"],
+    "fallbackReason": ""
+  },
+  "factualGrounding": {
+    "allClientClaimsSupported": true,
+    "noUnsupportedClaims": true,
+    "evidenceMapReviewed": true
+  },
+  "keywordCoverage": {
+    "mandatoryAndRatedKeywordsCovered": true,
+    "criteriaKeywordsUsedNaturally": true,
+    "missingSupportedKeywords": []
+  },
+  "industryTerminology": {
+    "terminologySubstantiated": true,
+    "unsupportedTermsRemoved": true
+  },
   "coverageNotes": ["Short note"],
   "gapNotes": ["Short note"]
 }
