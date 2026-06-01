@@ -8659,8 +8659,8 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
             setInlineStatus("#profileStatus", message, "success");
             showPersistentNotice(message);
           } else {
-            setInlineStatus("#profileStatus", accessResult.error || "Profile saved. Response Automation access request could not be sent yet.", "warning");
-            showPersistentNotice(accessResult.error || "Profile saved. Response Automation access request could not be sent yet.");
+            setInlineStatus("#profileStatus", accessResult.error || "Profile saved. Bid/Proposal Automation access request could not be sent yet.", "warning");
+            showPersistentNotice(accessResult.error || "Profile saved. Bid/Proposal Automation access request could not be sent yet.");
           }
           return;
         }
