@@ -1,8 +1,8 @@
 const RESPONSE_ENGINE_SERVICE_KEY = "procurement_response_engine";
-const RESPONSE_ENGINE_LABEL = "Bid & Proposal Response Automation";
-const RESPONSE_ENGINE_DASHBOARD_LABEL = "Response Engine";
+const RESPONSE_ENGINE_LABEL = "Bid/Proposal Automation";
+const RESPONSE_ENGINE_DASHBOARD_LABEL = "Bid/Proposal Automation";
 const RESPONSE_ENGINE_REQUEST_TYPE = "Candidate Submission Package";
-const RESPONSE_ENGINE_PROJECT_NAME = "Response Engine";
+const RESPONSE_ENGINE_PROJECT_NAME = "Bid/Proposal Automation";
 const RESPONSE_ENGINE_PROJECT_CODE = "RSP";
 const RESPONSE_ENGINE_MAX_FILE_DESCRIPTION = 1000;
 const RESPONSE_ENGINE_RECOMMENDED_FILE_DESCRIPTION = 500;
@@ -130,10 +130,10 @@ function normalizeFileContexts(value) {
 
 async function getAuthenticatedWorkspace(supabase, req) {
   return getAuthenticatedOrganizationWorkspace(supabase, req, {
-    missingTokenMessage: "Please sign in before using the Response Engine.",
-    invalidTokenMessage: "Please sign in again before using the Response Engine.",
-    unverifiedMessage: "Please verify your email before using the Response Engine.",
-    missingWorkspaceMessage: "Please complete your client profile or wait for administrator approval before using the Response Engine.",
+    missingTokenMessage: `Please sign in before using ${RESPONSE_ENGINE_DASHBOARD_LABEL}.`,
+    invalidTokenMessage: `Please sign in again before using ${RESPONSE_ENGINE_DASHBOARD_LABEL}.`,
+    unverifiedMessage: `Please verify your email before using ${RESPONSE_ENGINE_DASHBOARD_LABEL}.`,
+    missingWorkspaceMessage: `Please complete your client profile or wait for administrator approval before using ${RESPONSE_ENGINE_DASHBOARD_LABEL}.`,
   });
 }
 
@@ -151,7 +151,7 @@ async function readResponseEntitlement(supabase, organizationId) {
 async function requireApprovedResponseEngine(supabase, organizationId) {
   const entitlement = await readResponseEntitlement(supabase, organizationId);
   if (!entitlement || entitlement.status !== "approved") {
-    const error = new Error("Response Engine access is pending approval.");
+    const error = new Error(`${RESPONSE_ENGINE_DASHBOARD_LABEL} access is pending approval.`);
     error.status = 403;
     error.entitlement = entitlement;
     throw error;
@@ -192,7 +192,7 @@ async function ensureResponseEngineProject(supabase, organizationId, actorId) {
       organization_id: organizationId,
       name: RESPONSE_ENGINE_PROJECT_NAME,
       project_code: RESPONSE_ENGINE_PROJECT_CODE,
-      description: "Controlled workspace for bid, proposal, and candidate submission automation.",
+      description: "Private workspace for bid, proposal, and candidate submission automation.",
       status: "active",
       is_default: false,
       created_by: actorId || null,
@@ -203,7 +203,7 @@ async function ensureResponseEngineProject(supabase, organizationId, actorId) {
   return data;
 }
 
-function responseEngineError(res, error, fallback = "Response Engine request could not be completed.") {
+function responseEngineError(res, error, fallback = `${RESPONSE_ENGINE_DASHBOARD_LABEL} request could not be completed.`) {
   res.status(error.status || 500).json({ error: error.message || fallback });
 }
 

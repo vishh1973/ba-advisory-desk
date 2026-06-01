@@ -1,16 +1,16 @@
-# Response Engine Automation Skill
+# Bid/Proposal Automation Skill
 
 ## Purpose
 
-Use this skill for BA Advisory Desk Response Engine packages submitted by recruiting firms.
+Use this skill for BA Advisory Desk Bid/Proposal Automation packages submitted by recruiting firms.
 
 The engine prepares candidate submission materials from client uploaded source files. The client is the recruiting firm. The downstream end client is outside this workflow.
 
 ## Service Name
 
-Public name: Bid & Proposal Response Automation
+Public name: Bid/Proposal Automation
 
-Dashboard name: Response Engine
+Dashboard name: Bid/Proposal Automation
 
 Backend key: procurement_response_engine
 

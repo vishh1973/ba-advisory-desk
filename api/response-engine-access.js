@@ -28,12 +28,14 @@ function adminNotificationEmail() {
   return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
 }
 
+const RESPONSE_CREDIT_LABEL = "Bid/Proposal Automation credit";
+
 async function sendApprovalEmail(supabase, organization, credits) {
   if (!organization?.billing_email) return { skipped: true, reason: "No billing email." };
   const workspaceUrl = `${publicBaseUrl()}/#response-engine`;
   const creditText = credits > 0
-    ? `${credits} Response Engine credit${credits === 1 ? "" : "s"} have been added to your workspace.`
-    : "Your Response Engine workspace is now available.";
+    ? `${credits} ${RESPONSE_CREDIT_LABEL}${credits === 1 ? "" : "s"} have been added to your workspace.`
+    : `Your ${RESPONSE_ENGINE_LABEL} workspace is now available.`;
   const subject = `${RESPONSE_ENGINE_LABEL} access approved`;
   const body = `Your BA Advisory Desk ${RESPONSE_ENGINE_LABEL} access is approved. ${creditText} Sign in to submit candidate packages.`;
   const html = `
@@ -41,7 +43,7 @@ async function sendApprovalEmail(supabase, organization, credits) {
       <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">${escapeHtml(RESPONSE_ENGINE_LABEL)} access approved</h1>
       <p style="margin:0 0 14px;">Your BA Advisory Desk ${escapeHtml(RESPONSE_ENGINE_LABEL)} access is approved.</p>
       <p style="margin:0 0 14px;">${escapeHtml(creditText)}</p>
-      <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open Response Engine</a></p>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open ${escapeHtml(RESPONSE_ENGINE_LABEL)}</a></p>
       <p style="margin:24px 0 0;color:#5c6670;font-size:13px;">BA Advisory Desk</p>
     </div>
   `;
@@ -76,7 +78,7 @@ async function sendAccessRequestEmail(supabase, { entitlement, organization, pro
   const html = `
     <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:680px;">
       <h1 style="font-size:20px;line-height:1.3;margin:0 0 14px;">${escapeHtml(RESPONSE_ENGINE_LABEL)} access request</h1>
-      <p style="margin:0 0 14px;">A client firm requested access to the Response Engine service line.</p>
+      <p style="margin:0 0 14px;">A client firm requested access to the ${escapeHtml(RESPONSE_ENGINE_LABEL)} service line.</p>
       <table style="border-collapse:collapse;width:100%;margin:14px 0;">
         <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Firm</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(orgName)}</td></tr>
         <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Requester</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(requester)}</td></tr>
@@ -283,7 +285,7 @@ async function handleAdminAction(supabase, req) {
         p_organization_id: organizationId,
         p_entry_type: "grant",
         p_credits: creditGrant,
-        p_entry_reason: "Response Engine credit grant",
+        p_entry_reason: `${RESPONSE_ENGINE_LABEL} credit grant`,
         p_related_request_id: null,
         p_source: "admin",
         p_idempotency_key: idempotencyKey,
@@ -356,6 +358,6 @@ module.exports = async function handler(req, res) {
       res.status(400).json({ error: error.message });
       return;
     }
-    responseEngineError(res, error, "Response Engine access could not be updated.");
+    responseEngineError(res, error, `${RESPONSE_ENGINE_LABEL} access could not be updated.`);
   }
 };

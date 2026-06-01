@@ -45,8 +45,9 @@ const remotePageSizes = {
 };
 
 const RESPONSE_ENGINE_SERVICE_KEY = "procurement_response_engine";
-const RESPONSE_ENGINE_PUBLIC_LABEL = "Bid & Proposal Response Automation";
-const RESPONSE_ENGINE_DASHBOARD_LABEL = "Response Engine";
+const RESPONSE_ENGINE_PUBLIC_LABEL = "Bid/Proposal Automation";
+const RESPONSE_ENGINE_DASHBOARD_LABEL = "Bid/Proposal Automation";
+const RESPONSE_ENGINE_CREDIT_LABEL = "Bid/Proposal Automation credit";
 const SERVICE_INTEREST_RESPONSE_ENGINE = "response_engine";
 const SERVICE_INTEREST_STORAGE_KEY = "baad-service-interest";
 const WORKSPACE_MODE_STORAGE_KEY = "baad-workspace-mode";
@@ -2114,7 +2115,7 @@ function updateResponseCreditEstimate() {
   const credits = calculateResponseEngineCredits();
   const estimate = document.querySelector("#responseCreditEstimate");
   if (estimate) {
-    estimate.textContent = `Selected package estimate: ${credits} Response Engine credit${credits === 1 ? "" : "s"}.`;
+    estimate.textContent = `Selected package estimate: ${credits} ${RESPONSE_ENGINE_CREDIT_LABEL}${credits === 1 ? "" : "s"}.`;
   }
 }
 
@@ -2142,7 +2143,7 @@ function renderResponseFileContextRows(files) {
         </label>
         <label>
           File context
-          <textarea data-response-file-description rows="2" maxlength="1000" placeholder="Describe this file in 500 characters where possible. This context helps the automation engine understand the source."></textarea>
+          <textarea data-response-file-description rows="2" maxlength="1000" placeholder="Describe this file in 500 characters where possible. This context helps the review workflow apply the right source details."></textarea>
         </label>
       </div>
     `;
@@ -2153,7 +2154,7 @@ async function loadResponseEngineStatus() {
   if (!state.session?.user || !isEmailVerified()) return;
   const result = await fetchClientApi("/api/response-engine-access", { timeoutMs: 20000 });
   if (!result.ok) {
-    state.responseEngine.loadIssue = result.error || "Response Engine status could not be loaded.";
+    state.responseEngine.loadIssue = result.error || `${RESPONSE_ENGINE_DASHBOARD_LABEL} status could not be loaded.`;
     return;
   }
   state.responseEngine.entitlement = result.data.entitlement || { status: "not_requested", service_key: RESPONSE_ENGINE_SERVICE_KEY };
@@ -2208,7 +2209,7 @@ async function loadAdminResponseEngineStatus() {
   if (!state.adminAccess) return;
   const result = await fetchAdminApi("/api/response-engine-access", { timeoutMs: 20000 });
   if (!result.ok) {
-    state.responseEngine.loadIssue = result.error || "Response Engine admin status could not be loaded.";
+    state.responseEngine.loadIssue = result.error || `${RESPONSE_ENGINE_DASHBOARD_LABEL} admin status could not be loaded.`;
     return;
   }
   state.responseEngine.adminEntitlements = result.data.entitlements || [];
@@ -2229,7 +2230,7 @@ function getResponseEngineAccessCopy() {
       showForm: true,
       showAccessPanel: false,
       cta: "Submit Package",
-      dashboardBody: `${available} Response Engine credit${available === 1 ? "" : "s"} available.`,
+      dashboardBody: `${available} ${RESPONSE_ENGINE_CREDIT_LABEL}${available === 1 ? "" : "s"} available.`,
     };
   }
   if (status === "pending") {
@@ -2240,29 +2241,29 @@ function getResponseEngineAccessCopy() {
       showForm: false,
       showAccessPanel: false,
       cta: "Access Pending",
-      dashboardBody: "Your Response Engine request is pending approval.",
+      dashboardBody: `Your ${RESPONSE_ENGINE_DASHBOARD_LABEL} request is pending approval.`,
     };
   }
   if (status === "suspended") {
     return {
       title: "Access paused",
-      body: `Response Engine access is paused for this workspace. Contact ${config.supportEmail} if this looks incorrect.`,
+      body: `${RESPONSE_ENGINE_DASHBOARD_LABEL} access is paused for this workspace. Contact ${config.supportEmail} if this looks incorrect.`,
       level: "warning",
       showForm: false,
       showAccessPanel: false,
       cta: "Access Paused",
-      dashboardBody: "Response Engine access is paused.",
+      dashboardBody: `${RESPONSE_ENGINE_DASHBOARD_LABEL} access is paused.`,
     };
   }
   if (status === "rejected") {
     return {
       title: "Access unavailable",
-      body: `Response Engine access is not available for this workspace. Contact ${config.supportEmail} if you need a review.`,
+      body: `${RESPONSE_ENGINE_DASHBOARD_LABEL} access is not available for this workspace. Contact ${config.supportEmail} if you need a review.`,
       level: "warning",
       showForm: false,
       showAccessPanel: false,
       cta: "Request Review",
-      dashboardBody: "Response Engine access is not available yet.",
+      dashboardBody: `${RESPONSE_ENGINE_DASHBOARD_LABEL} access is not available yet.`,
     };
   }
   return {
@@ -2307,7 +2308,7 @@ function renderResponseEnginePackages() {
   if (!packages.length) {
     list.innerHTML = `
       <article class="deliverable-item">
-        <h4>No Response Engine packages yet</h4>
+        <h4>No ${escapeHtml(RESPONSE_ENGINE_DASHBOARD_LABEL)} packages yet</h4>
         <p>Approved firms can submit a candidate package after access is granted.</p>
       </article>
     `;
@@ -2371,7 +2372,7 @@ function renderResponseEngine() {
   if (accessTitle) accessTitle.textContent = copy.title;
   if (accessBody) accessBody.textContent = state.responseEngine.loadIssue || copy.body;
   if (creditSummary) {
-    creditSummary.textContent = `${available} available | ${reserved} reserved | ${total} total Response Engine credit${total === 1 ? "" : "s"}.`;
+    creditSummary.textContent = `${available} available | ${reserved} reserved | ${total} total ${RESPONSE_ENGINE_CREDIT_LABEL}${total === 1 ? "" : "s"}.`;
   }
   if (accessCard) {
     accessCard.classList.toggle("success", copy.level === "success");
@@ -2402,7 +2403,7 @@ function renderAdminResponseEngine() {
       const label = `${org.name || "Client organization"} | ${item.status || "pending"}`;
       return `<option value="${escapeHtml(item.organization_id)}">${escapeHtml(label)}</option>`;
     }).join("");
-    orgSelect.innerHTML = options || `<option value="">No Response Engine firms yet</option>`;
+    orgSelect.innerHTML = options || `<option value="">No ${escapeHtml(RESPONSE_ENGINE_DASHBOARD_LABEL)} firms yet</option>`;
   }
 
   if (entitlementList) {
@@ -2419,7 +2420,7 @@ function renderAdminResponseEngine() {
           </article>
         `;
       }).join("")
-      : `<article><strong>No Response Engine access requests yet</strong><span>Approved firms will appear here.</span></article>`;
+      : `<article><strong>No ${escapeHtml(RESPONSE_ENGINE_DASHBOARD_LABEL)} access requests yet</strong><span>Approved firms will appear here.</span></article>`;
   }
 
   if (memberList) {
@@ -2457,7 +2458,7 @@ function renderAdminResponseEngine() {
           </article>
         `;
       }).join("")
-      : `<article><strong>No automated jobs yet</strong><span>Queued Response Engine packages will appear here.</span></article>`;
+      : `<article><strong>No automated jobs yet</strong><span>Queued ${escapeHtml(RESPONSE_ENGINE_DASHBOARD_LABEL)} packages will appear here.</span></article>`;
   }
 }
 
@@ -4367,7 +4368,7 @@ async function uploadAdminDeliverable() {
 
   const fileRecords = [];
 
-  setAdminReleaseStatus("Creating the controlled client release record.");
+  setAdminReleaseStatus("Creating the protected client release record.");
   const prepareTimeoutMs = getUploadOperationTimeoutMs(files, 45000, 240000);
   const prepareResult = await withClientTimeout(
     fetchAdminApi("/api/deliverable-ready-notification", {
@@ -8026,7 +8027,7 @@ document.addEventListener("click", async (event) => {
 
   if (target.dataset.responseEngineAction !== "request-access" || target.dataset.busy === "true") return;
   setButtonBusy(target, true, "Requesting Access");
-  setInlineStatus("#responseEngineAccessStatus", "Sending your Response Engine access request.");
+  setInlineStatus("#responseEngineAccessStatus", `Sending your ${RESPONSE_ENGINE_DASHBOARD_LABEL} access request.`);
   try {
     if (!state.session?.user) {
       setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
@@ -8050,7 +8051,7 @@ document.addEventListener("click", async (event) => {
     await loadResponseEngineStatus();
     render();
     setInlineStatus("#responseEngineAccessStatus", "Access request received. Your account is pending approval.", "success");
-    showToast("Response Engine access request received.");
+    showToast(`${RESPONSE_ENGINE_DASHBOARD_LABEL} access request received.`);
   } finally {
     setButtonBusy(target, false);
   }
@@ -8070,7 +8071,7 @@ document.addEventListener("click", async (event) => {
     await loadAdminResponseEngineStatus();
     await loadAdminOrganizationMembers();
     renderAdminResponseEngine();
-    showToast("Response Engine admin view refreshed.");
+    showToast(`${RESPONSE_ENGINE_DASHBOARD_LABEL} admin view refreshed.`);
   } finally {
     setButtonBusy(target, false);
   }
@@ -8102,7 +8103,7 @@ document.querySelector("#responseEngineForm")?.addEventListener("submit", async 
   const fieldsValid = validateFieldSet({
     containerSelector: "#responseEngineForm",
     statusSelector: "#responseEngineSubmitStatus",
-    message: "Complete the highlighted Response Engine fields before submitting.",
+    message: `Complete the highlighted ${RESPONSE_ENGINE_DASHBOARD_LABEL} fields before submitting.`,
     fields: [
       { selector: "#responsePackageTitle", isValid: () => Boolean(packageTitle), message: "Add a package title." },
       { selector: "#responseCandidateName", isValid: () => Boolean(candidateName), message: "Add the candidate name." },
@@ -8121,11 +8122,11 @@ document.querySelector("#responseEngineForm")?.addEventListener("submit", async 
     return;
   }
   if (credits <= 0) {
-    warn("Choose at least one paid output so the package can be tracked against Response Engine credits.");
+    warn(`Choose at least one paid output so the package can be tracked against ${RESPONSE_ENGINE_CREDIT_LABEL}s.`);
     return;
   }
   if (credits > availableCredits) {
-    warn(`This package needs ${credits} Response Engine credit${credits === 1 ? "" : "s"}. Your available balance is ${availableCredits}.`);
+    warn(`This package needs ${credits} ${RESPONSE_ENGINE_CREDIT_LABEL}${credits === 1 ? "" : "s"}. Your available balance is ${availableCredits}.`);
     return;
   }
   if (deadline) {
@@ -8144,7 +8145,7 @@ document.querySelector("#responseEngineForm")?.addEventListener("submit", async 
   }
 
   setButtonBusy(submitButton, true, "Submitting Package");
-  setInlineStatus("#responseEngineSubmitStatus", "Creating the secure package and reserving Response Engine credits.");
+  setInlineStatus("#responseEngineSubmitStatus", `Creating the secure package and reserving ${RESPONSE_ENGINE_CREDIT_LABEL}s.`);
 
   let createdRequestId = "";
   try {
@@ -8164,7 +8165,7 @@ document.querySelector("#responseEngineForm")?.addEventListener("submit", async 
       },
     });
     if (!createResult.ok) {
-      warn(createResult.error || "Response Engine package could not be created.");
+      warn(createResult.error || `${RESPONSE_ENGINE_DASHBOARD_LABEL} package could not be created.`);
       return;
     }
 
@@ -8186,7 +8187,7 @@ document.querySelector("#responseEngineForm")?.addEventListener("submit", async 
       return;
     }
 
-    setInlineStatus("#responseEngineSubmitStatus", "Files attached. Queueing the automation engine.");
+    setInlineStatus("#responseEngineSubmitStatus", "Files attached. Queueing the secure package workflow.");
     const queueResult = await fetchClientApi("/api/response-engine-package", {
       method: "POST",
       timeoutMs: 30000,
@@ -8208,15 +8209,15 @@ document.querySelector("#responseEngineForm")?.addEventListener("submit", async 
     await loadResponseEngineStatus();
     render();
     resetResponseEngineForm();
-    setInlineStatus("#responseEngineSubmitStatus", "Package submitted. The automation engine will process it in the background.", "success");
-    showPersistentNotice("Response Engine package submitted. Deliverables will appear in your dashboard when ready.");
+    setInlineStatus("#responseEngineSubmitStatus", "Package submitted. The secure workflow will process it in the background.", "success");
+    showPersistentNotice(`${RESPONSE_ENGINE_DASHBOARD_LABEL} package submitted. Deliverables will appear in your dashboard when ready.`);
   } catch (error) {
     if (createdRequestId) {
       await cancelResponseEnginePackage(createdRequestId, error.message);
       await loadResponseEngineStatus();
       render();
     }
-    warn(error.message || "Response Engine package could not be submitted.");
+    warn(error.message || `${RESPONSE_ENGINE_DASHBOARD_LABEL} package could not be submitted.`);
   } finally {
     setButtonBusy(submitButton, false);
   }
@@ -8237,7 +8238,7 @@ document.querySelector("#adminResponseEngineApprovalForm")?.addEventListener("su
   }
 
   setButtonBusy(submitButton, true, "Saving Access");
-  setInlineStatus("#adminResponseEngineStatus", "Saving Response Engine access.");
+  setInlineStatus("#adminResponseEngineStatus", `Saving ${RESPONSE_ENGINE_DASHBOARD_LABEL} access.`);
   try {
     const result = await fetchAdminApi("/api/response-engine-access", {
       method: "POST",
@@ -8252,13 +8253,13 @@ document.querySelector("#adminResponseEngineApprovalForm")?.addEventListener("su
       },
     });
     if (!result.ok) {
-      setInlineStatus("#adminResponseEngineStatus", result.error || "Response Engine access could not be updated.", "warning");
+      setInlineStatus("#adminResponseEngineStatus", result.error || `${RESPONSE_ENGINE_DASHBOARD_LABEL} access could not be updated.`, "warning");
       return;
     }
     await loadAdminResponseEngineStatus();
     renderAdminResponseEngine();
-    setInlineStatus("#adminResponseEngineStatus", "Response Engine access saved.", "success");
-    showToast("Response Engine access updated.");
+    setInlineStatus("#adminResponseEngineStatus", `${RESPONSE_ENGINE_DASHBOARD_LABEL} access saved.`, "success");
+    showToast(`${RESPONSE_ENGINE_DASHBOARD_LABEL} access updated.`);
   } finally {
     setButtonBusy(submitButton, false);
   }

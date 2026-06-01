@@ -1,14 +1,14 @@
-window.BAAD_CONTENT = {
+﻿window.BAAD_CONTENT = {
   hero: {
     eyebrow: "Requirements rescue and decision ready Business Analysis support",
     headline: "Get senior Business Analysis output without adding headcount.",
     benefit:
-      "Access senior BA support for requirements rescue, decision material, UAT, SOPs, vendor readiness, AI readiness, and fractional BA needs—without fixed headcount.",
+      "Access senior BA support for requirements rescue, decision material, UAT, SOPs, vendor readiness, AI readiness, and fractional BA needs without fixed headcount.",
     body:
       "Send the business problem, source material, and decision pressure. We structure the evidence, identify gaps and risks, and return clear deliverables your team can approve, build from, or share with clients.",
     trustSignals: [
       "Private client workspace",
-      "Controlled file handling",
+      "Private, secure file handling",
       "NDA review available before sensitive uploads",
     ],
     proofPoints: [
@@ -21,8 +21,8 @@ window.BAAD_CONTENT = {
         body: "Business cases, UAT packs, SOPs, vendor material, and executive summaries are shaped for next-step decisions.",
       },
       {
-        title: "Keep sensitive work in a controlled delivery path.",
-        body: "Private workspace access, controlled file handling, and controlled downloads keep project material contained from intake to release.",
+        title: "Keep sensitive work in a private, secure delivery path.",
+        body: "Private workspace access, secure file handling, and protected downloads keep project material contained from intake to release.",
       },
     ],
   },
@@ -58,7 +58,7 @@ window.BAAD_CONTENT = {
   },
   representativeOutcomes: {
     eyebrow: "High Value Outcomes",
-    headline: "What clients buy is confidence, control, and speed.",
+    headline: "What clients buy is confidence, security, and speed.",
     body:
       "The work is packaged around outcomes leaders care about: clearer decisions, cleaner scope, lower delivery risk, and client ready artifacts.",
     items: [
@@ -80,7 +80,7 @@ window.BAAD_CONTENT = {
       {
         label: "Operating discipline",
         title: "SOPs, workflows, handoffs, and role clarity",
-        body: "Document repeatable operating steps, exceptions, ownership, controls, and handoff rules.",
+        body: "Document repeatable operating steps, exceptions, ownership, checkpoints, and handoff rules.",
       },
       {
         label: "Vendor and partner readiness",
@@ -89,7 +89,7 @@ window.BAAD_CONTENT = {
       },
       {
         label: "AI readiness and governance",
-        title: "Use case triage, controls, decision rights, and rollout guardrails",
+        title: "Use case triage, safeguards, decision rights, and rollout guardrails",
         body: "Assess value, readiness, risk, data needs, governance roles, approval paths, and adoption steps.",
       },
     ],
@@ -98,7 +98,7 @@ window.BAAD_CONTENT = {
     eyebrow: "Services",
     headline: "Focused senior Business Analysis services.",
     body:
-      "Choose a flagship path or request a specific deliverable type. Each engagement starts by confirming the outcome, inputs, scope boundary, and delivery format.",
+      "Choose a flagship path or request a specific deliverable type. Each engagement starts by confirming the outcome, inputs, scope boundary, delivery format, and file-handling expectations. Client material is handled as confidential service material through the private client workspace.",
     items: [
       {
         label: "Flagship sprint",
@@ -117,8 +117,8 @@ window.BAAD_CONTENT = {
       },
       {
         label: "Limited access automation",
-        title: "Bid & Proposal Response Automation",
-        body: "Secure candidate resume polishing, mandatory and rated criteria mapping, fit-gap assessment, and professional response grids for approved recruiting firms.",
+        title: "Bid/Proposal Automation",
+        body: "Private candidate resume polishing, confidential criteria mapping, fit-gap assessment, and professional response grids for approved recruiting firms.",
         href: "#bid-proposal-response-automation",
         cta: "View service",
       },
@@ -143,7 +143,7 @@ window.BAAD_CONTENT = {
         body: "Standard operating procedures, process maps, RACI notes, role clarity, handoff rules, and workflow documentation.",
       },
       {
-        label: "Program control",
+        label: "Program oversight",
         title: "Gap, risk, and decision logs",
         body: "Gap analysis, dependency tracking, decision logs, readiness checks, and practical next step planning.",
       },
@@ -155,7 +155,7 @@ window.BAAD_CONTENT = {
       {
         label: "AI readiness",
         title: "AI assessment and governance packs",
-        body: "AI use case assessment, governance principles, risk controls, decision rights, adoption roadmap, and responsible rollout planning.",
+        body: "AI use case assessment, governance principles, risk safeguards, decision rights, adoption roadmap, and responsible rollout planning.",
       },
       {
         label: "Transformation planning",
@@ -194,8 +194,8 @@ window.BAAD_CONTENT = {
       },
       {
         label: "Compliance ready analysis",
-        title: "Privacy, accessibility, and control requirements",
-        body: "Privacy questions, accessibility considerations, control needs, audit evidence, approval checkpoints, and non functional requirement clarity.",
+        title: "Privacy, accessibility, and security requirements",
+        body: "Privacy questions, accessibility considerations, security needs, audit evidence, approval checkpoints, and non functional requirement clarity.",
       },
     ],
   },
@@ -343,7 +343,7 @@ window.BAAD_CONTENT = {
           {
             question: "How do I access the private workspace?",
             answer:
-              "Clients use controlled account access tied to their work email. Email and password accounts support account creation, email verification, sign in, password reset, and password update. Supported single sign on options may also be available.",
+              "Clients use secure account access tied to their work email. Email and password accounts support account creation, email verification, sign in, password reset, and password update. Supported single sign on options may also be available.",
           },
           {
             question: "Can I upload multiple files?",
@@ -364,12 +364,17 @@ window.BAAD_CONTENT = {
           {
             question: "Can I share confidential documents?",
             answer:
-              "Yes, but only share what is needed for the engagement. The service uses account based access, private file handling, controlled downloads, and workspace separation to keep client material organized and protected.",
+              "Yes, but share only what is needed for the engagement. Candidate resumes, client grids, RFP material, and project notes are handled in the private workspace. NDA review is available before sensitive upload.",
+          },
+          {
+            question: "Will my material be used in public samples or marketing?",
+            answer:
+              "No. Client names, source files, project details, and deliverables are not used in public samples or marketing without written permission. Public samples should stay anonymized and should not identify a client, candidate, vendor, or procurement.",
           },
           {
             question: "Who can access my files and requests?",
             answer:
-              "Access is limited to the client account and authorized advisory operations. Admin access is restricted and controlled separately from regular client access.",
+              "Access is limited to the client account and authorized advisory operations. Admin access is restricted and separated from regular client access.",
           },
           {
             question: "Are deliverables public?",

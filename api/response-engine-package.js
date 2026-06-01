@@ -3,6 +3,7 @@ const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 const {
   FORMAT_CATALOG,
   OUTPUT_CATALOG,
+  RESPONSE_ENGINE_LABEL,
   RESPONSE_ENGINE_REQUEST_TYPE,
   buildFormatSummary,
   buildOutputOptionSummary,
@@ -15,6 +16,8 @@ const {
   requireApprovedResponseEngine,
   responseEngineError,
 } = require("./_lib/responseEngine");
+
+const RESPONSE_CREDIT_LABEL = "Bid/Proposal Automation credit";
 
 function requireText(value, label, maxLength) {
   const text = String(value || "").trim();
@@ -67,7 +70,7 @@ async function createPackage(supabase, req) {
   const { credits, outputKeys } = calculateResponseCreditCost(body.outputOptions || body.output_options);
 
   if (!outputKeys.length) {
-    const error = new Error("Choose at least one Response Engine output.");
+    const error = new Error(`Choose at least one ${RESPONSE_ENGINE_LABEL} output.`);
     error.status = 400;
     throw error;
   }
@@ -84,7 +87,7 @@ async function createPackage(supabase, req) {
 
   const balance = await readResponseCreditBalance(supabase, workspace.organizationId);
   if (balance.availableBalance < credits) {
-    const error = new Error(`This package needs ${credits} Response Engine credit${credits === 1 ? "" : "s"}. Your available balance is ${balance.availableBalance}.`);
+    const error = new Error(`This package needs ${credits} ${RESPONSE_CREDIT_LABEL}${credits === 1 ? "" : "s"}. Your available balance is ${balance.availableBalance}.`);
     error.status = 402;
     throw error;
   }
@@ -168,7 +171,7 @@ async function createPackage(supabase, req) {
     }
     await supabase
       .from("requests")
-      .update({ status: "failed", attachment_description: `${attachmentDescription}\n\nSetup issue: ${error.message || "Response Engine package could not be prepared."}` })
+      .update({ status: "failed", attachment_description: `${attachmentDescription}\n\nSetup issue: ${error.message || `${RESPONSE_ENGINE_LABEL} package could not be prepared.`}` })
       .eq("id", requestRow.id)
       .then(() => null, () => null);
     throw error;
@@ -208,7 +211,7 @@ async function queuePackage(supabase, req) {
   await requireApprovedResponseEngine(supabase, workspace.organizationId);
   const requestId = String(body.requestId || body.request_id || "").trim();
   if (!requestId) {
-    const error = new Error("Response Engine request is required.");
+    const error = new Error(`${RESPONSE_ENGINE_LABEL} request is required.`);
     error.status = 400;
     throw error;
   }
@@ -221,7 +224,7 @@ async function queuePackage(supabase, req) {
     .maybeSingle();
   if (responseError) throw responseError;
   if (!responseRequest?.request_id) {
-    const error = new Error("Response Engine request was not found in this workspace.");
+    const error = new Error(`${RESPONSE_ENGINE_LABEL} request was not found in this workspace.`);
     error.status = 404;
     throw error;
   }
@@ -235,12 +238,12 @@ async function queuePackage(supabase, req) {
     .order("created_at", { ascending: true });
   if (filesError) throw filesError;
   if (!files?.length) {
-    const error = new Error("Upload at least one source file before starting the Response Engine.");
+    const error = new Error(`Upload at least one source file before starting ${RESPONSE_ENGINE_LABEL}.`);
     error.status = 400;
     throw error;
   }
   if (files.length > 10) {
-    const error = new Error("Response Engine packages accept no more than 10 files.");
+    const error = new Error(`${RESPONSE_ENGINE_LABEL} packages accept no more than 10 files.`);
     error.status = 400;
     throw error;
   }
@@ -309,7 +312,7 @@ async function cancelPackage(supabase, req) {
   const requestId = String(body.requestId || body.request_id || "").trim();
   const reason = optionalText(body.reason || body.cancelReason || body.cancel_reason, 1000) || "Package setup did not complete.";
   if (!requestId) {
-    const error = new Error("Response Engine request is required.");
+    const error = new Error(`${RESPONSE_ENGINE_LABEL} request is required.`);
     error.status = 400;
     throw error;
   }
@@ -322,7 +325,7 @@ async function cancelPackage(supabase, req) {
     .maybeSingle();
   if (responseError) throw responseError;
   if (!responseRequest?.request_id) {
-    const error = new Error("Response Engine request was not found in this workspace.");
+    const error = new Error(`${RESPONSE_ENGINE_LABEL} request was not found in this workspace.`);
     error.status = 404;
     throw error;
   }
@@ -340,7 +343,7 @@ async function cancelPackage(supabase, req) {
         p_organization_id: workspace.organizationId,
         p_entry_type: "release",
         p_credits: creditCost,
-        p_entry_reason: `Released reservation for ${responseRequest.package_title || "Response Engine package"}`,
+        p_entry_reason: `Released reservation for ${responseRequest.package_title || `${RESPONSE_ENGINE_LABEL} package`}`,
         p_related_request_id: requestId,
         p_source: "client_workspace",
         p_idempotency_key: `response-engine-client-cancel-${requestId}`,
@@ -406,12 +409,12 @@ module.exports = async function handler(req, res) {
       res.status(200).json(await cancelPackage(supabase, req));
       return;
     }
-    res.status(400).json({ error: "Unsupported Response Engine package action." });
+    res.status(400).json({ error: `Unsupported ${RESPONSE_ENGINE_LABEL} package action.` });
   } catch (error) {
     if (error instanceof InvalidJsonBodyError) {
       res.status(400).json({ error: error.message });
       return;
     }
-    responseEngineError(res, error, "Response Engine package could not be submitted.");
+    responseEngineError(res, error, `${RESPONSE_ENGINE_LABEL} package could not be submitted.`);
   }
 };
