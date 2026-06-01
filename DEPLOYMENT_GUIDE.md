@@ -89,9 +89,12 @@ supabase/20260520_client_project_workspaces.sql
 supabase/20260520_admin_deliverable_release_repair.sql
 supabase/20260520_security_qa_hardening.sql
 supabase/20260522_refund_dispute_review_pagination.sql
+supabase/20260601_response_engine_pilot.sql
 ```
 
 This adds or extends client organizations, profiles, credit accounts, credit ledger, payment orders, Stripe event history, credit reservations, deliverable status history, notifications, audit logs, private source file upload, private deliverable versioning, signed download support, low-credit reminders, and final profile or workspace access hardening.
+
+The Response Engine migration adds controlled service entitlements, Response Engine credit grants, package requests, source file context, worker jobs, output manifests, and admin approval support for the Bid & Proposal Response Automation service line.
 
 ## Supabase sign in setup
 
@@ -145,6 +148,66 @@ Security: SSL or TLS
 ```
 
 Confirmation and password reset templates have been updated with BA Advisory Desk wording. Keep all future authentication templates aligned with the same sender name, support address, and professional tone.
+
+## Bid & Proposal Response Automation
+
+The public service line is named:
+
+```text
+Bid & Proposal Response Automation
+```
+
+The private workspace and automation module use the shorter dashboard name:
+
+```text
+Response Engine
+```
+
+The service key is:
+
+```text
+procurement_response_engine
+```
+
+Access is controlled through the client account workflow. A pilot firm can create an account, select Bid & Proposal Response Automation during signup, verify its email, and complete the client profile. The app then records a pending Response Engine access request and emails the administrator. The workspace opens only after the administrator approves the entitlement and assigns Response Engine credits.
+
+## Response Engine worker
+
+The background worker runs on the BAAD VPS worker host through the Codex bot environment.
+
+Systemd units are stored in:
+
+```text
+ops/response-engine-worker.service
+ops/response-engine-worker.timer
+```
+
+The worker entrypoint is:
+
+```text
+scripts/response-engine-worker.js
+```
+
+The default job root is:
+
+```text
+/var/lib/codex-telegram-agent/automations/baad-response-engine/jobs
+```
+
+The timer should be enabled and active:
+
+```text
+systemctl is-enabled response-engine-worker.timer
+systemctl is-active response-engine-worker.timer
+```
+
+The service is expected to run briefly, claim one queued package, and exit successfully. Use this check after deployment or restore:
+
+```text
+systemctl show response-engine-worker.service -p ActiveState -p SubState -p Result -p ExecMainStatus --no-page
+```
+
+Required worker environment values are loaded from the BAAD service configuration on the worker host. Do not print secrets in logs, handoffs, tickets, or screenshots.
 
 ## Google sign-in setup
 
