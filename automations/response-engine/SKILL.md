@@ -8,7 +8,7 @@ The engine prepares candidate submission materials from client uploaded source f
 
 ## Service Name
 
-Public name: Bid & Proposal Response Engine
+Public name: Bid & Proposal Response Automation
 
 Dashboard name: Response Engine
 

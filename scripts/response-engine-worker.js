@@ -210,7 +210,7 @@ function buildJobManifest(job, files) {
   const request = job.response_engine_requests || {};
   return {
     serviceKey: "procurement_response_engine",
-    serviceName: "Bid & Proposal Response Engine",
+    serviceName: "Bid & Proposal Response Automation",
     requestId: job.request_id,
     requestCode: request.requests?.request_code || "",
     organizationId: job.organization_id,

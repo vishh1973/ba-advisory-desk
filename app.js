@@ -45,6 +45,10 @@ const remotePageSizes = {
 };
 
 const RESPONSE_ENGINE_SERVICE_KEY = "procurement_response_engine";
+const RESPONSE_ENGINE_PUBLIC_LABEL = "Bid & Proposal Response Automation";
+const RESPONSE_ENGINE_DASHBOARD_LABEL = "Response Engine";
+const SERVICE_INTEREST_RESPONSE_ENGINE = "response_engine";
+const SERVICE_INTEREST_STORAGE_KEY = "baad-service-interest";
 const RESPONSE_ENGINE_OUTPUTS = {
   polished_resume: { label: "Polished candidate resume", credits: 1, includedInFullPackage: true },
   mandatory_matrix: { label: "Mandatory criteria matrix", credits: 1, includedInFullPackage: true },
@@ -185,6 +189,7 @@ const views = {
   samples: document.querySelector("#view-samples"),
   faq: document.querySelector("#view-faq"),
   pricing: document.querySelector("#view-pricing"),
+  "bid-proposal-response-automation": document.querySelector("#view-bid-proposal-response-automation"),
   security: document.querySelector("#view-security"),
   login: document.querySelector("#view-login"),
   dashboard: document.querySelector("#view-dashboard"),
@@ -969,11 +974,16 @@ function setTextContent(selector, value) {
 }
 
 function cardHtml(item) {
+  const className = item.href ? ' class="linked-card"' : "";
+  const link = item.href
+    ? `<a class="card-link" href="${escapeHtml(item.href)}">${escapeHtml(item.cta || "Learn more")}</a>`
+    : "";
   return `
-    <article>
+    <article${className}>
       <span>${escapeHtml(item.label || "")}</span>
       <strong>${escapeHtml(item.title || "")}</strong>
       <small>${escapeHtml(item.body || "")}</small>
+      ${link}
     </article>
   `;
 }
@@ -1446,6 +1456,53 @@ function setPendingPostAuthRoute(route) {
   localStorage.setItem("baad-post-auth-route", route || "dashboard");
 }
 
+function getPendingServiceInterest() {
+  return localStorage.getItem(SERVICE_INTEREST_STORAGE_KEY) || "";
+}
+
+function setPendingServiceInterest(serviceKey) {
+  if (serviceKey === SERVICE_INTEREST_RESPONSE_ENGINE) {
+    localStorage.setItem(SERVICE_INTEREST_STORAGE_KEY, serviceKey);
+    return;
+  }
+  localStorage.removeItem(SERVICE_INTEREST_STORAGE_KEY);
+}
+
+function clearPendingServiceInterest() {
+  localStorage.removeItem(SERVICE_INTEREST_STORAGE_KEY);
+}
+
+function hasPendingResponseEngineInterest() {
+  return getPendingServiceInterest() === SERVICE_INTEREST_RESPONSE_ENGINE;
+}
+
+function getSignupServiceInterest() {
+  const selected = document.querySelector("#passwordSignupServiceInterest")?.value || "";
+  return selected || getPendingServiceInterest();
+}
+
+function updateServiceInterestUi() {
+  const selected = getPendingServiceInterest();
+  const signupSelect = document.querySelector("#passwordSignupServiceInterest");
+  const authNotice = document.querySelector("#authServiceInterest");
+  const profileNotice = document.querySelector("#profileServiceInterest");
+  if (signupSelect && selected && signupSelect.value !== selected) signupSelect.value = selected;
+  const showResponseNotice = selected === SERVICE_INTEREST_RESPONSE_ENGINE;
+  const noticeText = `${RESPONSE_ENGINE_PUBLIC_LABEL} selected. Complete your account and profile, then an access request will be sent for administrator approval.`;
+  if (authNotice) {
+    authNotice.textContent = showResponseNotice
+      ? noticeText
+      : "Choose a service interest when creating an account so the workspace starts in the right path.";
+    authNotice.classList.toggle("success", showResponseNotice);
+  }
+  if (profileNotice) {
+    profileNotice.textContent = showResponseNotice
+      ? noticeText
+      : "If you are joining for a specific service line, choose it on the public service page before saving your profile.";
+    profileNotice.classList.toggle("success", showResponseNotice);
+  }
+}
+
 function applyPendingPostAuthRoute() {
   if (!state.session?.user) return;
   const pendingRoute = getPendingPostAuthRoute();
@@ -1526,6 +1583,7 @@ function resetClientWorkspaceState() {
   state.remotePagination = createRemotePaginationState();
   clearPrivateWorkspaceStorage();
   localStorage.removeItem("baad-post-auth-route");
+  clearPendingServiceInterest();
   clearPendingCheckoutType();
   clearPendingCheckoutSessionId();
 }
@@ -1648,6 +1706,16 @@ async function routeAfterAuth(defaultRoute = "dashboard") {
   if (organizationId && getPendingCheckoutType()) {
     await resumePendingCheckout();
     return;
+  }
+  if (organizationId && hasPendingResponseEngineInterest()) {
+    const accessResult = await submitPendingResponseEngineAccess(`${RESPONSE_ENGINE_PUBLIC_LABEL} selected during sign in or account setup.`);
+    if (accessResult.ok || accessResult.data?.alreadyApproved) {
+      window.location.hash = "response-engine";
+      showPersistentNotice(accessResult.data?.alreadyApproved
+        ? `${RESPONSE_ENGINE_PUBLIC_LABEL} access is already approved for this workspace.`
+        : `${RESPONSE_ENGINE_PUBLIC_LABEL} access request received. Your account is pending administrator approval.`);
+      return;
+    }
   }
   const pendingRoute = currentRoute === "checkout-success" ? "checkout-success" : getPendingPostAuthRoute() || defaultRoute;
   localStorage.removeItem("baad-post-auth-route");
@@ -1775,6 +1843,7 @@ function updateAuthUi() {
   resetForm?.classList.add("hidden");
   recoveryForm?.classList.toggle("hidden", !state.passwordRecovery);
   syncAuthFormAvailability();
+  updateServiceInterestUi();
 
   signOutButtons.forEach((button) => button.classList.toggle("hidden", !isSignedIn));
 
@@ -2065,6 +2134,48 @@ async function loadResponseEngineStatus() {
   state.responseEngine.loadIssue = "";
 }
 
+async function requestResponseEngineAccess(note = "") {
+  if (!state.session?.user) {
+    setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    setPendingPostAuthRoute("response-engine");
+    window.location.hash = "login";
+    return { ok: false, needsAuth: true, error: "Please sign in before requesting access." };
+  }
+  if (!isEmailVerified()) {
+    setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    setPendingPostAuthRoute("response-engine");
+    window.location.hash = "login";
+    return { ok: false, needsVerification: true, error: "Please verify your email before requesting access." };
+  }
+  if (!state.profileOrganizationId && !(await getProfileOrganizationId())) {
+    setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    setPendingPostAuthRoute("response-engine");
+    window.location.hash = "profile";
+    return { ok: false, needsProfile: true, error: "Please complete your client profile before requesting access." };
+  }
+  const result = await fetchClientApi("/api/response-engine-access", {
+    method: "POST",
+    timeoutMs: 20000,
+    body: {
+      note: note || `${RESPONSE_ENGINE_PUBLIC_LABEL} access requested from BA Advisory Desk.`,
+      source: "public_service_page",
+    },
+  });
+  if (!result.ok) return result;
+  await loadResponseEngineStatus();
+  clearPendingServiceInterest();
+  return result;
+}
+
+async function submitPendingResponseEngineAccess(note = "") {
+  if (!hasPendingResponseEngineInterest()) return { ok: false, skipped: true };
+  const result = await requestResponseEngineAccess(note || `${RESPONSE_ENGINE_PUBLIC_LABEL} selected during account setup.`);
+  if (result.ok || result.data?.alreadyApproved) {
+    clearPendingServiceInterest();
+  }
+  return result;
+}
+
 async function loadAdminResponseEngineStatus() {
   if (!state.adminAccess) return;
   const result = await fetchAdminApi("/api/response-engine-access", { timeoutMs: 20000 });
@@ -2128,12 +2239,12 @@ function getResponseEngineAccessCopy() {
   }
   return {
     title: "Request access",
-    body: "Response Engine is limited to approved client firms during the initial rollout.",
+    body: `${RESPONSE_ENGINE_PUBLIC_LABEL} is limited to approved client firms during the initial rollout.`,
     level: "",
     showForm: false,
     showAccessPanel: true,
     cta: "Request Access",
-    dashboardBody: "Request access to automated bid, proposal, and candidate package support.",
+    dashboardBody: `Request access to ${RESPONSE_ENGINE_PUBLIC_LABEL}.`,
   };
 }
 
@@ -2238,7 +2349,7 @@ function renderResponseEngine() {
   }
   if (accessPanel) accessPanel.classList.toggle("hidden", !copy.showAccessPanel);
   if (form) form.classList.toggle("hidden", !copy.showForm);
-  if (dashboardTitle) dashboardTitle.textContent = "Response Engine";
+  if (dashboardTitle) dashboardTitle.textContent = RESPONSE_ENGINE_DASHBOARD_LABEL;
   if (dashboardBody) dashboardBody.textContent = copy.dashboardBody;
   if (dashboardCta) dashboardCta.textContent = copy.cta;
 
@@ -4209,10 +4320,14 @@ function setView() {
   }
 
   if (protectedViews.includes(key) && !state.session?.user) {
+    const requestedResponseEngine = key === "response-engine";
     setPendingPostAuthRoute(routeAliases[rawKey] ? rawKey : key);
+    if (requestedResponseEngine) {
+      setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    }
     key = "login";
     window.history.replaceState(null, "", `${window.location.pathname}#login`);
-    setAuthStatus("Please sign in before opening the client workspace.");
+    setAuthStatus(requestedResponseEngine ? `Please sign in or create an account to request ${RESPONSE_ENGINE_PUBLIC_LABEL} access.` : "Please sign in before opening the client workspace.");
   }
 
   Object.entries(views).forEach(([viewKey, element]) => {
@@ -4998,6 +5113,7 @@ function setAdminReleaseStatus(message, level = "") {
 
 function render() {
   document.querySelector("#clientName").textContent = state.client.company || "Your organization";
+  updateServiceInterestUi();
   document.querySelector("#creditsLeft").textContent = getAvailableCredits();
   const billingCreditBalance = document.querySelector("#billingCreditBalance");
   if (billingCreditBalance) billingCreditBalance.textContent = getCreditBalanceLabel();
@@ -6506,6 +6622,7 @@ async function signInWithOAuthProvider(provider) {
 async function createPasswordAccount() {
   const email = getNormalizedEmail(document.querySelector("#passwordSignupEmail")?.value);
   const company = document.querySelector("#passwordSignupCompany")?.value.trim();
+  const serviceInterest = getSignupServiceInterest();
   const password = document.querySelector("#passwordSignupPassword")?.value || "";
   const confirm = document.querySelector("#passwordSignupConfirm")?.value || "";
   const validationError = validatePasswordPair(password, confirm);
@@ -6522,6 +6639,10 @@ async function createPasswordAccount() {
 
   state.client.email = email;
   state.client.company = company;
+  if (serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE) {
+    setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    setPendingPostAuthRoute("response-engine");
+  }
   setFieldValue("#profileEmail", email);
   setFieldValue("#profileCompany", company);
   setPendingPostAuthRoute("profile");
@@ -6532,7 +6653,11 @@ async function createPasswordAccount() {
     password,
     options: {
       emailRedirectTo: getAuthRedirectUrl(),
-      data: { company },
+      data: {
+        company,
+        requestedService: serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE ? RESPONSE_ENGINE_SERVICE_KEY : "general",
+        requestedServiceLabel: serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE ? RESPONSE_ENGINE_PUBLIC_LABEL : "General BA Advisory Desk services",
+      },
     },
   });
 
@@ -6553,15 +6678,27 @@ async function createPasswordAccount() {
     updateAuthUi();
     if (!isEmailVerified()) {
       window.location.hash = "login";
-      return { ok: true, message: "Account created. Please verify your email before opening the client workspace." };
+      return {
+        ok: true,
+        message: serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE
+          ? `Account created. Please verify your email, then complete your profile so your ${RESPONSE_ENGINE_PUBLIC_LABEL} access request can be sent.`
+          : "Account created. Please verify your email before opening the client workspace.",
+      };
     }
     window.location.hash = "profile";
-    return { ok: true, message: "Account created. Please complete your client profile." };
+    return {
+      ok: true,
+      message: serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE
+        ? `Account created. Complete your profile so your ${RESPONSE_ENGINE_PUBLIC_LABEL} access request can be sent.`
+        : "Account created. Please complete your client profile.",
+    };
   }
 
   return {
     ok: true,
-    message: "Please check your email to verify your account. If an account already exists for this email, sign in or reset your password.",
+    message: serviceInterest === SERVICE_INTEREST_RESPONSE_ENGINE
+      ? `Please check your email to verify your account. After verification, complete your profile so your ${RESPONSE_ENGINE_PUBLIC_LABEL} access request can be sent.`
+      : "Please check your email to verify your account. If an account already exists for this email, sign in or reset your password.",
   };
 }
 
@@ -6576,6 +6713,10 @@ async function signInWithPassword() {
     return { ok: false, error: `Secure sign in is temporarily unavailable. Please contact ${config.supportEmail}.` };
   }
 
+  if (getSignupServiceInterest() === SERVICE_INTEREST_RESPONSE_ENGINE) {
+    setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    setPendingPostAuthRoute("response-engine");
+  }
   state.client.email = email;
   if (!getPendingPostAuthRoute()) {
     setPendingPostAuthRoute(window.location.hash.replace("#", "") === "checkout-success" ? "checkout-success" : "dashboard");
@@ -7410,6 +7551,16 @@ document.querySelector("#passwordSignUpForm")?.addEventListener("submit", async 
   }
 });
 
+document.querySelector("#passwordSignupServiceInterest")?.addEventListener("change", (event) => {
+  if (event.target.value === SERVICE_INTEREST_RESPONSE_ENGINE) {
+    setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+    setPendingPostAuthRoute("response-engine");
+  } else {
+    clearPendingServiceInterest();
+  }
+  updateServiceInterestUi();
+});
+
 document.querySelector("#passwordSignInForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button[type="submit"]');
@@ -7498,6 +7649,49 @@ document.querySelector("#resendVerificationEmail")?.addEventListener("click", as
 });
 
 document.addEventListener("click", async (event) => {
+  const target = event.target.closest("[data-service-intent]");
+  if (!target) return;
+  const serviceIntent = target.dataset.serviceIntent || "";
+  if (serviceIntent !== SERVICE_INTEREST_RESPONSE_ENGINE) return;
+  event.preventDefault();
+  setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+  setPendingPostAuthRoute("response-engine");
+  updateServiceInterestUi();
+
+  if (!state.session?.user) {
+    window.location.hash = "login";
+    setAuthStatus(`Create an account or sign in to request ${RESPONSE_ENGINE_PUBLIC_LABEL} access.`);
+    return;
+  }
+  if (!isEmailVerified()) {
+    window.location.hash = "login";
+    setAuthStatus("Please verify your email before requesting access.");
+    return;
+  }
+  if (!state.profileOrganizationId && !(await getProfileOrganizationId())) {
+    window.location.hash = "profile";
+    setInlineStatus("#profileStatus", `Complete your profile so your ${RESPONSE_ENGINE_PUBLIC_LABEL} access request can be sent.`, "success");
+    return;
+  }
+
+  setButtonBusy(target, true, "Requesting Access");
+  try {
+    const result = await requestResponseEngineAccess(`${RESPONSE_ENGINE_PUBLIC_LABEL} requested from the public service page.`);
+    window.location.hash = "response-engine";
+    render();
+    if (result.ok || result.data?.alreadyApproved) {
+      showPersistentNotice(result.data?.alreadyApproved
+        ? `${RESPONSE_ENGINE_PUBLIC_LABEL} access is already approved for this workspace.`
+        : `${RESPONSE_ENGINE_PUBLIC_LABEL} access request received. Your account is pending administrator approval.`);
+    } else {
+      showPersistentNotice(result.error || "Access request could not be sent.");
+    }
+  } finally {
+    setButtonBusy(target, false);
+  }
+});
+
+document.addEventListener("click", async (event) => {
   const target = event.target.closest("[data-response-engine-action]");
   if (!target) return;
   event.preventDefault();
@@ -7507,22 +7701,20 @@ document.addEventListener("click", async (event) => {
   setInlineStatus("#responseEngineAccessStatus", "Sending your Response Engine access request.");
   try {
     if (!state.session?.user) {
+      setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+      setPendingPostAuthRoute("response-engine");
       window.location.hash = "login";
       setInlineStatus("#responseEngineAccessStatus", "Please sign in before requesting access.", "warning");
       return;
     }
     if (!state.profileOrganizationId) {
+      setPendingServiceInterest(SERVICE_INTEREST_RESPONSE_ENGINE);
+      setPendingPostAuthRoute("response-engine");
       window.location.hash = "profile";
       setInlineStatus("#responseEngineAccessStatus", "Please complete your client profile before requesting access.", "warning");
       return;
     }
-    const result = await fetchClientApi("/api/response-engine-access", {
-      method: "POST",
-      timeoutMs: 20000,
-      body: {
-        note: document.querySelector("#responseEngineAccessNote")?.value || "",
-      },
-    });
+    const result = await requestResponseEngineAccess(document.querySelector("#responseEngineAccessNote")?.value || "");
     if (!result.ok) {
       setInlineStatus("#responseEngineAccessStatus", result.error || "Access request could not be sent.", "warning");
       return;
@@ -8456,6 +8648,22 @@ document.querySelector("#profileForm").addEventListener("submit", async (event) 
     if (orgResult.ok) {
       const checkoutResumed = await resumePendingCheckout();
       if (!checkoutResumed) {
+        if (hasPendingResponseEngineInterest()) {
+          const accessResult = await submitPendingResponseEngineAccess(`${RESPONSE_ENGINE_PUBLIC_LABEL} selected during profile setup.`);
+          await loadClientWorkspaceData();
+          window.location.hash = "response-engine";
+          if (accessResult.ok || accessResult.data?.alreadyApproved) {
+            const message = accessResult.data?.alreadyApproved
+              ? `${RESPONSE_ENGINE_PUBLIC_LABEL} access is already approved for this workspace.`
+              : `${RESPONSE_ENGINE_PUBLIC_LABEL} access request received. Your account is pending administrator approval.`;
+            setInlineStatus("#profileStatus", message, "success");
+            showPersistentNotice(message);
+          } else {
+            setInlineStatus("#profileStatus", accessResult.error || "Profile saved. Response Automation access request could not be sent yet.", "warning");
+            showPersistentNotice(accessResult.error || "Profile saved. Response Automation access request could not be sent yet.");
+          }
+          return;
+        }
         await loadClientWorkspaceData();
         window.location.hash = "dashboard";
         setInlineStatus("#profileStatus", "Client profile saved. Your workspace is ready.", "success");

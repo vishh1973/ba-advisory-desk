@@ -116,6 +116,13 @@ window.BAAD_CONTENT = {
         body: "Recurring senior Business Analysis and fractional BA support for teams that need ongoing deliverable capacity without adding a full time role.",
       },
       {
+        label: "Limited access automation",
+        title: "Bid & Proposal Response Automation",
+        body: "Automated candidate resume polishing, mandatory and rated criteria mapping, response grids, and recruiter submission support for approved firms.",
+        href: "#bid-proposal-response-automation",
+        cta: "View service",
+      },
+      {
         label: "Requirements and scope",
         title: "Requirements clarity packs",
         body: "Business requirements, functional requirements, non functional requirements, assumptions, open questions, and delivery risks.",

@@ -1,5 +1,5 @@
 const RESPONSE_ENGINE_SERVICE_KEY = "procurement_response_engine";
-const RESPONSE_ENGINE_LABEL = "Bid & Proposal Response Engine";
+const RESPONSE_ENGINE_LABEL = "Bid & Proposal Response Automation";
 const RESPONSE_ENGINE_DASHBOARD_LABEL = "Response Engine";
 const RESPONSE_ENGINE_REQUEST_TYPE = "Candidate Submission Package";
 const RESPONSE_ENGINE_PROJECT_NAME = "Response Engine";

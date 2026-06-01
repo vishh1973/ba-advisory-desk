@@ -3,6 +3,7 @@ const { getSupabaseAdmin } = require("./_lib/supabaseAdmin");
 const { InvalidJsonBodyError, parseJsonBody } = require("./_lib/jsonBody");
 const { sendAndRecordEmail } = require("./_lib/paymentAndCredit");
 const {
+  RESPONSE_ENGINE_LABEL,
   RESPONSE_ENGINE_SERVICE_KEY,
   getAuthenticatedWorkspace,
   readResponseCreditBalance,
@@ -23,18 +24,22 @@ function publicBaseUrl() {
   return process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com";
 }
 
+function adminNotificationEmail() {
+  return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
+}
+
 async function sendApprovalEmail(supabase, organization, credits) {
   if (!organization?.billing_email) return { skipped: true, reason: "No billing email." };
   const workspaceUrl = `${publicBaseUrl()}/#response-engine`;
   const creditText = credits > 0
     ? `${credits} Response Engine credit${credits === 1 ? "" : "s"} have been added to your workspace.`
     : "Your Response Engine workspace is now available.";
-  const subject = "Your Response Engine access is approved";
-  const body = `Your BA Advisory Desk Response Engine access is approved. ${creditText} Sign in to submit candidate packages.`;
+  const subject = `${RESPONSE_ENGINE_LABEL} access approved`;
+  const body = `Your BA Advisory Desk ${RESPONSE_ENGINE_LABEL} access is approved. ${creditText} Sign in to submit candidate packages.`;
   const html = `
     <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:620px;">
-      <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">Response Engine access approved</h1>
-      <p style="margin:0 0 14px;">Your BA Advisory Desk Response Engine access is approved.</p>
+      <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">${escapeHtml(RESPONSE_ENGINE_LABEL)} access approved</h1>
+      <p style="margin:0 0 14px;">Your BA Advisory Desk ${escapeHtml(RESPONSE_ENGINE_LABEL)} access is approved.</p>
       <p style="margin:0 0 14px;">${escapeHtml(creditText)}</p>
       <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open Response Engine</a></p>
       <p style="margin:24px 0 0;color:#5c6670;font-size:13px;">BA Advisory Desk</p>
@@ -50,6 +55,48 @@ async function sendApprovalEmail(supabase, organization, credits) {
     relatedEntityType: "service_entitlement",
     relatedEntityId: null,
     dedupeKey: `response_engine_access_approved:${organization.id}:${credits}`,
+  });
+}
+
+async function sendAccessRequestEmail(supabase, { entitlement, organization, profile, note }) {
+  const to = adminNotificationEmail();
+  const adminUrl = `${publicBaseUrl()}/#admin`;
+  const orgName = organization?.name || "Client organization";
+  const email = organization?.billing_email || profile?.work_email || "Not provided";
+  const requester = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || email;
+  const subject = `[BAAD Admin] ${RESPONSE_ENGINE_LABEL} access request`;
+  const body = [
+    `${orgName} requested ${RESPONSE_ENGINE_LABEL} access.`,
+    `Requester: ${requester}`,
+    `Email: ${email}`,
+    `Role: ${profile?.job_title || "Not provided"}`,
+    `Note: ${note || "No note provided"}`,
+    `Open admin workspace: ${adminUrl}`,
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:680px;">
+      <h1 style="font-size:20px;line-height:1.3;margin:0 0 14px;">${escapeHtml(RESPONSE_ENGINE_LABEL)} access request</h1>
+      <p style="margin:0 0 14px;">A client firm requested access to the Response Engine service line.</p>
+      <table style="border-collapse:collapse;width:100%;margin:14px 0;">
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Firm</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(orgName)}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Requester</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(requester)}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Email</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(email)}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Role</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(profile?.job_title || "Not provided")}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Note</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(note || "No note provided")}</td></tr>
+      </table>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(adminUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open Admin Workspace</a></p>
+    </div>
+  `;
+  return sendAndRecordEmail(supabase, {
+    organizationId: organization?.id || profile?.organization_id || null,
+    to,
+    templateKey: "response_engine_access_requested_admin",
+    subject,
+    body,
+    html,
+    relatedEntityType: "service_entitlement",
+    relatedEntityId: entitlement?.id || null,
+    dedupeKey: `response_engine_access_requested:${entitlement?.id || organization?.id || profile?.organization_id}:${entitlement?.requested_at || Date.now()}`,
   });
 }
 
@@ -105,6 +152,13 @@ async function requestAccess(supabase, req) {
     .single();
   if (error) throw error;
 
+  const { data: organization, error: organizationError } = await supabase
+    .from("client_organizations")
+    .select("id,name,billing_email,industry,country,timezone,status")
+    .eq("id", workspace.organizationId)
+    .maybeSingle();
+  if (organizationError) throw organizationError;
+
   await supabase
     .from("audit_events")
     .insert({
@@ -118,7 +172,17 @@ async function requestAccess(supabase, req) {
     })
     .then(() => null, () => null);
 
-  return { entitlement: data };
+  const adminEmail = await sendAccessRequestEmail(supabase, {
+    entitlement: data,
+    organization,
+    profile: workspace.profile,
+    note,
+  }).catch((error) => ({
+    sent: false,
+    error: error.message,
+  }));
+
+  return { entitlement: data, adminEmail };
 }
 
 async function readAdminPayload(supabase) {
@@ -214,7 +278,7 @@ async function handleAdminAction(supabase, req) {
         p_organization_id: organizationId,
         p_entry_type: "grant",
         p_credits: creditGrant,
-        p_entry_reason: "Pilot Response Engine credit grant",
+        p_entry_reason: "Response Engine credit grant",
         p_related_request_id: null,
         p_source: "admin",
         p_idempotency_key: idempotencyKey,
