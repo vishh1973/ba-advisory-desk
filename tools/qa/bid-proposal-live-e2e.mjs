@@ -723,11 +723,11 @@ async function runWorkerForQueuedJob(requestId) {
   record("queued job exists", Boolean(job?.id && job.status === "queued"), JSON.stringify(job || {}));
   await service
     .from("response_engine_jobs")
-    .update({ queued_at: "1970-01-01T00:00:00.000Z" })
+    .update({ queued_at: "1900-01-01T00:00:00.000Z" })
     .eq("id", job.id);
   const mockPath = await writeMockProvider();
   const jobRoot = path.join(os.tmpdir(), `baad-response-jobs-${runId}`);
-  const nodeBin = process.env.QA_NODE_BIN || "node";
+  const nodeBin = process.env.QA_NODE_BIN || (fs.existsSync("/usr/bin/node") ? "/usr/bin/node" : "node");
   const result = await run(nodeBin, ["scripts/response-engine-worker.js", "--limit=1"], {
     cwd: APP_ROOT,
     env: {
