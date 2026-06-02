@@ -1048,7 +1048,29 @@ async function uploadAndReleaseDeliverables(supabase, job, files, manifest, qa) 
     })
     .maybeSingle();
   if (releaseError) throw releaseError;
-  if (!releaseResult) throw new Error("Deliverable release could not be finalized.");
+  if (!releaseResult) {
+    const { data: releasedVersion, error: releasedVersionError } = await supabase
+      .from("deliverable_versions")
+      .select("id,status")
+      .eq("id", version.id)
+      .eq("deliverable_id", deliverable.id)
+      .eq("organization_id", job.organization_id)
+      .maybeSingle();
+    if (releasedVersionError) throw releasedVersionError;
+
+    const { data: releasedFiles, error: releasedFilesError } = await supabase
+      .from("deliverable_version_files")
+      .select("id")
+      .eq("deliverable_version_id", version.id)
+      .eq("deliverable_id", deliverable.id)
+      .eq("organization_id", job.organization_id);
+    if (releasedFilesError) throw releasedFilesError;
+
+    const releasedFileCount = Array.isArray(releasedFiles) ? releasedFiles.length : 0;
+    if (releasedVersion?.status !== "released" || releasedFileCount < fileRecords.length) {
+      throw new Error("Deliverable release could not be finalized.");
+    }
+  }
 
   return { deliverableId: deliverable.id, versionId: version.id, versionNumber, files: fileRecords };
 }
