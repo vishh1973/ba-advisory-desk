@@ -21,6 +21,7 @@ const orgName = `ZZ QA BidProposal ${runId}`;
 const existingOrgName = `ZZ QA Existing Client ${runId}`;
 const checks = [];
 const created = { users: {}, orgs: {}, requests: {}, deliverables: {} };
+const manageWorkerTimer = ["1", "true", "yes"].includes(String(process.env.QA_MANAGE_WORKER_TIMER || "").trim().toLowerCase());
 
 function loadEnvFile(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return;
@@ -47,6 +48,12 @@ const appUrl = String(process.env.QA_APP_URL || process.env.PUBLIC_BASE_URL || "
 const supabaseUrl = String(process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, "");
 const anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const useRealCodexProvider = ["1", "true", "yes", "real"].includes(String(process.env.QA_USE_REAL_CODEX || "").trim().toLowerCase());
+const outputSaveDir = process.env.QA_OUTPUT_DIR ? path.resolve(process.env.QA_OUTPUT_DIR) : "";
+const sourceDir = process.env.QA_SOURCE_DIR ? path.resolve(process.env.QA_SOURCE_DIR) : "";
+const workerTimerUnit = process.env.QA_WORKER_TIMER_UNIT || "response-engine-worker.timer";
+const workerServiceUnit = process.env.QA_WORKER_SERVICE_UNIT || "response-engine-worker.service";
+let workerTimerWasActive = false;
 
 if (!serviceRoleKey) {
   console.error("SUPABASE_SERVICE_ROLE_KEY is required.");
@@ -60,6 +67,42 @@ const service = createClient(supabaseUrl, serviceRoleKey, {
 function log(message, detail = null) {
   const suffix = detail ? ` ${JSON.stringify(detail)}` : "";
   console.log(`[${new Date().toISOString()}] ${message}${suffix}`);
+}
+
+async function runSystemctl(args) {
+  if (!manageWorkerTimer || process.platform === "win32") return null;
+  const result = await run("systemctl", args, { cwd: APP_ROOT });
+  log(`systemctl ${args.join(" ")}`, { code: result.code, stdout: result.stdout.trim(), stderr: result.stderr.trim() });
+  if (result.code !== 0) {
+    throw new Error(`systemctl ${args.join(" ")} failed: ${result.stderr || result.stdout}`);
+  }
+  return result;
+}
+
+async function runSystemctlOptional(args) {
+  if (!manageWorkerTimer || process.platform === "win32") return null;
+  const result = await run("systemctl", args, { cwd: APP_ROOT });
+  log(`systemctl ${args.join(" ")}`, { code: result.code, stdout: result.stdout.trim(), stderr: result.stderr.trim() });
+  return result;
+}
+
+async function stopManagedWorkerUnits() {
+  if (!manageWorkerTimer || process.platform === "win32") return;
+  const active = await runSystemctlOptional(["is-active", "--quiet", workerTimerUnit]);
+  workerTimerWasActive = active?.code === 0;
+  await runSystemctl(["stop", workerTimerUnit]);
+  await runSystemctl(["stop", workerServiceUnit]);
+}
+
+async function restoreManagedWorkerTimer() {
+  if (!manageWorkerTimer || process.platform === "win32" || !workerTimerWasActive) return;
+  await runSystemctl(["start", workerTimerUnit]);
+}
+
+function extensionOf(fileName) {
+  const base = path.basename(String(fileName || ""));
+  const dot = base.lastIndexOf(".");
+  return dot >= 0 ? base.slice(dot + 1).toLowerCase() : "";
 }
 
 function record(name, passed, detail = "") {
@@ -391,7 +434,69 @@ function pdfBuffer(text) {
   return Buffer.from(`%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n2 0 obj << /Length ${text.length} >> stream\n${text}\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n`, "utf8");
 }
 
-function makeSourceFiles() {
+function contentTypeForFile(fileName) {
+  const ext = extensionOf(fileName);
+  if (ext === "docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (ext === "pptx") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  return "application/octet-stream";
+}
+
+function roleForFile(fileName) {
+  const lower = fileName.toLowerCase();
+  if (lower.includes("candidate") && lower.includes("resume")) return "candidate_resume";
+  if (lower.includes("statement of work") || lower.includes("sow") || lower.includes("rfp")) return "rfp_sow";
+  if (lower.includes("template")) return "client_template";
+  if (lower.includes("rated")) return "rated_grid";
+  if (lower.includes("criteria") || lower.includes("grid")) return "mandatory_grid";
+  if (lower.includes("instruction") || lower.includes("email")) return "other";
+  return "supporting_evidence";
+}
+
+function descriptionForFile(fileName) {
+  const role = roleForFile(fileName);
+  const descriptions = {
+    candidate_resume: "Fictitious candidate resume used for live Bid/Proposal Automation proof testing.",
+    rfp_sow: "Fictitious statement of work and opportunity requirements used for live proof testing.",
+    mandatory_grid: "Fictitious mandatory and rated criteria grid used for evidence mapping proof testing.",
+    rated_grid: "Fictitious rated criteria notes used for scoring and narrative proof testing.",
+    client_template: "Fictitious client resume or submission template used for format proof testing.",
+    supporting_evidence: "Fictitious supporting evidence used for live proof testing.",
+    other: "Fictitious recruiter instruction or context file used for live proof testing.",
+  };
+  return descriptions[role] || descriptions.supporting_evidence;
+}
+
+async function sourceFilesFromDirectory() {
+  if (!sourceDir) return null;
+  const entries = await fsp.readdir(sourceDir, { withFileTypes: true });
+  const supported = new Set(["docx", "xlsx", "pptx", "pdf", "png", "jpg", "jpeg"]);
+  const files = [];
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const ext = extensionOf(entry.name);
+    if (!supported.has(ext)) continue;
+    files.push({
+      name: entry.name,
+      role: roleForFile(entry.name),
+      description: descriptionForFile(entry.name),
+      contentType: contentTypeForFile(entry.name),
+      data: await fsp.readFile(path.join(sourceDir, entry.name)),
+    });
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  if (!files.length) throw new Error(`QA_SOURCE_DIR has no supported source files: ${sourceDir}`);
+  if (files.length > 10) throw new Error(`QA_SOURCE_DIR has ${files.length} supported files. Use 10 or fewer.`);
+  log("loaded QA source files", { sourceDir, files: files.map((file) => ({ name: file.name, role: file.role })) });
+  return files;
+}
+
+async function makeSourceFiles() {
+  const externalFiles = await sourceFilesFromDirectory();
+  if (externalFiles) return externalFiles;
   const longDescription = `${"Mandatory evidence notes. ".repeat(60)}End.`;
   return [
     {
@@ -736,21 +841,70 @@ async function runWorkerForQueuedJob(requestId) {
     .from("response_engine_jobs")
     .update({ queued_at: "1900-01-01T00:00:00.000Z" })
     .eq("id", job.id);
-  const mockPath = await writeMockProvider();
   const jobRoot = path.join(os.tmpdir(), `baad-response-jobs-${runId}`);
   const nodeBin = process.env.QA_NODE_BIN || (fs.existsSync("/home/codexbot/.local/bin/node") ? "/home/codexbot/.local/bin/node" : "node");
+  const workerEnv = {
+    RESPONSE_ENGINE_REQUEST_ID: requestId,
+    RESPONSE_ENGINE_JOB_ROOT: jobRoot,
+    RESPONSE_ENGINE_CODEX_TIMEOUT_MS: process.env.QA_WORKER_TIMEOUT_MS || "120000",
+  };
+  if (!useRealCodexProvider) {
+    const mockPath = await writeMockProvider();
+    workerEnv.RESPONSE_ENGINE_CODEX_BIN = nodeBin;
+    workerEnv.RESPONSE_ENGINE_CODEX_ARGS = mockPath;
+  }
   const result = await run(nodeBin, ["scripts/response-engine-worker.js", "--limit=1", `--request-id=${requestId}`], {
     cwd: APP_ROOT,
-    env: {
-      RESPONSE_ENGINE_CODEX_BIN: nodeBin,
-      RESPONSE_ENGINE_CODEX_ARGS: mockPath,
-      RESPONSE_ENGINE_REQUEST_ID: requestId,
-      RESPONSE_ENGINE_JOB_ROOT: jobRoot,
-      RESPONSE_ENGINE_CODEX_TIMEOUT_MS: "120000",
-    },
+    env: workerEnv,
   });
-  record("worker completed with mock provider", result.code === 0, `${result.stdout}\n${result.stderr}`.slice(0, 1000));
+  record(useRealCodexProvider ? "worker completed with real Codex provider" : "worker completed with mock provider", result.code === 0, `${result.stdout}\n${result.stderr}`.slice(0, 1000));
   return job.id;
+}
+
+async function saveDownloadedFile(url, destination) {
+  const response = await fetch(url);
+  if (response.status !== 200) {
+    throw new Error(`Download failed for ${path.basename(destination)} with status ${response.status}.`);
+  }
+  await fsp.mkdir(path.dirname(destination), { recursive: true });
+  await fsp.writeFile(destination, Buffer.from(await response.arrayBuffer()));
+}
+
+async function saveQaOutputs(context) {
+  if (!outputSaveDir) return;
+  const targetDir = path.join(outputSaveDir, runId);
+  await fsp.mkdir(targetDir, { recursive: true });
+  for (const file of context.deliverableFiles) {
+    const download = await api("/api/deliverable-download-url", {
+      token: context.ownerToken,
+      body: { fileId: file.id, organizationId: context.organizationId, projectId: context.projectId },
+    });
+    if (download.status !== 200 || !download.data?.signedUrl) {
+      throw new Error(`Could not create signed download URL for ${file.file_name}.`);
+    }
+    await saveDownloadedFile(download.data.signedUrl, path.join(targetDir, file.file_name.replace(/[\\/:*?"<>|]/g, "_")));
+  }
+  const zipDownload = await api("/api/deliverable-download-bundle", {
+    token: context.ownerToken,
+    body: { versionId: context.versionId, organizationId: context.organizationId, projectId: context.projectId },
+    binary: true,
+  });
+  if (zipDownload.status !== 200 || zipDownload.buffer.slice(0, 2).toString() !== "PK") {
+    throw new Error(`Could not save ZIP bundle. Status ${zipDownload.status}.`);
+  }
+  await fsp.writeFile(path.join(targetDir, "deliverables-bundle.zip"), zipDownload.buffer);
+  await fsp.writeFile(path.join(targetDir, "qa-run-summary.json"), JSON.stringify({
+    runId,
+    appUrl,
+    provider: useRealCodexProvider ? "real_codex" : "mock",
+    organizationId: context.organizationId,
+    requestId: context.requestId,
+    deliverableId: context.deliverableId,
+    versionId: context.versionId,
+    files: context.deliverableFiles.map((file) => ({ id: file.id, fileName: file.file_name })),
+    savedAt: new Date().toISOString(),
+  }, null, 2));
+  log("saved QA outputs", { targetDir });
 }
 
 function parseZipNames(buffer) {
@@ -946,7 +1100,7 @@ async function main() {
   const mainPackage = await createPackage(ownerAuth.token);
   record("main package created", mainPackage.status === 200 && mainPackage.data.creditCost === 5, mainPackage.text);
   created.requests.main = mainPackage.data.requestId;
-  const sourceFiles = makeSourceFiles();
+  const sourceFiles = await makeSourceFiles();
   const uploaded = await uploadFiles(
     ownerAuth.client,
     owner.id,
@@ -963,8 +1117,12 @@ async function main() {
     .eq("request_id", mainPackage.data.requestId)
     .order("created_at", { ascending: true });
   if (savedFilesError) throw savedFilesError;
-  record("invalid direct file role normalized to other", savedFiles.some((file) => file.file_name.includes("Recruiter Email") && file.file_role === "other"), JSON.stringify(savedFiles));
-  record("long file description capped at 1000 characters", savedFiles.some((file) => file.file_name.includes("Mandatory") && String(file.file_description || "").length === 1000));
+  if (sourceDir) {
+    record("QA_SOURCE_DIR source files uploaded", savedFiles.length === sourceFiles.length, JSON.stringify(savedFiles));
+  } else {
+    record("invalid direct file role normalized to other", savedFiles.some((file) => file.file_name.includes("Recruiter Email") && file.file_role === "other"), JSON.stringify(savedFiles));
+    record("long file description capped at 1000 characters", savedFiles.some((file) => file.file_name.includes("Mandatory") && String(file.file_description || "").length === 1000));
+  }
 
   const queue = await queuePackage(ownerAuth.token, mainPackage.data.requestId);
   record("main package queued", queue.status === 200 && queue.data.queued, queue.text);
@@ -1021,6 +1179,15 @@ async function main() {
     binary: true,
   });
   record("admin ZIP download works", adminZip.status === 200 && adminZip.buffer.slice(0, 2).toString() === "PK", `status=${adminZip.status}`);
+  await saveQaOutputs({
+    ownerToken: ownerAuth.token,
+    organizationId,
+    projectId: mainPackage.data.projectId,
+    requestId: mainPackage.data.requestId,
+    deliverableId: release.deliverableId,
+    versionId: release.versionId,
+    deliverableFiles,
+  });
 
   const existingOwner = await createAuthUser("existing", true);
   const existingAuth = await signIn(existingOwner);
@@ -1129,14 +1296,30 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message || error);
-  console.error(JSON.stringify({
-    runId,
-    checksPassed: checks.filter((check) => check.passed).length,
-    checksTotal: checks.length,
-    failedChecks: checks.filter((check) => !check.passed),
-    created,
-  }, null, 2));
-  process.exit(1);
-});
+async function runQa() {
+  let exitCode = 0;
+  try {
+    await stopManagedWorkerUnits();
+    await main();
+  } catch (error) {
+    exitCode = 1;
+    console.error(error.stack || error.message || error);
+    console.error(JSON.stringify({
+      runId,
+      checksPassed: checks.filter((check) => check.passed).length,
+      checksTotal: checks.length,
+      failedChecks: checks.filter((check) => !check.passed),
+      created,
+    }, null, 2));
+  } finally {
+    try {
+      await restoreManagedWorkerTimer();
+    } catch (timerError) {
+      exitCode = 1;
+      console.error(timerError.stack || timerError.message || timerError);
+    }
+  }
+  if (exitCode) process.exit(exitCode);
+}
+
+runQa();

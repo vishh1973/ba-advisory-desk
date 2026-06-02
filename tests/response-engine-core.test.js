@@ -1,5 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 
 const {
   FILE_ROLE_CATALOG,
@@ -24,6 +28,7 @@ const {
   maxResponseEngineSubagents,
   outputCoverageFailures,
   qaReleaseGateFailures,
+  scrubOfficeMetadata,
   textQualityFailures,
   validateEvidenceMap,
 } = require("../scripts/response-engine-worker");
@@ -77,6 +82,88 @@ function buildPassingQa(overrides = {}) {
     },
     ...overrides,
   };
+}
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  }
+  return value >>> 0;
+});
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipBuffer(entries) {
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(String(entry.data), "utf8");
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(0, 10);
+    local.writeUInt16LE(0, 12);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    chunks.push(local, name, data);
+    const directory = Buffer.alloc(46);
+    directory.writeUInt32LE(0x02014b50, 0);
+    directory.writeUInt16LE(20, 4);
+    directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(0, 8);
+    directory.writeUInt16LE(0, 10);
+    directory.writeUInt16LE(0, 12);
+    directory.writeUInt16LE(0, 14);
+    directory.writeUInt32LE(crc, 16);
+    directory.writeUInt32LE(data.length, 20);
+    directory.writeUInt32LE(data.length, 24);
+    directory.writeUInt16LE(name.length, 28);
+    directory.writeUInt16LE(0, 30);
+    directory.writeUInt16LE(0, 32);
+    directory.writeUInt16LE(0, 34);
+    directory.writeUInt16LE(0, 36);
+    directory.writeUInt32LE(0, 38);
+    directory.writeUInt32LE(offset, 42);
+    central.push(directory, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralOffset = offset;
+  const centralBuffer = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBuffer.length, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...chunks, centralBuffer, end]);
+}
+
+function dirtyDocxBuffer() {
+  return zipBuffer([
+    { name: "[Content_Types].xml", data: `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>` },
+    { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>` },
+    { name: "word/document.xml", data: `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Plain client text.</w:t></w:r></w:p></w:body></w:document>` },
+    { name: "docProps/core.xml", data: `<?xml version="1.0" encoding="UTF-8"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:creator>Codex OpenAI</dc:creator><cp:lastModifiedBy>ChatGPT Hermes</cp:lastModifiedBy></cp:coreProperties>` },
+    { name: "docProps/app.xml", data: `<?xml version="1.0" encoding="UTF-8"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Codex</Application><Company>OpenAI</Company><Manager>Hermes</Manager></Properties>` },
+  ]);
 }
 
 test("Response Engine constants use the production service key", () => {
@@ -373,6 +460,30 @@ test("Response Engine text quality scan flags dash punctuation and generic AI ph
   assert.ok(failures.includes("resume.docx contains generic AI-style phrase: seamlessly."));
   assert.ok(textQualityFailures("This output mentions OpenAI.", "resume.docx").includes("resume.docx contains restricted deliverable term: OpenAI."));
   assert.deepEqual(textQualityFailures("Plain supported evidence in concise sentences.", "resume.docx"), []);
+});
+
+test("Response Engine Office metadata scrub forces BA Advisory Desk with missing TMPDIR", async () => {
+  const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "baad-scrub-"));
+  const filePath = path.join(tempRoot, "dirty.docx");
+  const originalTmpdir = process.env.TMPDIR;
+  process.env.TMPDIR = path.join(tempRoot, "missing-host-temp");
+  try {
+    await fsp.writeFile(filePath, dirtyDocxBuffer());
+    await scrubOfficeMetadata({ absolutePath: filePath, fileName: "dirty.docx", extension: "docx" });
+    assert.ok(fs.existsSync(path.join(tempRoot, ".tmp")));
+
+    const buffer = await fsp.readFile(filePath);
+    const text = buffer.toString("utf8");
+    assert.match(text, /BA Advisory Desk/);
+    assert.doesNotMatch(text, /Codex|OpenAI|ChatGPT|Hermes/);
+  } finally {
+    if (originalTmpdir === undefined) {
+      delete process.env.TMPDIR;
+    } else {
+      process.env.TMPDIR = originalTmpdir;
+    }
+    await fsp.rm(tempRoot, { recursive: true, force: true });
+  }
 });
 
 test("Response Engine fit-gap and evidence map helpers enforce required structure", () => {

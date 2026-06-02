@@ -500,8 +500,23 @@ function safeCodexEnv(jobDir) {
   return env;
 }
 
+function safeFileRewriteEnv(filePath) {
+  const fileDir = path.dirname(filePath);
+  const env = safeCodexEnv(fileDir);
+  env.TMPDIR = path.join(fileDir, ".tmp");
+  delete env.TEMP;
+  return env;
+}
+
 function runProcess(command, args, options = {}) {
   return new Promise((resolve) => {
+    if (options.env?.TMPDIR) {
+      try {
+        fs.mkdirSync(options.env.TMPDIR, { recursive: true });
+      } catch {
+        // Let the child process report the concrete failure if the directory cannot be created.
+      }
+    }
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
@@ -930,11 +945,12 @@ async function scrubOfficeMetadata(file) {
   ].join("\n");
   const result = await runProcess(pythonBin, ["-c", script, file.absolutePath, DELIVERABLE_METADATA_AUTHOR], {
     cwd: path.dirname(file.absolutePath),
-    env: safeCodexEnv(path.dirname(file.absolutePath)),
+    env: safeFileRewriteEnv(file.absolutePath),
     timeoutMs: 30 * 1000,
   });
   if (result.code !== 0) {
-    throw new Error(`Could not scrub Office metadata for ${file.fileName}.`);
+    const detail = String(result.stderr || result.stdout || "").replace(/\s+/g, " ").trim().slice(0, 300);
+    throw new Error(`Could not scrub Office metadata for ${file.fileName}${detail ? `: ${detail}` : ""}.`);
   }
 }
 
@@ -977,7 +993,7 @@ async function scrubPdfMetadata(file) {
   ].join("\n");
   const result = await runProcess(pythonBin, ["-c", script, file.absolutePath, DELIVERABLE_METADATA_AUTHOR], {
     cwd: path.dirname(file.absolutePath),
-    env: safeCodexEnv(path.dirname(file.absolutePath)),
+    env: safeFileRewriteEnv(file.absolutePath),
     timeoutMs: 30 * 1000,
   });
   if (result.code === 3) {
@@ -1715,6 +1731,7 @@ module.exports = {
   qaCheckPassed,
   qaCleared,
   qaReleaseGateFailures,
+  scrubOfficeMetadata,
   textQualityFailures,
   validateEvidenceMap,
 };
