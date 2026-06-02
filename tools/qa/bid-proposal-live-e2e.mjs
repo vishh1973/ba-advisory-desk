@@ -727,7 +727,7 @@ async function runWorkerForQueuedJob(requestId) {
     .eq("id", job.id);
   const mockPath = await writeMockProvider();
   const jobRoot = path.join(os.tmpdir(), `baad-response-jobs-${runId}`);
-  const nodeBin = process.env.QA_NODE_BIN || (fs.existsSync("/usr/bin/node") ? "/usr/bin/node" : "node");
+  const nodeBin = process.env.QA_NODE_BIN || (fs.existsSync("/home/codexbot/.local/bin/node") ? "/home/codexbot/.local/bin/node" : "node");
   const result = await run(nodeBin, ["scripts/response-engine-worker.js", "--limit=1"], {
     cwd: APP_ROOT,
     env: {
