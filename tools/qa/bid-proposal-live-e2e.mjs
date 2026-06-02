@@ -7,8 +7,9 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const APP_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DEFAULT_ENV_FILE = "/home/codexbot/.codex/project-env/ba-advisory-desk.env";
 const DEFAULT_SUPABASE_URL = "https://ydkehgqitnxmvqoicxwu.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_uPALQNXCxAUarwj9lCSnpg_WtJifDRe";
