@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 User=codexbot
-WorkingDirectory=/home/codexbot/OneDrive/VA Projects/BA Advisory Desk/MVP Launch/App
+WorkingDirectory=/var/lib/codex-telegram-agent/automations/baad-response-engine/app
 EnvironmentFile=/home/codexbot/.codex/project-env/ba-advisory-desk.env
 Environment=HOME=/home/codexbot
 Environment=CODEX_HOME=/home/codexbot/.codex
