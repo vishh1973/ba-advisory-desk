@@ -2437,6 +2437,7 @@ input[type="file"]::file-selector-button:hover {
   display: grid;
   gap: 12px;
   grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
   padding: 12px;
 }
 
@@ -2445,6 +2446,8 @@ input[type="file"]::file-selector-button:hover {
 .communication-log small {
   display: block;
   line-height: 1.4;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .communication-log strong {
@@ -2635,6 +2638,7 @@ input[type="file"]::file-selector-button:hover {
   padding: 8px 10px;
   font: inherit;
   min-height: 36px;
+  width: auto;
 }
 
 .admin-project-filter {
@@ -2895,7 +2899,33 @@ input[type="file"]::file-selector-button:hover {
 .response-engine-admin-grid {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.65fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.response-engine-admin-grid > * {
+  min-width: 0;
+}
+
+#adminResponseEngineApprovalForm {
+  grid-column: 1 / -1;
+  max-width: 720px;
+}
+
+#adminOrganizationMembers.communication-log article {
+  grid-template-columns: 1fr;
+}
+
+#adminOrganizationMembers .inline-actions {
+  justify-content: flex-start;
+}
+
+#adminOrganizationMembers .inline-actions select {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+#adminOrganizationMembers .inline-actions button {
+  flex: 0 0 auto;
 }
 
 .form-card {
@@ -3026,7 +3056,7 @@ input[type="file"]::file-selector-button:hover {
 .admin-command-layout {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr);
   margin: 18px auto 0;
   max-width: 1180px;
 }
@@ -3037,7 +3067,41 @@ input[type="file"]::file-selector-button:hover {
 }
 
 .admin-portfolio-panel table {
-  min-width: 720px;
+  min-width: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.admin-portfolio-panel th,
+.admin-portfolio-panel td {
+  min-width: 0;
+  overflow-wrap: break-word;
+  vertical-align: top;
+}
+
+.admin-portfolio-panel th:nth-child(1),
+.admin-portfolio-panel td:nth-child(1) {
+  width: 44%;
+}
+
+.admin-portfolio-panel th:nth-child(2),
+.admin-portfolio-panel td:nth-child(2) {
+  width: 16%;
+}
+
+.admin-portfolio-panel th:nth-child(3),
+.admin-portfolio-panel td:nth-child(3) {
+  width: 12%;
+}
+
+.admin-portfolio-panel th:nth-child(4),
+.admin-portfolio-panel td:nth-child(4) {
+  width: 16%;
+}
+
+.admin-portfolio-panel th:nth-child(5),
+.admin-portfolio-panel td:nth-child(5) {
+  width: 12%;
 }
 
 .admin-portfolio-controls {
@@ -3081,6 +3145,11 @@ input[type="file"]::file-selector-button:hover {
   color: var(--slate);
   font-size: 12px;
   margin: 3px 0 8px;
+}
+
+.admin-portfolio-panel td small {
+  display: block;
+  line-height: 1.35;
 }
 
 .admin-portfolio-panel tr.selected-row {
