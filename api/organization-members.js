@@ -31,7 +31,7 @@ function normalizeStatus(value) {
 }
 
 function normalizeMember(row) {
-  const profile = row.profiles || {};
+  const profile = row.member_profile || row.profiles || {};
   const organization = row.client_organizations || {};
   return {
     id: row.id,
@@ -58,7 +58,7 @@ function normalizeMember(row) {
 async function readAdminMembers(supabase, organizationId = "") {
   let query = supabase
     .from("client_organization_members")
-    .select("id,organization_id,profile_id,email,display_name,role,status,is_primary,service_interest,approved_at,joined_at,removed_at,created_at,updated_at,profiles(first_name,last_name,work_email,auth_email,job_title,department),client_organizations(name,billing_email,status)")
+    .select("id,organization_id,profile_id,email,display_name,role,status,is_primary,service_interest,approved_at,joined_at,removed_at,created_at,updated_at,member_profile:profiles!client_organization_members_profile_id_fkey(first_name,last_name,work_email,auth_email,job_title,department),client_organizations(name,billing_email,status)")
     .order("updated_at", { ascending: false })
     .limit(1000);
   if (organizationId) query = query.eq("organization_id", organizationId);
@@ -73,7 +73,7 @@ async function readClientMembers(supabase, req) {
   });
   const { data, error } = await supabase
     .from("client_organization_members")
-    .select("id,organization_id,profile_id,email,display_name,role,status,is_primary,service_interest,approved_at,joined_at,created_at,updated_at,profiles(first_name,last_name,work_email,job_title,department),client_organizations(name,billing_email,status)")
+    .select("id,organization_id,profile_id,email,display_name,role,status,is_primary,service_interest,approved_at,joined_at,created_at,updated_at,member_profile:profiles!client_organization_members_profile_id_fkey(first_name,last_name,work_email,job_title,department),client_organizations(name,billing_email,status)")
     .eq("organization_id", workspace.organizationId)
     .order("status", { ascending: true })
     .order("updated_at", { ascending: false })
@@ -203,7 +203,7 @@ async function updateMember(supabase, req) {
     .from("client_organization_members")
     .update(payload)
     .eq("id", memberId)
-    .select("id,organization_id,profile_id,email,display_name,role,status,approved_at,joined_at,updated_at,client_organizations(id,name,billing_email,status),profiles(first_name,last_name,work_email,auth_email,job_title,department)")
+    .select("id,organization_id,profile_id,email,display_name,role,status,approved_at,joined_at,updated_at,client_organizations(id,name,billing_email,status),member_profile:profiles!client_organization_members_profile_id_fkey(first_name,last_name,work_email,auth_email,job_title,department)")
     .single();
   if (updateError) throw updateError;
 
