@@ -62,6 +62,7 @@ const FILE_ROLE_CATALOG = {
   past_profile: "Past candidate profile",
   recruiter_instructions: "Recruiter email or instructions",
   client_template: "Client template",
+  supporting_evidence: "Additional supporting evidence",
   reference_material: "Reference material",
   other: "Other",
 };
@@ -116,7 +117,7 @@ function buildFormatSummary(formatKeys) {
 function normalizeFileContexts(value) {
   const list = Array.isArray(value) ? value : [];
   return list.map((item) => {
-    const role = normalizeKey(item?.role || item?.fileRole || "other");
+    const role = normalizeKey(item?.role || item?.fileRole || item?.file_role || "other");
     return {
       storagePath: String(item?.storagePath || item?.storage_path || "").trim(),
       fileName: String(item?.fileName || item?.file_name || "").trim(),

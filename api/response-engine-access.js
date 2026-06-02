@@ -105,18 +105,29 @@ async function sendAccessRequestEmail(supabase, { entitlement, organization, pro
 
 async function readClientPayload(supabase, req) {
   const workspace = await getAuthenticatedWorkspace(supabase, req);
-  const [entitlement, creditBalance, packages] = await Promise.all([
+  const [entitlement, creditBalance, packages, jobs] = await Promise.all([
     readResponseEntitlement(supabase, workspace.organizationId),
     readResponseCreditBalance(supabase, workspace.organizationId),
     supabase
       .from("response_engine_requests")
-      .select("request_id,submitted_by,package_title,candidate_name,target_role,opportunity_name,output_options,output_formats,credit_cost,status,qa_score,qa_summary,created_at,updated_at,requests(request_code,due_at),profiles(first_name,last_name,work_email)")
+      .select("request_id,submitted_by,organization_id,project_id,package_title,candidate_name,target_role,opportunity_name,output_options,output_formats,credit_cost,status,qa_score,qa_summary,created_at,updated_at,requests(request_code,due_at),profiles(first_name,last_name,work_email)")
       .eq("organization_id", workspace.organizationId)
       .order("created_at", { ascending: false })
       .limit(25),
+    supabase
+      .from("response_engine_jobs")
+      .select("id,request_id,status,attempts,max_attempts,qa_score,error_message,updated_at")
+      .eq("organization_id", workspace.organizationId)
+      .order("updated_at", { ascending: false })
+      .limit(100),
   ]);
 
   if (packages.error) throw packages.error;
+  if (jobs.error) throw jobs.error;
+  const latestJobByRequest = new Map();
+  (jobs.data || []).forEach((job) => {
+    if (!latestJobByRequest.has(job.request_id)) latestJobByRequest.set(job.request_id, job);
+  });
 
   return {
     organizationId: workspace.organizationId,
@@ -126,7 +137,10 @@ async function readClientPayload(supabase, req) {
       pilot_credit_limit: 0,
     },
     credits: creditBalance,
-    packages: packages.data || [],
+    packages: (packages.data || []).map((item) => ({
+      ...item,
+      latest_job: latestJobByRequest.get(item.request_id) || null,
+    })),
   };
 }
 
@@ -207,7 +221,7 @@ async function readAdminPayload(supabase) {
       .limit(250),
     supabase
       .from("response_engine_jobs")
-      .select("id,request_id,organization_id,project_id,status,provider,provider_mode,attempts,qa_score,error_message,queued_at,updated_at,response_engine_requests(package_title,candidate_name,target_role,credit_cost),client_organizations(name,billing_email)")
+      .select("id,request_id,organization_id,project_id,status,provider,provider_mode,attempts,max_attempts,qa_score,error_message,queued_at,updated_at,response_engine_requests(package_title,candidate_name,target_role,credit_cost),client_organizations(name,billing_email)")
       .order("updated_at", { ascending: false })
       .limit(100),
   ]);

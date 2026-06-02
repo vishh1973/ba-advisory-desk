@@ -2326,7 +2326,12 @@ function renderResponseEnginePackages() {
       ? item.output_formats.map((key) => RESPONSE_ENGINE_FORMATS.has(key) ? key.toUpperCase().replace("UPLOADED_TEMPLATE", "Template") : key).join(", ")
       : "Formats selected";
     const qaScore = item.qa_score ? `QA ${Number(item.qa_score).toFixed(1)}/10` : "QA score pending";
+    const latestJob = item.latest_job || item.latestJob || {};
+    const attemptText = latestJob.attempts || latestJob.max_attempts
+      ? `Attempt ${Number(latestJob.attempts || 0)} of ${Number(latestJob.max_attempts || 3)}`
+      : "";
     const submitter = item.profiles ? [item.profiles.first_name, item.profiles.last_name].filter(Boolean).join(" ") || item.profiles.work_email : "";
+    const canResubmit = normalizeStatusValue(item.status) === "needs_more_information";
     return `
       <article class="deliverable-item response-package-card">
         <header>
@@ -2344,10 +2349,21 @@ function renderResponseEnginePackages() {
           <span>${escapeHtml(outputs)}</span>
           <span>${escapeHtml(formats)}</span>
           <span>${escapeHtml(qaScore)}</span>
+          ${attemptText ? `<span>${escapeHtml(attemptText)}</span>` : ""}
           ${submitter ? `<span>Submitted by ${escapeHtml(submitter)}</span>` : ""}
         </div>
         ${item.opportunity_name ? `<p>${escapeHtml(item.opportunity_name)}</p>` : ""}
         ${item.qa_summary ? `<p>${escapeHtml(item.qa_summary)}</p>` : ""}
+        ${latestJob.error_message && normalizeStatusValue(item.status) !== "delivered" ? `<p>${escapeHtml(latestJob.error_message)}</p>` : ""}
+        ${canResubmit ? `
+          <div class="admin-scope-note">
+            <strong>Action needed</strong>
+            <span>Upload the requested information and resubmit this same package. No additional ${escapeHtml(RESPONSE_ENGINE_CREDIT_LABEL)}s will be charged for the follow-up upload.</span>
+          </div>
+          <div class="table-actions">
+            <button class="primary small" type="button" data-response-engine-resubmit="${escapeHtml(item.request_id || "")}" data-organization-id="${escapeHtml(item.organization_id || "")}" data-project-id="${escapeHtml(item.project_id || "")}">Upload Additional Information</button>
+          </div>
+        ` : ""}
       </article>
     `;
   }).join("");
@@ -2453,8 +2469,9 @@ function renderAdminResponseEngine() {
         return `
           <article>
             <strong>${escapeHtml(request.package_title || getShortEntityId("JOB", job.id))}</strong>
-            <span>${escapeHtml(org.name || "Client organization")} | ${escapeHtml(request.candidate_name || "Candidate")} | ${escapeHtml(getResponsePackageStatusLabel(job.status))}</span>
-            <small>${escapeHtml(job.provider || "codex_cli")} | attempts ${escapeHtml(job.attempts || 0)} | QA ${escapeHtml(job.qa_score || "pending")}</small>
+            <span>${escapeHtml(org.name || "Client organization")} | ${escapeHtml(org.billing_email || "No billing email")} | ${escapeHtml(request.candidate_name || "Candidate")} | ${escapeHtml(getResponsePackageStatusLabel(job.status))}</span>
+            <small>${escapeHtml(job.provider || "codex_cli")} | attempts ${escapeHtml(job.attempts || 0)} of ${escapeHtml(job.max_attempts || 3)} | QA ${escapeHtml(job.qa_score || "pending")}</small>
+            ${job.error_message ? `<small>${escapeHtml(job.error_message)}</small>` : ""}
           </article>
         `;
       }).join("")
@@ -3137,6 +3154,8 @@ function inferProjectIdForContext(context, fallbackProjectId = "") {
   if (context?.projectId) return context.projectId;
   const request = state.requests.find((item) => String(item.requestId || item.id) === String(context?.requestId || context?.id));
   if (request?.projectId) return request.projectId;
+  const responsePackage = (state.responseEngine.packages || []).find((item) => String(item.request_id || item.requestId) === String(context?.requestId || context?.id));
+  if (responsePackage?.project_id || responsePackage?.projectId) return responsePackage.project_id || responsePackage.projectId;
   const deliverable = state.deliverables.find((item) => String(item.id) === String(context?.deliverableId || context?.id));
   if (deliverable?.projectId) return deliverable.projectId;
   if (fallbackProjectId || state.selectedProjectId) return fallbackProjectId || state.selectedProjectId;
@@ -4037,7 +4056,15 @@ function getWorkspaceItems() {
     projectId: request.projectId || "",
     label: `${request.projectLabel || getClientProjectLabel(request.projectId)} | ${getRequestDisplayRef(request)} | ${request.type}`,
   }));
-  return [...projectItems, ...deliverableItems, ...requestItems];
+  const responsePackageItems = (state.responseEngine.packages || [])
+    .filter((item) => item.request_id)
+    .map((item) => ({
+      type: "request",
+      id: item.request_id,
+      projectId: item.project_id || item.projectId || "",
+      label: `${getClientProjectLabel(item.project_id || item.projectId)} | ${item.package_title || RESPONSE_ENGINE_DASHBOARD_LABEL} | ${getResponsePackageStatusLabel(item.status)}`,
+    }));
+  return [...projectItems, ...deliverableItems, ...requestItems, ...responsePackageItems];
 }
 
 function parseWorkspaceContext(value) {
@@ -4167,6 +4194,10 @@ async function saveClientUpload() {
   if (supabaseClient && !projectId) {
     return { ok: false, error: "Choose the project workspace these files belong to before uploading." };
   }
+  const responsePackage = context.requestId
+    ? (state.responseEngine.packages || []).find((item) => String(item.request_id || item.requestId) === String(context.requestId))
+    : null;
+  const isResponseInfoRequest = Boolean(responsePackage && normalizeStatusValue(responsePackage.status) === "needs_more_information");
 
   const storagePaths = [];
   const stagedFiles = [];
@@ -4195,14 +4226,20 @@ async function saveClientUpload() {
         timeoutMs: finalizeTimeoutMs,
         body: {
           action: "finalize",
-          fileKind: "client_upload",
+          fileKind: isResponseInfoRequest ? "request_file" : "client_upload",
           organizationId,
           projectId,
-          deliverableId: context.deliverableId,
+          deliverableId: isResponseInfoRequest ? null : context.deliverableId,
           requestId: context.requestId,
           uploadType: purpose,
           note,
-          files: stagedFiles.map(({ file, storagePath }) => buildUploadedSourceFile(file, storagePath)),
+          files: stagedFiles.map(({ file, storagePath }) => ({
+            ...buildUploadedSourceFile(file, storagePath),
+            fileRole: isResponseInfoRequest ? "supporting_evidence" : "other",
+            fileDescription: isResponseInfoRequest
+              ? `${note || "Additional information requested for the same Bid/Proposal Automation package."}`.slice(0, 1000)
+              : "",
+          })),
         },
       }),
       finalizeTimeoutMs,
@@ -4224,7 +4261,7 @@ async function saveClientUpload() {
       addLocalUpload({
         id: `upload-${Date.now()}-${index}`,
         fileId: record.id || "",
-        fileKind: "client_upload",
+        fileKind: isResponseInfoRequest ? "request_file" : "client_upload",
         projectId,
         projectLabel: getClientProjectLabel(projectId),
         contextType: context.type,
@@ -4240,6 +4277,24 @@ async function saveClientUpload() {
     });
     uploaded = Number(finalizeResult.data?.uploaded ?? stagedFiles.length);
     storedOnline = true;
+    if (isResponseInfoRequest) {
+      setInlineStatus("#clientUploadStatus", "Additional information attached. Resubmitting the same package without another credit charge.");
+      const queueResult = await fetchClientApi("/api/response-engine-package", {
+        method: "POST",
+        timeoutMs: 30000,
+        body: {
+          action: "queue",
+          requestId: context.requestId,
+        },
+      });
+      if (!queueResult.ok) {
+        return {
+          ok: false,
+          error: queueResult.error || "Files were attached, but the package could not be resubmitted. Please contact support.",
+          uploaded,
+        };
+      }
+    }
   } else {
     files.forEach((file, index) => {
       addLocalUpload({
@@ -4273,7 +4328,7 @@ async function saveClientUpload() {
     relatedLabel: context.label,
     projectId,
   });
-  return { ok: true, uploaded, storedOnline, notificationPending: true };
+  return { ok: true, uploaded, storedOnline, notificationPending: true, responseEngineResubmitted: Boolean(isResponseInfoRequest) };
 }
 
 async function getNextDeliverableVersionNumber(deliverableId) {
@@ -8077,6 +8132,38 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-response-engine-resubmit]");
+  if (!target) return;
+  event.preventDefault();
+  const requestId = target.dataset.responseEngineResubmit || "";
+  const projectId = target.dataset.projectId || "";
+  const request = (state.responseEngine.packages || []).find((item) => item.request_id === requestId);
+  const contextSelect = document.querySelector("#clientUploadContext");
+  const purposeSelect = document.querySelector("#clientUploadPurpose");
+  const notes = document.querySelector("#clientUploadNotes");
+  if (contextSelect && requestId) {
+    const requestContext = `request:${requestId}`;
+    const optionExists = Array.from(contextSelect.options || []).some((option) => option.value === requestContext);
+    if (optionExists) contextSelect.value = requestContext;
+  }
+  if (purposeSelect) purposeSelect.value = "Supporting file";
+  if (notes) {
+    notes.value = [
+      `Additional information for ${request?.package_title || RESPONSE_ENGINE_DASHBOARD_LABEL}.`,
+      "Please attach these files to the same package for resubmission.",
+    ].join(" ");
+  }
+  window.location.hash = "dashboard";
+  setInlineStatus(
+    "#clientUploadStatus",
+    "Upload the requested information here. It will stay attached to the same package and will not create a new credit charge.",
+    "success"
+  );
+  document.querySelector("#clientUploadFiles")?.focus();
+  showToast("Upload the additional information, then resubmit the same package.");
+});
+
 document.querySelector("#responseEngineForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const submitButton = document.querySelector("#responseEngineSubmitButton") || event.submitter;
@@ -8607,7 +8694,9 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
     document.querySelector("#clientUploadFileList").textContent = "No files selected yet.";
     if (status) {
       const fileText = `${result.uploaded} file${result.uploaded === 1 ? "" : "s"}`;
-      status.textContent = result.storedOnline
+      status.textContent = result.responseEngineResubmitted
+        ? `${fileText} uploaded and the same ${RESPONSE_ENGINE_DASHBOARD_LABEL} package was resubmitted. No additional credits were charged.`
+        : result.storedOnline
         ? `${fileText} uploaded and attached. The advisory team will review the workspace.`
         : `${fileText} recorded in this workspace.`;
       status.classList.add("success");
@@ -8623,7 +8712,7 @@ document.querySelector("#clientUploadForm")?.addEventListener("submit", async (e
       });
     }
     render();
-    showToast("Client upload added to the workspace.");
+    showToast(result.responseEngineResubmitted ? `${RESPONSE_ENGINE_DASHBOARD_LABEL} package resubmitted.` : "Client upload added to the workspace.");
   } catch (error) {
     const message = error.message || "Files could not be uploaded. Please try again or contact support.";
     if (status) {

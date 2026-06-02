@@ -15,6 +15,8 @@ const DEFAULT_ENV_FILE = "/home/codexbot/.codex/project-env/ba-advisory-desk.env
 const DEFAULT_JOB_ROOT = "/var/lib/codex-telegram-agent/automations/baad-response-engine/jobs";
 const QA_RELEASE_THRESHOLD = 8.5;
 const DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS = 6;
+const DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS = 3;
+const DEFAULT_MAX_RESPONSE_ENGINE_SOURCE_FILES = 15;
 const DELIVERABLE_METADATA_AUTHOR = "BA Advisory Desk";
 const RESPONSE_ENGINE_LABEL = "Bid/Proposal Automation";
 const REQUIRED_QA_CHECKS = Object.freeze([
@@ -214,6 +216,16 @@ function maxResponseEngineSubagents() {
   return Math.min(DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS, Math.max(0, Math.floor(configured)));
 }
 
+function maxResponseEngineAttempts(job = {}) {
+  const configured = Number(process.env.RESPONSE_ENGINE_MAX_ATTEMPTS || job.max_attempts || DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS);
+  if (!Number.isFinite(configured)) return DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS;
+  return Math.max(DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS, Math.floor(configured));
+}
+
+function attemptsRemaining(job = {}) {
+  return Number(job.attempts || 0) < maxResponseEngineAttempts(job);
+}
+
 async function writeJson(filePath, value) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
   await fsp.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -224,7 +236,7 @@ async function readJson(filePath) {
 }
 
 async function claimNextJob(supabase) {
-  const selectColumns = "id,request_id,organization_id,project_id,status,provider,provider_mode,attempts,max_attempts,queued_at";
+  const selectColumns = "id,request_id,organization_id,project_id,status,provider,provider_mode,attempts,max_attempts,qa_score,qa_report,output_manifest,error_message,queued_at";
   const { data, error } = await supabase
     .from("response_engine_jobs")
     .select(selectColumns)
@@ -298,7 +310,7 @@ async function readSourceFiles(supabase, job) {
     .order("created_at", { ascending: true });
   if (error) throw error;
   if (!data?.length) throw new Error(`No source files were found for the ${RESPONSE_ENGINE_LABEL} request.`);
-  if (data.length > 10) throw new Error(`${RESPONSE_ENGINE_LABEL} packages accept no more than 10 source files.`);
+  if (data.length > DEFAULT_MAX_RESPONSE_ENGINE_SOURCE_FILES) throw new Error(`${RESPONSE_ENGINE_LABEL} packages accept no more than ${DEFAULT_MAX_RESPONSE_ENGINE_SOURCE_FILES} source files after follow-up evidence is added.`);
   return data;
 }
 
@@ -344,6 +356,8 @@ function buildJobManifest(job, files) {
     creditCost: Number(request.credit_cost || 0),
     provider: "codex_cli",
     providerMode: "pilot_subscription",
+    attempt: Number(job.attempts || 0),
+    maxAttempts: maxResponseEngineAttempts(job),
     openAiApiFallbackEnabled: process.env.RESPONSE_ENGINE_OPENAI_API_ENABLED === "true" && process.env.OPENAI_API_FALLBACK_ENABLED === "true",
     orchestrationPolicy: {
       maxSubagents: maxResponseEngineSubagents(),
@@ -354,6 +368,7 @@ function buildJobManifest(job, files) {
     },
     qualityControls: {
       releaseThreshold: QA_RELEASE_THRESHOLD,
+      minimumAutomatedAttemptsBeforeFinalFailure: DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS,
       requiredQaChecks: REQUIRED_QA_CHECKS,
       factualGroundingRequired: true,
       naturalKeywordUsageRequired: true,
@@ -404,6 +419,8 @@ async function buildPrompt(jobDir, manifest) {
     "- Client deliverables and metadata must not include AI, Hermes, Codex, OpenAI, ChatGPT, Claude, LLM, GPT, Anthropic, Gemini, Llama, Mistral, DeepSeek, Perplexity, Grok, prompt, model, tool, or automation trace wording.",
     "- If a claim is unsupported, mark it as a gap instead of inventing evidence.",
     "- If a mandatory criterion is not supported, do not mark it as met.",
+    "- Use manifest.clientInputRequired or qa-report.clientInputRequired only when the uploaded files do not contain enough evidence to prepare the requested package after treating unsupported items as gaps.",
+    "- Do not use clientInputRequired for formatting, writing, QA, metadata, or internal quality problems. Those must be corrected through automated revision before release.",
     "- Create Word, Excel, PowerPoint, or PDF files only. Do not create ZIP files.",
     "",
     "Agent orchestration rules:",
@@ -421,6 +438,7 @@ async function buildPrompt(jobDir, manifest) {
     "- Criteria, SOW, and skills matrix keywords must be used in natural English only where evidence supports them.",
     "- Industry terminology may be added only when it is substantiated by the role, project, documents, or requirement wording.",
     "- Run an independent final QA pass against factual grounding, keyword coverage, natural language, file formatting, and trace cleanup.",
+    `- If the package does not clear the ${QA_RELEASE_THRESHOLD} release threshold or any required gate, revise the outputs and QA artifacts before marking the job ready.`,
     "- The qa-report.json must include qualityChecks, subagentUsage, factualGrounding, sourceFileCoverage, keywordCoverage, industryTerminology, humanEditorialReview, fitGapAssessment, formattingQuality, and metadataReview sections.",
     "",
     "Human resume rewrite methodology:",
@@ -688,6 +706,13 @@ function qaReleaseGateFailures(qa, options = {}) {
 
 function qaCleared(qa, options = {}) {
   return qaReleaseGateFailures(qa, options).length === 0;
+}
+
+function clientInputRequired(manifest, qa) {
+  return qaCheckPassed(manifest?.clientInputRequired) ||
+    qaCheckPassed(manifest?.needsClientInput) ||
+    qaCheckPassed(qa?.clientInputRequired) ||
+    qaCheckPassed(qa?.needsClientInput);
 }
 
 function textQualityFailures(text, label = "output") {
@@ -971,6 +996,11 @@ async function consumeReservedCredits(supabase, job) {
   if (error) throw error;
 }
 
+function assertNoSupabaseErrors(results) {
+  const failure = (results || []).find((result) => result?.error);
+  if (failure?.error) throw failure.error;
+}
+
 async function uploadAndReleaseDeliverables(supabase, job, files, manifest, qa) {
   const request = job.response_engine_requests || {};
   const title = request.package_title || `${RESPONSE_ENGINE_LABEL} Candidate Submission Package`;
@@ -1094,6 +1124,14 @@ function buildReadyEmail(job, release, manifest) {
   return { subject, body, html };
 }
 
+function publicBaseUrl() {
+  return process.env.PUBLIC_BASE_URL || "https://baadvisorydesk.com";
+}
+
+function adminNotificationEmail() {
+  return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -1103,10 +1141,118 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-async function notifyClient(supabase, job, release, manifest) {
-  const email = job.client_organizations?.billing_email || "";
-  if (!email) return { sent: false, skipped: true, reason: "No billing email." };
-  const message = buildReadyEmail(job, release, manifest);
+function summarizeMissingInformation(job, qa) {
+  const request = job.response_engine_requests || {};
+  const failures = [
+    ...(Array.isArray(qa?.hardGateFailures) ? qa.hardGateFailures : []),
+    ...(Array.isArray(qa?.missingInformation) ? qa.missingInformation : []),
+    ...(Array.isArray(qa?.clientActionItems) ? qa.clientActionItems : []),
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  if (failures.length) return failures.slice(0, 5);
+  return [
+    `Add any missing client criteria, scoring grid, template instructions, or candidate evidence for ${request.candidate_name || "the candidate"}.`,
+    "If a requirement is not supported by the current resume, add candidate notes or project details that confirm the experience.",
+    "Upload the additional files or notes in the same package card, then resubmit the package for processing.",
+  ];
+}
+
+function buildNeedsMoreInformationEmail(job, manifest, qa) {
+  const request = job.response_engine_requests || {};
+  const workspaceUrl = `${publicBaseUrl()}/#response-engine`;
+  const packageTitle = request.package_title || `${RESPONSE_ENGINE_LABEL} package`;
+  const actionItems = summarizeMissingInformation(job, qa);
+  const subject = `More information needed for your ${RESPONSE_ENGINE_LABEL} package`;
+  const body = [
+    `${packageTitle} needs more information before BA Advisory Desk can release the deliverables.`,
+    `Candidate: ${request.candidate_name || "Not specified"}`,
+    `Target role: ${request.target_role || "Not specified"}`,
+    "What to provide:",
+    ...actionItems.map((item) => `- ${item}`),
+    "Please sign in, open the package, upload the additional material, and resubmit it. No additional credits will be charged for this follow-up upload because it remains attached to the same request.",
+    `Workspace: ${workspaceUrl}`,
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:680px;">
+      <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">More information needed</h1>
+      <p style="margin:0 0 14px;">${escapeHtml(packageTitle)} needs more information before the deliverables can be released.</p>
+      <p style="margin:0 0 14px;"><strong>Candidate:</strong> ${escapeHtml(request.candidate_name || "Not specified")}<br/><strong>Target role:</strong> ${escapeHtml(request.target_role || "Not specified")}</p>
+      <p style="margin:0 0 8px;"><strong>What to provide</strong></p>
+      <ul style="margin:0 0 14px 20px;padding:0;">${actionItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      <p style="margin:0 0 14px;">Please sign in, open the package, upload the additional material, and resubmit it. No additional credits will be charged for this follow-up upload because it remains attached to the same request.</p>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open ${escapeHtml(RESPONSE_ENGINE_LABEL)}</a></p>
+      <p style="margin:24px 0 0;color:#5c6670;font-size:13px;">BA Advisory Desk</p>
+    </div>
+  `;
+  return { subject, body, html };
+}
+
+function buildAdminFailureEmail(job, qa, error) {
+  const request = job.response_engine_requests || {};
+  const adminUrl = `${publicBaseUrl()}/#admin`;
+  const issue = String(error?.message || qa?.summary || "The package did not clear release checks.").slice(0, 1000);
+  const subject = `[BAAD Admin] ${RESPONSE_ENGINE_LABEL} package needs review`;
+  const body = [
+    `${RESPONSE_ENGINE_LABEL} package needs administrator review.`,
+    `Client: ${job.client_organizations?.name || "Unknown client"}`,
+    `Billing email: ${job.client_organizations?.billing_email || "Not recorded"}`,
+    `Package: ${request.package_title || "Candidate submission package"}`,
+    `Candidate: ${request.candidate_name || "Not specified"}`,
+    `Target role: ${request.target_role || "Not specified"}`,
+    `Request ID: ${job.request_id}`,
+    `Job ID: ${job.id}`,
+    `Attempts: ${Number(job.attempts || 0)} of ${maxResponseEngineAttempts(job)}`,
+    `QA score: ${Number(qa?.score || job.qa_score || 0).toFixed(1)}`,
+    `Issue: ${issue}`,
+    `Open admin workspace: ${adminUrl}`,
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:720px;">
+      <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">${escapeHtml(RESPONSE_ENGINE_LABEL)} package needs review</h1>
+      <table style="border-collapse:collapse;width:100%;margin:14px 0;">
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Client</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(job.client_organizations?.name || "Unknown client")}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Email</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(job.client_organizations?.billing_email || "Not recorded")}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Package</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(request.package_title || "Candidate submission package")}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Candidate</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(request.candidate_name || "Not specified")}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Target role</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(request.target_role || "Not specified")}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Attempts</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(`${Number(job.attempts || 0)} of ${maxResponseEngineAttempts(job)}`)}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">QA score</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(Number(qa?.score || job.qa_score || 0).toFixed(1))}</td></tr>
+        <tr><td style="border:1px solid #d9e2ec;padding:8px;font-weight:bold;">Issue</td><td style="border:1px solid #d9e2ec;padding:8px;">${escapeHtml(issue)}</td></tr>
+      </table>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(adminUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open Admin Workspace</a></p>
+    </div>
+  `;
+  return { subject, body, html };
+}
+
+function buildClientServiceReviewEmail(job, error) {
+  const request = job.response_engine_requests || {};
+  const workspaceUrl = `${publicBaseUrl()}/#response-engine`;
+  const packageTitle = request.package_title || `${RESPONSE_ENGINE_LABEL} package`;
+  const subject = `${RESPONSE_ENGINE_LABEL} package is under service review`;
+  const body = [
+    `${packageTitle} requires BA Advisory Desk service review before deliverables can be released.`,
+    `Candidate: ${request.candidate_name || "Not specified"}`,
+    `Target role: ${request.target_role || "Not specified"}`,
+    "No action is required from you at this moment unless BA Advisory Desk contacts you for a specific clarification.",
+    "No credits were consumed for this package while it is under review.",
+    `Workspace: ${workspaceUrl}`,
+  ].join("\n");
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#17212b;line-height:1.5;max-width:680px;">
+      <h1 style="font-size:20px;line-height:1.3;margin:0 0 16px;">Package under service review</h1>
+      <p style="margin:0 0 14px;">${escapeHtml(packageTitle)} requires BA Advisory Desk service review before deliverables can be released.</p>
+      <p style="margin:0 0 14px;"><strong>Candidate:</strong> ${escapeHtml(request.candidate_name || "Not specified")}<br/><strong>Target role:</strong> ${escapeHtml(request.target_role || "Not specified")}</p>
+      <p style="margin:0 0 14px;">No action is required from you at this moment unless BA Advisory Desk contacts you for a specific clarification.</p>
+      <p style="margin:0 0 14px;">No credits were consumed for this package while it is under review.</p>
+      <p style="margin:22px 0 0;"><a href="${escapeHtml(workspaceUrl)}" style="background:#17324d;color:#ffffff;padding:11px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Open ${escapeHtml(RESPONSE_ENGINE_LABEL)}</a></p>
+      <p style="margin:24px 0 0;color:#5c6670;font-size:13px;">BA Advisory Desk</p>
+    </div>
+  `;
+  return { subject, body, html };
+}
+
+async function sendResponseEngineNotification(supabase, job, { to, templateKey, message, relatedEntityType = "request", relatedEntityId = job.request_id, dedupeKey }) {
+  if (!to) return { sent: false, skipped: true, reason: "No recipient email." };
   const emailReference = createEmailReference();
   const subject = subjectWithReference(message.subject, emailReference);
   const body = textWithReference(message.body, emailReference);
@@ -1116,28 +1262,70 @@ async function notifyClient(supabase, job, release, manifest) {
     .insert({
       organization_id: job.organization_id,
       project_id: job.project_id,
-      recipient_email: email,
-      template_key: "response_engine_ready",
+      recipient_email: to,
+      template_key: templateKey,
       subject,
       body,
       status: "queued",
-      related_entity_type: "deliverable",
-      related_entity_id: release.deliverableId,
-      dedupe_key: `response_engine_ready:${release.versionId}:${email}`,
+      related_entity_type: relatedEntityType,
+      related_entity_id: relatedEntityId,
+      dedupe_key: dedupeKey,
     })
     .select("id")
     .maybeSingle();
   if (notificationError?.code === "23505") return { sent: false, duplicate: true };
   if (notificationError) throw notificationError;
-  const sent = await sendEmail({ to: email, subject, html });
+  const sent = await sendEmail({ to, subject, html });
   await updateNotificationDeliveryStatus(supabase, notification.id, sent);
   return sent;
 }
 
+async function notifyClient(supabase, job, release, manifest) {
+  const email = job.client_organizations?.billing_email || "";
+  if (!email) return { sent: false, skipped: true, reason: "No billing email." };
+  return sendResponseEngineNotification(supabase, job, {
+    to: email,
+    templateKey: "response_engine_ready",
+    message: buildReadyEmail(job, release, manifest),
+    relatedEntityType: "deliverable",
+    relatedEntityId: release.deliverableId,
+    dedupeKey: `response_engine_ready:${release.versionId}:${email}`,
+  });
+}
+
+async function notifyNeedsMoreInformation(supabase, job, manifest, qa) {
+  const email = job.client_organizations?.billing_email || "";
+  return sendResponseEngineNotification(supabase, job, {
+    to: email,
+    templateKey: "response_engine_needs_more_information",
+    message: buildNeedsMoreInformationEmail(job, manifest, qa),
+    dedupeKey: `response_engine_needs_more_information:${job.request_id}:${job.id}:${Number(job.attempts || 0)}`,
+  });
+}
+
+async function notifyAdminFailure(supabase, job, qa, error) {
+  return sendResponseEngineNotification(supabase, job, {
+    to: adminNotificationEmail(),
+    templateKey: "admin_response_engine_failed",
+    message: buildAdminFailureEmail(job, qa, error),
+    dedupeKey: `admin_response_engine_failed:${job.id}:${Number(job.attempts || 0)}`,
+  });
+}
+
+async function notifyClientServiceReview(supabase, job, error) {
+  const email = job.client_organizations?.billing_email || "";
+  return sendResponseEngineNotification(supabase, job, {
+    to: email,
+    templateKey: "response_engine_service_review",
+    message: buildClientServiceReviewEmail(job, error),
+    dedupeKey: `response_engine_service_review:${job.request_id}:${job.id}:${Number(job.attempts || 0)}`,
+  });
+}
+
 async function markNeedsMoreInformation(supabase, job, manifest, qa) {
   const summary = String(qa?.summary || manifest?.summary || "The package needs more source evidence before release.").slice(0, 1000);
-  await releaseReservedCredits(supabase, job, "Released reservation because package needs more information");
-  await Promise.all([
+  const clientNotification = await notifyNeedsMoreInformation(supabase, job, manifest, qa).catch((error) => ({ sent: false, error: error.message }));
+  const results = await Promise.all([
     supabase.from("response_engine_requests").update({
       status: "needs_more_information",
       qa_score: Number(qa?.score || 0),
@@ -1153,15 +1341,87 @@ async function markNeedsMoreInformation(supabase, job, manifest, qa) {
       error_message: summary,
       updated_at: new Date().toISOString(),
     }).eq("id", job.id),
+    supabase.from("audit_events").insert({
+      organization_id: job.organization_id,
+      project_id: job.project_id,
+      event_type: "response_engine_needs_more_information",
+      related_entity_type: "request",
+      related_entity_id: job.request_id,
+      event_detail: {
+        job_id: job.id,
+        qa_score: Number(qa?.score || 0),
+        notification_sent: Boolean(clientNotification?.sent),
+        notification_error: clientNotification?.error || null,
+      },
+      source: "response_engine_worker",
+    }),
   ]);
+  assertNoSupabaseErrors(results);
+}
+
+async function requeueForAutomatedRevision(supabase, job, manifest, qa, failures, reason = "automated_quality_revision") {
+  const maxAttempts = maxResponseEngineAttempts(job);
+  const attempt = Number(job.attempts || 0);
+  const summary = String(
+    qa?.summary ||
+      `${RESPONSE_ENGINE_LABEL} package needs another automated revision before release.`
+  ).slice(0, 1000);
+  const revisionRecord = {
+    reason,
+    attempt,
+    maxAttempts,
+    qaScore: Number(qa?.score || 0),
+    failureCount: Array.isArray(failures) ? failures.length : 0,
+    failures: Array.isArray(failures) ? failures.slice(0, 25) : [],
+    recordedAt: new Date().toISOString(),
+  };
+  const results = await Promise.all([
+    supabase.from("response_engine_requests").update({
+      status: "automated_revision",
+      qa_score: Number(qa?.score || 0),
+      qa_summary: summary,
+      updated_at: new Date().toISOString(),
+    }).eq("request_id", job.request_id).eq("organization_id", job.organization_id),
+    supabase.from("requests").update({ status: "processing" }).eq("id", job.request_id).eq("organization_id", job.organization_id),
+    supabase.from("response_engine_jobs").update({
+      status: "queued",
+      queued_at: new Date().toISOString(),
+      picked_up_at: null,
+      qa_score: Number(qa?.score || 0),
+      qa_report: qa || {},
+      output_manifest: {
+        ...(manifest || {}),
+        automatedRevision: revisionRecord,
+      },
+      error_message: summary,
+      updated_at: new Date().toISOString(),
+    }).eq("id", job.id),
+    supabase.from("audit_events").insert({
+      organization_id: job.organization_id,
+      project_id: job.project_id,
+      event_type: "response_engine_automated_revision_queued",
+      related_entity_type: "request",
+      related_entity_id: job.request_id,
+      event_detail: revisionRecord,
+      source: "response_engine_worker",
+    }),
+  ]);
+  assertNoSupabaseErrors(results);
 }
 
 async function markFailed(supabase, job, error, status = "failed") {
   const message = String(error?.message || error || `${RESPONSE_ENGINE_LABEL} job failed.`).slice(0, 1000);
+  const qa = job.qa_report || { score: Number(job.qa_score || 0), summary: message };
+  const adminNotification = status === "failed"
+    ? await notifyAdminFailure(supabase, job, qa, error).catch((notifyError) => ({ sent: false, error: notifyError.message }))
+    : null;
+  const clientNotification = status === "failed"
+    ? await notifyClientServiceReview(supabase, job, error).catch((notifyError) => ({ sent: false, error: notifyError.message }))
+    : null;
   if (status === "failed" || status === "needs_more_information") {
     await releaseReservedCredits(supabase, job, `Released reservation after ${RESPONSE_ENGINE_LABEL} job did not complete`);
   }
-  await Promise.all([
+  const results = await Promise.all([
     supabase.from("response_engine_jobs").update({
       status,
       error_message: message,
@@ -1175,12 +1435,32 @@ async function markFailed(supabase, job, error, status = "failed") {
     supabase.from("requests").update({
       status: status === "paused_capacity" ? "queued" : "failed",
     }).eq("id", job.request_id).eq("organization_id", job.organization_id),
+    supabase.from("audit_events").insert({
+      organization_id: job.organization_id,
+      project_id: job.project_id,
+      event_type: status === "failed" ? "response_engine_failed_admin_notified" : "response_engine_status_failed",
+      related_entity_type: "request",
+      related_entity_id: job.request_id,
+      event_detail: {
+        job_id: job.id,
+        status,
+        attempts: Number(job.attempts || 0),
+        max_attempts: maxResponseEngineAttempts(job),
+        admin_notification_sent: Boolean(adminNotification?.sent),
+        admin_notification_error: adminNotification?.error || null,
+        client_notification_sent: Boolean(clientNotification?.sent),
+        client_notification_error: clientNotification?.error || null,
+        error: message,
+      },
+      source: "response_engine_worker",
+    }),
   ]);
+  assertNoSupabaseErrors(results);
 }
 
 async function completeJob(supabase, job, release, manifest, qa, notificationResult) {
   await consumeReservedCredits(supabase, job);
-  await Promise.all([
+  const results = await Promise.all([
     supabase.from("response_engine_requests").update({
       status: "delivered",
       qa_score: Number(qa.score || 0),
@@ -1219,12 +1499,16 @@ async function completeJob(supabase, job, release, manifest, qa, notificationRes
       source: "response_engine_worker",
     }),
   ]);
+  assertNoSupabaseErrors(results);
 }
 
 async function processJob(supabase, job) {
   const jobRoot = process.env.RESPONSE_ENGINE_JOB_ROOT || DEFAULT_JOB_ROOT;
   const jobDir = path.resolve(jobRoot, job.id);
   const inputDir = path.join(jobDir, "input");
+  await fsp.rm(path.join(jobDir, "outputs"), { recursive: true, force: true });
+  await fsp.rm(path.join(jobDir, "manifest"), { recursive: true, force: true });
+  await fsp.rm(path.join(jobDir, "tmp"), { recursive: true, force: true });
   await fsp.mkdir(path.join(jobDir, "manifest"), { recursive: true });
   await fsp.mkdir(path.join(jobDir, "outputs"), { recursive: true });
   await fsp.mkdir(path.join(jobDir, "tmp"), { recursive: true });
@@ -1249,7 +1533,15 @@ async function processJob(supabase, job) {
     qa.hardGateFailures = [...new Set([...(Array.isArray(qa.hardGateFailures) ? qa.hardGateFailures : []), ...gateFailures])];
     qa.summary = qa.summary || "The package did not clear the automated release quality gate.";
   }
-  if (status === "needs_more_information" || !qaCleared(qa, gateOptions)) {
+  if ((status === "needs_more_information" && !clientInputRequired(manifest, qa)) || !qaCleared(qa, gateOptions)) {
+    if (attemptsRemaining(job)) {
+      await requeueForAutomatedRevision(supabase, job, manifest, qa, qaReleaseGateFailures(qa, gateOptions), "release_gate_failure");
+      return { status: "automated_revision" };
+    }
+    qa.summary = qa.summary || "The package did not clear the automated release quality gate after repeated revision attempts.";
+    throw new Error(qa.summary);
+  }
+  if (status === "needs_more_information") {
     await markNeedsMoreInformation(supabase, job, manifest, qa);
     return { status: "needs_more_information" };
   }
@@ -1259,8 +1551,12 @@ async function processJob(supabase, job) {
   if (textFailures.length) {
     qa.hardGateFailures = [...new Set([...(Array.isArray(qa.hardGateFailures) ? qa.hardGateFailures : []), ...textFailures])];
     qa.summary = qa.summary || "The package did not clear text quality checks.";
-    await markNeedsMoreInformation(supabase, job, manifest, qa);
-    return { status: "needs_more_information" };
+    if (attemptsRemaining(job)) {
+      await requeueForAutomatedRevision(supabase, job, manifest, qa, textFailures, "text_quality_failure");
+      return { status: "automated_revision" };
+    }
+    qa.summary = qa.summary || "The package did not clear text quality checks after repeated revision attempts.";
+    throw new Error(qa.summary);
   }
   const release = await uploadAndReleaseDeliverables(supabase, job, files, manifest, qa);
   const notificationResult = await notifyClient(supabase, job, release, manifest);
@@ -1280,6 +1576,16 @@ async function runOnce(supabase) {
     log("job completed", { jobId: job.id, status: result.status });
   } catch (error) {
     const status = error.message.includes("Codex CLI provider is disabled") ? "paused_capacity" : "failed";
+    if (status !== "paused_capacity" && attemptsRemaining(job)) {
+      const qa = {
+        score: 0,
+        summary: `${RESPONSE_ENGINE_LABEL} run failed before release and was queued for automated retry.`,
+        hardGateFailures: [String(error?.message || error || "Worker run failed.").slice(0, 300)],
+      };
+      await requeueForAutomatedRevision(supabase, job, { status: "automated_revision" }, qa, qa.hardGateFailures, "worker_error");
+      log("job queued for automated retry", { jobId: job.id, attempt: Number(job.attempts || 0), maxAttempts: maxResponseEngineAttempts(job), error: error.message });
+      return true;
+    }
     await markFailed(supabase, job, error, status);
     log("job failed", { jobId: job.id, status, error: error.message });
   }
@@ -1308,6 +1614,7 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS,
+  DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS,
   DELIVERABLE_METADATA_AUTHOR,
   ORCHESTRATION_ROLES,
   REQUIRED_QA_CHECKS,
@@ -1315,6 +1622,9 @@ module.exports = {
   buildJobManifest,
   buildPrompt,
   hasRequiredFitGapAssessment,
+  attemptsRemaining,
+  clientInputRequired,
+  maxResponseEngineAttempts,
   maxResponseEngineSubagents,
   qaCheckPassed,
   qaCleared,

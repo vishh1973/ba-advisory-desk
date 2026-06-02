@@ -11,11 +11,15 @@ const {
   normalizeSelectedKeys,
 } = require("../api/_lib/responseEngine");
 const {
+  DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS,
   DELIVERABLE_METADATA_AUTHOR,
   REQUIRED_QA_CHECKS,
+  attemptsRemaining,
   buildJobManifest,
   buildPrompt,
+  clientInputRequired,
   hasRequiredFitGapAssessment,
+  maxResponseEngineAttempts,
   maxResponseEngineSubagents,
   qaReleaseGateFailures,
   textQualityFailures,
@@ -78,6 +82,7 @@ test("Response Engine constants use the production service key", () => {
   assert.ok(OUTPUT_CATALOG.polished_resume);
   assert.ok(FORMAT_CATALOG.docx);
   assert.ok(FILE_ROLE_CATALOG.candidate_resume);
+  assert.ok(FILE_ROLE_CATALOG.supporting_evidence);
 });
 
 test("Response Engine full package costs three response credits", () => {
@@ -129,10 +134,17 @@ test("Response Engine file context is normalized and capped", () => {
       file_role: "unsupported",
       file_description: "Reference",
     },
+    {
+      storage_path: "user/request/follow-up.pdf",
+      file_name: "follow-up.pdf",
+      file_role: "supporting_evidence",
+      file_description: "Follow-up evidence",
+    },
   ]);
   assert.equal(contexts[0].role, "candidate_resume");
   assert.equal(contexts[0].description.length, 1000);
   assert.equal(contexts[1].role, "other");
+  assert.equal(contexts[2].role, "supporting_evidence");
 });
 
 test("Response Engine worker caps dynamic subagents at six", () => {
@@ -160,11 +172,22 @@ test("Response Engine worker caps dynamic subagents at six", () => {
     assert.equal(manifest.orchestrationPolicy.maxSubagents, 6);
     assert.equal(manifest.orchestrationPolicy.dynamicSubagentsRequired, true);
     assert.equal(manifest.qualityControls.releaseThreshold, 8.5);
+    assert.equal(manifest.qualityControls.minimumAutomatedAttemptsBeforeFinalFailure, 3);
     assert.equal(manifest.qualityControls.metadataAuthorRequired, DELIVERABLE_METADATA_AUTHOR);
   } finally {
     if (originalMax === undefined) delete process.env.RESPONSE_ENGINE_MAX_SUBAGENTS;
     else process.env.RESPONSE_ENGINE_MAX_SUBAGENTS = originalMax;
   }
+});
+
+test("Response Engine worker enforces at least three automated attempts", () => {
+  assert.equal(DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS, 3);
+  assert.equal(maxResponseEngineAttempts({ max_attempts: 1 }), 3);
+  assert.equal(maxResponseEngineAttempts({ max_attempts: 2 }), 3);
+  assert.equal(maxResponseEngineAttempts({ max_attempts: 5 }), 5);
+  assert.equal(attemptsRemaining({ attempts: 1, max_attempts: 3 }), true);
+  assert.equal(attemptsRemaining({ attempts: 2, max_attempts: 3 }), true);
+  assert.equal(attemptsRemaining({ attempts: 3, max_attempts: 3 }), false);
 });
 
 test("Response Engine worker prompt requires subagent orchestration and factual QA", async () => {
@@ -219,10 +242,18 @@ test("Response Engine worker prompt requires human rewrite, fit-gap, and consult
   assert.match(prompt, /Do not use em dash or en dash punctuation/);
   assert.match(prompt, /Fit-Gap Assessment/);
   assert.match(prompt, /strong matches, areas to beef up, visible gaps, and candidate follow-up questions/);
+  assert.match(prompt, /clientInputRequired/);
+  assert.match(prompt, /internal quality problems/i);
   assert.match(prompt, /top-tier consulting standard/);
   assert.match(prompt, /readable wrapped text/);
   assert.match(prompt, /BA Advisory Desk/);
   assert.match(prompt, /metadata author, creator, company, manager, last modified by, and producer/i);
+});
+
+test("Response Engine distinguishes client evidence gaps from internal quality failure", () => {
+  assert.equal(clientInputRequired({ clientInputRequired: true }, {}), true);
+  assert.equal(clientInputRequired({}, { needsClientInput: true }), true);
+  assert.equal(clientInputRequired({ status: "needs_more_information" }, { summary: "Formatting failed." }), false);
 });
 
 test("Response Engine release gate requires factual grounding and keyword QA", () => {

@@ -19,6 +19,8 @@ const {
 
 const RESPONSE_CREDIT_LABEL = "Bid/Proposal Automation credit";
 const PACKAGE_SUBMIT_ROLES = new Set(["owner", "manager", "recruiter"]);
+const MAX_INITIAL_RESPONSE_FILES = 10;
+const MAX_RESPONSE_FILES_WITH_FOLLOW_UP = 15;
 
 function requirePackageSubmitRole(workspace) {
   const role = String(workspace?.membership?.role || "").toLowerCase();
@@ -263,7 +265,8 @@ async function queuePackage(supabase, req) {
       fileCount: null,
     };
   }
-  if (responseRequest.status !== "files_pending") {
+  const requeueingAfterClientInput = responseRequest.status === "needs_more_information";
+  if (!["files_pending", "needs_more_information"].includes(responseRequest.status)) {
     const error = new Error("This package is already in progress or has already been completed. It cannot be queued again.");
     error.status = 409;
     throw error;
@@ -282,8 +285,9 @@ async function queuePackage(supabase, req) {
     error.status = 400;
     throw error;
   }
-  if (files.length > 10) {
-    const error = new Error(`${RESPONSE_ENGINE_LABEL} packages accept no more than 10 files.`);
+  const fileLimit = requeueingAfterClientInput ? MAX_RESPONSE_FILES_WITH_FOLLOW_UP : MAX_INITIAL_RESPONSE_FILES;
+  if (files.length > fileLimit) {
+    const error = new Error(`${RESPONSE_ENGINE_LABEL} packages accept no more than ${fileLimit} files${requeueingAfterClientInput ? " after follow-up evidence is added" : ""}.`);
     error.status = 400;
     throw error;
   }
@@ -310,18 +314,44 @@ async function queuePackage(supabase, req) {
     };
   });
 
-  let { data: job, error: jobError } = await supabase
-    .from("response_engine_jobs")
-    .insert({
-      request_id: requestId,
-      organization_id: workspace.organizationId,
-      project_id: responseRequest.project_id,
-      status: "queued",
-      provider: "codex_cli",
-      provider_mode: "pilot_subscription",
-    })
-    .select("id,status")
-    .maybeSingle();
+  let job = null;
+  let jobError = null;
+  if (requeueingAfterClientInput) {
+    const result = await supabase
+      .from("response_engine_jobs")
+      .update({
+        status: "queued",
+        queued_at: new Date().toISOString(),
+        picked_up_at: null,
+        attempts: 0,
+        max_attempts: 3,
+        error_message: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("request_id", requestId)
+      .eq("organization_id", workspace.organizationId)
+      .eq("status", "needs_more_information")
+      .select("id,status")
+      .maybeSingle();
+    job = result.data;
+    jobError = result.error;
+  } else {
+    const result = await supabase
+      .from("response_engine_jobs")
+      .insert({
+        request_id: requestId,
+        organization_id: workspace.organizationId,
+        project_id: responseRequest.project_id,
+        status: "queued",
+        provider: "codex_cli",
+        provider_mode: "pilot_subscription",
+        max_attempts: 3,
+      })
+      .select("id,status")
+      .maybeSingle();
+    job = result.data;
+    jobError = result.error;
+  }
 
   if (jobError?.code === "23505") {
     const { data: existingJob, error: existingJobError } = await supabase
@@ -337,8 +367,26 @@ async function queuePackage(supabase, req) {
   } else if (jobError) {
     throw jobError;
   }
+  if (requeueingAfterClientInput && !job?.id) {
+    const { data: fallbackJob, error: fallbackJobError } = await supabase
+      .from("response_engine_jobs")
+      .insert({
+        request_id: requestId,
+        organization_id: workspace.organizationId,
+        project_id: responseRequest.project_id,
+        status: "queued",
+        provider: "codex_cli",
+        provider_mode: "pilot_subscription",
+        attempts: 0,
+        max_attempts: 3,
+      })
+      .select("id,status")
+      .maybeSingle();
+    if (fallbackJobError?.code !== "23505" && fallbackJobError) throw fallbackJobError;
+    job = fallbackJob || job;
+  }
 
-  await Promise.all([
+  const queueUpdates = await Promise.all([
     supabase
       .from("response_engine_requests")
       .update({ status: "queued", file_context: fileContext })
@@ -358,12 +406,14 @@ async function queuePackage(supabase, req) {
         event_type: "response_engine_job_queued",
         related_entity_type: "request",
         related_entity_id: requestId,
-        event_detail: { file_count: files.length, job_id: job?.id || null },
+        event_detail: { file_count: files.length, job_id: job?.id || null, resubmission: requeueingAfterClientInput },
         source: "client_workspace",
       }),
   ]);
+  const queueUpdateError = queueUpdates.find((result) => result?.error)?.error;
+  if (queueUpdateError) throw queueUpdateError;
 
-  return { queued: true, jobId: job?.id || null, fileCount: files.length };
+  return { queued: true, jobId: job?.id || null, fileCount: files.length, resubmission: requeueingAfterClientInput };
 }
 
 async function cancelPackage(supabase, req) {
@@ -391,7 +441,7 @@ async function cancelPackage(supabase, req) {
     throw error;
   }
 
-  if (!["files_pending", "queued", "paused_capacity", "failed"].includes(responseRequest.status)) {
+  if (!["files_pending", "queued", "paused_capacity", "needs_more_information", "failed"].includes(responseRequest.status)) {
     const error = new Error("This package is already being processed and cannot be cancelled from the client workspace.");
     error.status = 409;
     throw error;
@@ -414,7 +464,7 @@ async function cancelPackage(supabase, req) {
       .then(() => null, () => null);
   }
 
-  await Promise.all([
+  const cancelUpdates = await Promise.all([
     supabase
       .from("response_engine_jobs")
       .update({ status: "failed", error_message: reason })
@@ -444,6 +494,8 @@ async function cancelPackage(supabase, req) {
         source: "client_workspace",
       }),
   ]);
+  const cancelUpdateError = cancelUpdates.find((result) => result?.error)?.error;
+  if (cancelUpdateError) throw cancelUpdateError;
 
   return { cancelled: true };
 }

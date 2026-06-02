@@ -251,6 +251,16 @@ async function responseBalance(organizationId) {
   };
 }
 
+async function responseReserveLedgerCount(requestId) {
+  const { data, error } = await service
+    .from("response_credit_ledger")
+    .select("id", { count: "exact" })
+    .eq("related_request_id", requestId)
+    .eq("entry_type", "reserve");
+  if (error) throw error;
+  return data?.length || 0;
+}
+
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
   for (let i = 0; i < 256; i += 1) {
@@ -871,6 +881,66 @@ async function main() {
   record("finalize rejects more than 10 files", upload11.result.status === 400, upload11.result.text);
   const cancelTemp = await cancelPackage(ownerAuth.token, tempPackage.data.requestId, "Negative test package cancelled.");
   record("cancel releases temp package reservation", cancelTemp.status === 200, cancelTemp.text);
+
+  const resubmitPackage = await createPackage(ownerAuth.token, {
+    packageTitle: `QA Resubmission ${runId}`,
+    outputOptions: ["polished_resume"],
+    outputFormats: ["docx"],
+  });
+  record("resubmission package created", resubmitPackage.status === 200 && resubmitPackage.data.creditCost === 1, resubmitPackage.text);
+  const resubmitInitialUpload = await uploadFiles(ownerAuth.client, owner.id, resubmitPackage.data.requestId, organizationId, resubmitPackage.data.projectId, ownerAuth.token, [{
+    name: "Initial Candidate Resume.docx",
+    role: "candidate_resume",
+    description: "Initial resume missing project evidence.",
+    contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    data: docxBuffer("Initial resume. Business analyst. Missing criteria evidence."),
+  }]);
+  record("resubmission initial source finalized", resubmitInitialUpload.result.status === 200, resubmitInitialUpload.result.text);
+  const resubmitQueue = await queuePackage(ownerAuth.token, resubmitPackage.data.requestId);
+  record("resubmission package initially queued", resubmitQueue.status === 200 && resubmitQueue.data.queued, resubmitQueue.text);
+  const beforeResubmitBalance = await responseBalance(organizationId);
+  const reserveCountBefore = await responseReserveLedgerCount(resubmitPackage.data.requestId);
+  const forcedNeedsInfoUpdates = await Promise.all([
+    service.from("response_engine_requests").update({
+      status: "needs_more_information",
+      qa_score: 6.8,
+      qa_summary: "Please add project evidence for the mandatory requirement and any client template instructions.",
+    }).eq("request_id", resubmitPackage.data.requestId).eq("organization_id", organizationId),
+    service.from("requests").update({ status: "file_upload_attention" }).eq("id", resubmitPackage.data.requestId).eq("organization_id", organizationId),
+    service.from("response_engine_jobs").update({
+      status: "needs_more_information",
+      attempts: 3,
+      max_attempts: 3,
+      qa_score: 6.8,
+      error_message: "Please add project evidence for the mandatory requirement and any client template instructions.",
+    }).eq("request_id", resubmitPackage.data.requestId).eq("organization_id", organizationId),
+  ]);
+  const forcedNeedsInfoError = forcedNeedsInfoUpdates.find((result) => result?.error)?.error;
+  if (forcedNeedsInfoError) throw forcedNeedsInfoError;
+  const supplementalUpload = await uploadFiles(ownerAuth.client, owner.id, resubmitPackage.data.requestId, organizationId, resubmitPackage.data.projectId, ownerAuth.token, [{
+    name: "Supplemental Project Evidence.pdf",
+    role: "supporting_evidence",
+    description: "Additional evidence requested for the same package.",
+    contentType: "application/pdf",
+    data: pdfBuffer("Supplemental evidence. Mandatory criteria. Client template instruction."),
+  }]);
+  record("supplemental source finalized on same request", supplementalUpload.result.status === 200, supplementalUpload.result.text);
+  const requeue = await queuePackage(ownerAuth.token, resubmitPackage.data.requestId);
+  record("needs-more-information package requeues same request", requeue.status === 200 && requeue.data.resubmission === true, requeue.text);
+  const afterResubmitBalance = await responseBalance(organizationId);
+  const reserveCountAfter = await responseReserveLedgerCount(resubmitPackage.data.requestId);
+  const { data: requeuedJob, error: requeuedJobError } = await service
+    .from("response_engine_jobs")
+    .select("id,status,attempts,max_attempts")
+    .eq("request_id", resubmitPackage.data.requestId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (requeuedJobError) throw requeuedJobError;
+  record("same job reset for resubmission", requeuedJob?.status === "queued" && Number(requeuedJob?.attempts || 0) === 0 && Number(requeuedJob?.max_attempts || 0) >= 3, JSON.stringify(requeuedJob || {}));
+  record("resubmission does not create second reserve ledger", reserveCountBefore === 1 && reserveCountAfter === 1, JSON.stringify({ reserveCountBefore, reserveCountAfter }));
+  record("resubmission does not reduce available credits again", afterResubmitBalance.availableBalance === beforeResubmitBalance.availableBalance && afterResubmitBalance.reservedBalance === beforeResubmitBalance.reservedBalance, JSON.stringify({ beforeResubmitBalance, afterResubmitBalance }));
+  const cancelResubmit = await cancelPackage(ownerAuth.token, resubmitPackage.data.requestId, "Resubmission QA package cancelled after credit safety checks.");
+  record("cancel releases resubmission package reservation", cancelResubmit.status === 200, cancelResubmit.text);
 
   const mainPackage = await createPackage(ownerAuth.token);
   record("main package created", mainPackage.status === 200 && mainPackage.data.creditCost === 5, mainPackage.text);
