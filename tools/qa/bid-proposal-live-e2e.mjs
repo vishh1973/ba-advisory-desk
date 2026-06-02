@@ -621,8 +621,8 @@ const outputManifest = {
   status: "ready",
   summary: "Candidate package completed with factual evidence mapping and recruiter fit-gap notes.",
   files: [
-    { relativePath: "outputs/candidate-resume-package.docx", fileName: "Candidate Resume Package.docx", label: "Polished candidate resume" },
-    { relativePath: "outputs/criteria-mapping-grid.xlsx", fileName: "Criteria Mapping Grid.xlsx", label: "Criteria mapping grid" }
+    { relativePath: "outputs/candidate-resume-package.docx", fileName: "Candidate Resume Package.docx", label: "Polished candidate resume, fit-gap assessment, recruiter checklist, and template-aligned formatting", outputKeys: ["polished_resume", "gap_note", "recruiter_checklist", "client_template"] },
+    { relativePath: "outputs/criteria-mapping-grid.xlsx", fileName: "Criteria Mapping Grid.xlsx", label: "Mandatory criteria matrix, rated criteria scoring map, and combined response grid", outputKeys: ["mandatory_matrix", "rated_matrix", "combined_grid"] }
   ]
 };
 const qa = {
@@ -739,11 +739,12 @@ async function runWorkerForQueuedJob(requestId) {
   const mockPath = await writeMockProvider();
   const jobRoot = path.join(os.tmpdir(), `baad-response-jobs-${runId}`);
   const nodeBin = process.env.QA_NODE_BIN || (fs.existsSync("/home/codexbot/.local/bin/node") ? "/home/codexbot/.local/bin/node" : "node");
-  const result = await run(nodeBin, ["scripts/response-engine-worker.js", "--limit=1"], {
+  const result = await run(nodeBin, ["scripts/response-engine-worker.js", "--limit=1", `--request-id=${requestId}`], {
     cwd: APP_ROOT,
     env: {
       RESPONSE_ENGINE_CODEX_BIN: nodeBin,
       RESPONSE_ENGINE_CODEX_ARGS: mockPath,
+      RESPONSE_ENGINE_REQUEST_ID: requestId,
       RESPONSE_ENGINE_JOB_ROOT: jobRoot,
       RESPONSE_ENGINE_CODEX_TIMEOUT_MS: "120000",
     },

@@ -21,11 +21,19 @@
       "destination": "/404.html"
     },
     {
+      "source": "/ops/:path*",
+      "destination": "/404.html"
+    },
+    {
       "source": "/README.md",
       "destination": "/404.html"
     },
     {
       "source": "/DEPLOYMENT_GUIDE.md",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/DEPLOYMENT_GUIDE-:path*",
       "destination": "/404.html"
     },
     {

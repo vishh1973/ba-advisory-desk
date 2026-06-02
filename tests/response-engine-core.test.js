@@ -18,9 +18,11 @@ const {
   buildJobManifest,
   buildPrompt,
   clientInputRequired,
+  clientNotificationEmail,
   hasRequiredFitGapAssessment,
   maxResponseEngineAttempts,
   maxResponseEngineSubagents,
+  outputCoverageFailures,
   qaReleaseGateFailures,
   textQualityFailures,
   validateEvidenceMap,
@@ -115,7 +117,7 @@ test("Response Engine add ons increase package cost only when selected", () => {
 });
 
 test("Response Engine selected keys are deduped and unknown keys are ignored", () => {
-  const keys = normalizeSelectedKeys(["DOCX", "docx", "bad-format", "xlsx"], FORMAT_CATALOG);
+  const keys = normalizeSelectedKeys(["DOCX", "docx", "zip", "bad-format", "xlsx"], FORMAT_CATALOG);
   assert.deepEqual(keys, ["docx", "xlsx"]);
 });
 
@@ -254,6 +256,42 @@ test("Response Engine distinguishes client evidence gaps from internal quality f
   assert.equal(clientInputRequired({ clientInputRequired: true }, {}), true);
   assert.equal(clientInputRequired({}, { needsClientInput: true }), true);
   assert.equal(clientInputRequired({ status: "needs_more_information" }, { summary: "Formatting failed." }), false);
+});
+
+test("Response Engine client notifications prefer submitting recruiter email", () => {
+  assert.equal(
+    clientNotificationEmail({
+      submitter_profile: { work_email: "recruiter@example.com" },
+      client_organizations: { billing_email: "billing@example.com" },
+    }),
+    "recruiter@example.com"
+  );
+  assert.equal(
+    clientNotificationEmail({
+      submitter_profile: {},
+      client_organizations: { billing_email: "billing@example.com" },
+    }),
+    "billing@example.com"
+  );
+});
+
+test("Response Engine requires all requested outputs before release", () => {
+  assert.deepEqual(
+    outputCoverageFailures(
+      ["polished_resume", "mandatory_matrix", "rated_matrix", "combined_grid", "client_template"],
+      [
+        { fileName: "Candidate Resume Package.docx", outputKeys: ["polished_resume", "client_template"] },
+        { fileName: "Criteria Mapping Grid.xlsx", outputKeys: ["mandatory_matrix", "rated_matrix", "combined_grid"] },
+      ]
+    ),
+    []
+  );
+  const failures = outputCoverageFailures(
+    ["polished_resume", "mandatory_matrix", "rated_matrix"],
+    [{ fileName: "Candidate Resume Package.docx", outputKeys: ["polished_resume"] }]
+  );
+  assert.ok(failures.some((failure) => failure.includes("mandatory criteria matrix")));
+  assert.ok(failures.some((failure) => failure.includes("rated criteria scoring map")));
 });
 
 test("Response Engine release gate requires factual grounding and keyword QA", () => {

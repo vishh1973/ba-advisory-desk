@@ -19,6 +19,15 @@ const DEFAULT_MAX_RESPONSE_ENGINE_ATTEMPTS = 3;
 const DEFAULT_MAX_RESPONSE_ENGINE_SOURCE_FILES = 15;
 const DELIVERABLE_METADATA_AUTHOR = "BA Advisory Desk";
 const RESPONSE_ENGINE_LABEL = "Bid/Proposal Automation";
+const REQUIRED_OUTPUT_LABELS = Object.freeze({
+  polished_resume: "polished resume",
+  mandatory_matrix: "mandatory criteria matrix",
+  rated_matrix: "rated criteria scoring map",
+  combined_grid: "combined response grid",
+  gap_note: "fit-gap assessment",
+  recruiter_checklist: "recruiter checklist",
+  client_template: "client template formatting",
+});
 const REQUIRED_QA_CHECKS = Object.freeze([
   "sourceReviewComplete",
   "evidenceTraceability",
@@ -235,14 +244,16 @@ async function readJson(filePath) {
   return JSON.parse(await fsp.readFile(filePath, "utf8"));
 }
 
-async function claimNextJob(supabase) {
+async function claimNextJob(supabase, requestId = "") {
   const selectColumns = "id,request_id,organization_id,project_id,status,provider,provider_mode,attempts,max_attempts,qa_score,qa_report,output_manifest,error_message,queued_at";
-  const { data, error } = await supabase
+  let query = supabase
     .from("response_engine_jobs")
     .select(selectColumns)
     .eq("status", "queued")
     .order("queued_at", { ascending: true })
     .limit(5);
+  if (requestId) query = query.eq("request_id", requestId);
+  const { data, error } = await query;
   if (error) throw error;
 
   for (const job of data || []) {
@@ -273,7 +284,7 @@ async function hydrateJob(supabase, job) {
     supabase
       .from("response_engine_requests")
       .select(
-        "request_id,package_title,candidate_name,target_role,opportunity_name,automation_notes,output_options,output_formats,file_context,credit_cost,status"
+        "request_id,submitted_by,package_title,candidate_name,target_role,opportunity_name,automation_notes,output_options,output_formats,file_context,credit_cost,status"
       )
       .eq("request_id", job.request_id)
       .maybeSingle(),
@@ -289,6 +300,16 @@ async function hydrateJob(supabase, job) {
   if (baseRequestError) throw baseRequestError;
   if (organizationError) throw organizationError;
   if (!responseRequest?.request_id) throw new Error(`${RESPONSE_ENGINE_LABEL} request details were not found for the claimed job.`);
+  let submitter = null;
+  if (responseRequest.submitted_by) {
+    const { data: submitterProfile, error: submitterError } = await supabase
+      .from("profiles")
+      .select("id,first_name,last_name,work_email")
+      .eq("id", responseRequest.submitted_by)
+      .maybeSingle();
+    if (submitterError) throw submitterError;
+    submitter = submitterProfile || null;
+  }
 
   return {
     ...job,
@@ -297,6 +318,7 @@ async function hydrateJob(supabase, job) {
       requests: baseRequest || {},
     },
     client_organizations: organization || {},
+    submitter_profile: submitter,
   };
 }
 
@@ -422,6 +444,8 @@ async function buildPrompt(jobDir, manifest) {
     "- Use manifest.clientInputRequired or qa-report.clientInputRequired only when the uploaded files do not contain enough evidence to prepare the requested package after treating unsupported items as gaps.",
     "- Do not use clientInputRequired for formatting, writing, QA, metadata, or internal quality problems. Those must be corrected through automated revision before release.",
     "- Create Word, Excel, PowerPoint, or PDF files only. Do not create ZIP files.",
+    "- For each deliverable listed in output-manifest.json, include outputKey or outputKeys using the requested output keys it satisfies.",
+    "- The package must satisfy every requested output. A single workbook can satisfy mandatory_matrix, rated_matrix, and combined_grid only when outputKeys lists all applicable keys.",
     "",
     "Agent orchestration rules:",
     `- Use up to ${manifest.orchestrationPolicy?.maxSubagents ?? DEFAULT_MAX_RESPONSE_ENGINE_SUBAGENTS} specialist subagents when the Codex environment makes subagents available.`,
@@ -560,6 +584,40 @@ function validateManifestFiles(jobDir, manifest) {
       fileName: safeFileName(file.fileName || path.basename(absolutePath), path.basename(absolutePath)),
     };
   });
+}
+
+function normalizedOutputKeys(file) {
+  const keys = [];
+  if (Array.isArray(file?.outputKeys)) keys.push(...file.outputKeys);
+  if (file?.outputKey) keys.push(file.outputKey);
+  const normalized = new Set(keys.map(normalizeStatusValue).filter(Boolean));
+  const text = [
+    file?.fileName,
+    file?.label,
+    file?.title,
+    file?.description,
+    file?.relativePath,
+  ].map((value) => String(value || "").toLowerCase()).join(" ");
+  if (/resume|candidate profile|candidate package/.test(text)) normalized.add("polished_resume");
+  if (/mandatory/.test(text)) normalized.add("mandatory_matrix");
+  if (/rated|scoring|score/.test(text)) normalized.add("rated_matrix");
+  if (/combined|grid|matrix|criteria/.test(text)) normalized.add("combined_grid");
+  if (/fit.?gap|gap note|risk note/.test(text)) normalized.add("gap_note");
+  if (/checklist|submission checklist/.test(text)) normalized.add("recruiter_checklist");
+  if (/template/.test(text)) normalized.add("client_template");
+  return normalized;
+}
+
+function outputCoverageFailures(requestedOutputs, files) {
+  const requested = Array.isArray(requestedOutputs) ? requestedOutputs.map(normalizeStatusValue).filter(Boolean) : [];
+  if (!requested.length) return [];
+  const covered = new Set();
+  for (const file of files || []) {
+    for (const key of normalizedOutputKeys(file)) covered.add(key);
+  }
+  return requested
+    .filter((key) => REQUIRED_OUTPUT_LABELS[key] && !covered.has(key))
+    .map((key) => `Requested output is missing: ${REQUIRED_OUTPUT_LABELS[key]}.`);
 }
 
 function qaCheckPassed(value) {
@@ -1132,6 +1190,20 @@ function adminNotificationEmail() {
   return process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.RESEND_FORWARD_TO_EMAIL || "vishh1973@gmail.com";
 }
 
+function clientNotificationEmail(job) {
+  return job.submitter_profile?.work_email || job.client_organizations?.billing_email || "";
+}
+
+function notificationCycleKey(prefix, job) {
+  return [
+    prefix,
+    job.request_id,
+    job.id,
+    Number(job.attempts || 0),
+    Date.now(),
+  ].join(":");
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -1281,8 +1353,8 @@ async function sendResponseEngineNotification(supabase, job, { to, templateKey, 
 }
 
 async function notifyClient(supabase, job, release, manifest) {
-  const email = job.client_organizations?.billing_email || "";
-  if (!email) return { sent: false, skipped: true, reason: "No billing email." };
+  const email = clientNotificationEmail(job);
+  if (!email) return { sent: false, skipped: true, reason: "No client notification email." };
   return sendResponseEngineNotification(supabase, job, {
     to: email,
     templateKey: "response_engine_ready",
@@ -1294,12 +1366,12 @@ async function notifyClient(supabase, job, release, manifest) {
 }
 
 async function notifyNeedsMoreInformation(supabase, job, manifest, qa) {
-  const email = job.client_organizations?.billing_email || "";
+  const email = clientNotificationEmail(job);
   return sendResponseEngineNotification(supabase, job, {
     to: email,
     templateKey: "response_engine_needs_more_information",
     message: buildNeedsMoreInformationEmail(job, manifest, qa),
-    dedupeKey: `response_engine_needs_more_information:${job.request_id}:${job.id}:${Number(job.attempts || 0)}`,
+    dedupeKey: notificationCycleKey("response_engine_needs_more_information", job),
   });
 }
 
@@ -1313,12 +1385,12 @@ async function notifyAdminFailure(supabase, job, qa, error) {
 }
 
 async function notifyClientServiceReview(supabase, job, error) {
-  const email = job.client_organizations?.billing_email || "";
+  const email = clientNotificationEmail(job);
   return sendResponseEngineNotification(supabase, job, {
     to: email,
     templateKey: "response_engine_service_review",
     message: buildClientServiceReviewEmail(job, error),
-    dedupeKey: `response_engine_service_review:${job.request_id}:${job.id}:${Number(job.attempts || 0)}`,
+    dedupeKey: notificationCycleKey("response_engine_service_review", job),
   });
 }
 
@@ -1546,6 +1618,16 @@ async function processJob(supabase, job) {
     return { status: "needs_more_information" };
   }
   const files = validateManifestFiles(jobDir, manifest);
+  const outputFailures = outputCoverageFailures(jobManifest.requestedOutputs, files);
+  if (outputFailures.length) {
+    qa.hardGateFailures = [...new Set([...(Array.isArray(qa.hardGateFailures) ? qa.hardGateFailures : []), ...outputFailures])];
+    qa.summary = qa.summary || "The package did not produce every requested output.";
+    if (attemptsRemaining(job)) {
+      await requeueForAutomatedRevision(supabase, job, manifest, qa, outputFailures, "requested_output_missing");
+      return { status: "automated_revision" };
+    }
+    throw new Error(qa.summary);
+  }
   await scrubOutputMetadata(files);
   const textFailures = await outputTextQualityFailures(files, { requireFitGapAssessment: true });
   if (textFailures.length) {
@@ -1565,7 +1647,9 @@ async function processJob(supabase, job) {
 }
 
 async function runOnce(supabase) {
-  const job = await claimNextJob(supabase);
+  const requestIdArg = process.argv.find((arg) => arg.startsWith("--request-id="));
+  const scopedRequestId = String(process.env.RESPONSE_ENGINE_REQUEST_ID || requestIdArg?.split("=")[1] || "").trim();
+  const job = await claimNextJob(supabase, scopedRequestId);
   if (!job) {
     log("no queued job");
     return false;
@@ -1624,8 +1708,10 @@ module.exports = {
   hasRequiredFitGapAssessment,
   attemptsRemaining,
   clientInputRequired,
+  clientNotificationEmail,
   maxResponseEngineAttempts,
   maxResponseEngineSubagents,
+  outputCoverageFailures,
   qaCheckPassed,
   qaCleared,
   qaReleaseGateFailures,

@@ -50,7 +50,6 @@ const FORMAT_CATALOG = {
   docx: "Word document",
   xlsx: "Excel workbook",
   pdf: "PDF copy",
-  zip: "ZIP package",
   uploaded_template: "Use uploaded template where possible",
 };
 
